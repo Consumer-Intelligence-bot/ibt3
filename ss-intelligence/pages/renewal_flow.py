@@ -10,18 +10,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import dash
 import dash_bootstrap_components as dbc
-import plotly.graph_objects as go
-from dash import Input, Output, callback, dcc, html
+from dash import Input, Output, callback, html
 
 from analytics.demographics import apply_filters
-from analytics.flows import (
-    calc_top_destinations,
-    calc_top_sources,
-    is_flow_cell_suppressed,
-)
-from analytics.rates import calc_retention_rate, calc_shopping_rate, calc_switching_rate
 from components.filter_bar import filter_bar
-from config import CI_GREEN, CI_GREY, CI_MAGENTA, CI_RED, CI_BLUE, CI_LIGHT_GREY
+from config import CI_GREEN, CI_GREY, CI_MAGENTA, CI_RED, CI_BLUE
 from shared import DF_MOTOR
 
 dash.register_page(__name__, path="/renewal-flow", name="Renewal Flow")
