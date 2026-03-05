@@ -9,6 +9,7 @@ import WhyTheyMove from './components/screen4/WhyTheyMove';
 import ScreenLayout from './components/shared/ScreenLayout';
 import MarketPulse from './components/screen1/MarketPulse';
 import ShopOrStay from './components/screen2/ShopOrStay';
+import RenewalFlow from './components/screen2/RenewalFlow';
 import ValidationPage from './components/shared/ValidationPage';
 import { runValidation } from './utils/validation';
 import { FONT, COLORS } from './utils/brandConstants';
@@ -64,6 +65,11 @@ function AppContent() {
           <Route path="/renewal-journey" element={
             <ScreenLayout activeStage="renewals">
               <RenewalJourney />
+            </ScreenLayout>
+          } />
+          <Route path="/renewal-flow" element={
+            <ScreenLayout activeStage="renewals">
+              <RenewalFlow />
             </ScreenLayout>
           } />
           <Route path="/who-shops-who-stays" element={

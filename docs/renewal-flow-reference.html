@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Insurance Renewal Flow — IBT Motor POST</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'DM Sans', sans-serif; background: #f4f5f7; color: #222; font-size: 11px; }
+
+  .top-bar {
+    display: flex; align-items: center; padding: 6px 16px;
+    background: #fff; border-bottom: 1px solid #ddd; gap: 14px;
+  }
+  .brand { font-family: 'Space Mono', monospace; font-weight: 700; font-size: 10px; color: #7b5ea7; line-height: 1.15; }
+  .nav a { text-decoration: none; color: #666; font-weight: 500; margin-right: 10px; font-size: 10px; }
+
+  .toolbar {
+    display: flex; align-items: center; padding: 5px 16px;
+    background: #fff; border-bottom: 1px solid #ddd; gap: 8px;
+  }
+  .toolbar .path { color: #888; font-size: 10px; }
+  .toolbar input {
+    border: 1px solid #ddd; border-radius: 4px; padding: 2px 6px;
+    font-size: 11px; font-family: inherit; width: 80px; outline: none; margin-left: auto;
+  }
+  .pills { display: flex; border: 1px solid #ddd; border-radius: 4px; overflow: hidden; }
+  .pills button {
+    padding: 2px 8px; font-size: 9px; font-weight: 600; cursor: pointer;
+    background: #fff; border: none; font-family: inherit; color: #666;
+  }
+  .pills button.on { background: #2e9e5a; color: #fff; }
+  .pills button:not(:last-child) { border-right: 1px solid #ddd; }
+
+  .scene { padding: 6px 4px; }
+
+  .canvas {
+    position: relative; width: 860px; height: 500px;
+    border-radius: 8px; overflow: visible;
+    box-shadow: 0 1px 5px rgba(0,0,0,0.06);
+    transform-origin: top left;
+  }
+
+  .bg { position: absolute; top: 0; bottom: 0; z-index: 0; }
+  .bg-a { left: 0; width: 155px; background: #e8ecf3; border-radius: 8px 0 0 8px; }
+  .bg-b { left: 155px; width: 360px; background: #fafbfc; }
+  .bg-c { left: 515px; width: 345px; background: #e3f1e6; border-radius: 0 8px 8px 0; }
+
+  .bg-lbl {
+    position: absolute; bottom: 5px; left: 50%; transform: translateX(-50%);
+    font-family: 'Space Mono', monospace; font-size: 8px; font-weight: 700;
+    letter-spacing: 1.5px; text-transform: uppercase; white-space: nowrap;
+  }
+  .bg-a .bg-lbl { color: #8890b8; }
+  .bg-b .bg-lbl { color: #bbb; }
+  .bg-c .bg-lbl { color: #2e9e5a; }
+
+  svg.arr {
+    position: absolute; top: 0; left: 0; width: 860px; height: 500px; z-index: 1;
+    pointer-events: none;
+  }
+  svg.arr line, svg.arr path { fill: none; stroke: #bfc4cd; stroke-width: 1.6; }
+  svg.arr .gg line, svg.arr .gg path { stroke: #2e9e5a; }
+  svg.arr .gr line, svg.arr .gr path { stroke: #d63c3c; }
+
+  .n {
+    position: absolute; z-index: 3;
+    background: #fff; border-radius: 7px; padding: 7px 10px; text-align: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.10);
+    border: 1.5px solid #e0e3e8;
+  }
+  .n:hover { box-shadow: 0 4px 14px rgba(0,0,0,0.16); }
+
+  .n-icon { font-size: 18px; margin-bottom: 2px; }
+  .n-title { font-size: 9.5px; font-weight: 600; line-height: 1.2; margin-bottom: 2px; }
+  .n-val { font-family: 'Space Mono', monospace; font-size: 14px; font-weight: 700; }
+  .n-sub { font-size: 9px; color: #999; }
+
+  .gn .n-title, .gn .n-val { color: #2e9e5a; }
+  .gn { border-color: #b8dfc5; background: #f8fcf9; }
+  .tl .n-title, .tl .n-val { color: #1a9988; }
+  .tl { border-color: #b5e0d9; background: #f5fbfa; }
+  .bu .n-title, .bu .n-val { color: #2979c9; }
+  .bu { border-color: #b8d4ef; background: #f5f9fd; }
+  .og .n-title, .og .n-val { color: #c47a00; }
+  .og { border-color: #f0d7a0; background: #fffcf5; }
+  .rd .n-title, .rd .n-val { color: #d63c3c; }
+  .rd { border-color: #f0b8b8; background: #fdf5f5; }
+
+  .n.bdr { background: transparent; box-shadow: none; border: 2.5px solid #2e9e5a; }
+
+  .ic {
+    position: absolute; z-index: 2;
+    width: 36px; height: 36px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; font-size: 16px;
+  }
+
+  .badge { display: inline-block; font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 8px; background: #d4edda; color: #2e9e5a; }
+
+  .ls { text-align: left; margin-top: 4px; }
+  .lr { display: flex; justify-content: space-between; font-size: 9px; padding: 1.5px 0; gap: 8px; }
+  .ln { color: #666; }
+  .lvg { font-family: 'Space Mono', monospace; font-weight: 700; color: #2e9e5a; font-size: 9px; }
+  .lvr { font-family: 'Space Mono', monospace; font-weight: 700; color: #d63c3c; font-size: 9px; }
+
+  .cb { display: flex; height: 6px; border-radius: 3px; overflow: hidden; margin-top: 6px; }
+  .cl { display: flex; justify-content: space-between; margin-top: 3px; font-size: 8px; color: #555; }
+  .dt { width: 6px; height: 6px; border-radius: 50%; display: inline-block; margin-right: 2px; vertical-align: middle; }
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+  <div class="brand">consumer<br>intelligence</div>
+  <div class="nav">
+    <a href="#">Home</a><a href="#">Download Centre</a><a href="#">Toolkits</a>
+    <a href="#">Power BI</a><a href="#">Training</a><a href="#">Admin</a>
+  </div>
+</div>
+<div class="toolbar">
+  <span class="path">Toolkits / IBT_Motor_POST.qvw</span>
+  <input value="Aviva" />
+  <div class="pills">
+    <button class="on" onclick="this.parentNode.querySelectorAll('button').forEach(b=>b.classList.remove('on'));this.classList.add('on')">%</button>
+    <button onclick="this.parentNode.querySelectorAll('button').forEach(b=>b.classList.remove('on'));this.classList.add('on')">Num</button>
+    <button onclick="this.parentNode.querySelectorAll('button').forEach(b=>b.classList.remove('on'));this.classList.add('on')">Both</button>
+  </div>
+</div>
+
+<div class="scene">
+<div class="canvas">
+
+  <div class="bg bg-a"><div class="bg-lbl">PRE-RENEWAL</div></div>
+  <div class="bg bg-b"><div class="bg-lbl">RENEWAL</div></div>
+  <div class="bg bg-c"><div class="bg-lbl">POST-RENEWAL</div></div>
+
+  <svg class="arr" viewBox="0 0 860 500">
+    <defs>
+      <marker id="ma" markerWidth="6" markerHeight="5" refX="6" refY="2.5" orient="auto"><polygon points="0 0,6 2.5,0 5" fill="#bfc4cd"/></marker>
+      <marker id="mg" markerWidth="6" markerHeight="5" refX="6" refY="2.5" orient="auto"><polygon points="0 0,6 2.5,0 5" fill="#2e9e5a"/></marker>
+      <marker id="mr" markerWidth="6" markerHeight="5" refX="6" refY="2.5" orient="auto"><polygon points="0 0,6 2.5,0 5" fill="#d63c3c"/></marker>
+    </defs>
+
+    <!-- Pre: envelope → people -->
+    <line x1="77" y1="110" x2="77" y2="160" stroke-dasharray="4,3" marker-end="url(#ma)"/>
+    <!-- Pre: people → question -->
+    <line x1="77" y1="215" x2="77" y2="255" stroke-dasharray="4,3" marker-end="url(#ma)"/>
+    <!-- Pre: question → right -->
+    <line x1="102" y1="280" x2="155" y2="280" marker-end="url(#ma)"/>
+
+    <!-- Split up to non-shoppers -->
+    <path d="M 172 268 C 200 268, 218 200, 245 200" marker-end="url(#ma)"/>
+    <!-- Split down to shoppers -->
+    <path d="M 172 292 C 200 292, 218 368, 245 368" marker-end="url(#ma)"/>
+
+    <!-- new biz from left -->
+    <line x1="160" y1="92" x2="252" y2="92" marker-end="url(#ma)"/>
+
+    <!-- non-shoppers → retained -->
+    <g class="gg"><path d="M 365 200 C 430 200, 470 255, 548 255" marker-end="url(#mg)"/></g>
+
+    <!-- shoppers → stayed -->
+    <path d="M 365 358 C 388 358, 398 305, 410 305" marker-end="url(#ma)"/>
+    <!-- shoppers → switched -->
+    <path d="M 365 378 C 388 378, 398 418, 410 418" marker-end="url(#ma)"/>
+
+    <!-- stayed → retained -->
+    <g class="gg"><path d="M 520 305 C 533 305, 538 265, 548 265" marker-end="url(#mg)"/></g>
+
+    <!-- switched → lost -->
+    <g class="gr"><path d="M 520 418 C 533 418, 538 408, 548 408" marker-end="url(#mr)"/></g>
+
+    <!-- new biz → won from -->
+    <g class="gg"><line x1="382" y1="88" x2="548" y2="88" marker-end="url(#mg)"/></g>
+
+    <!-- won from → after mkt share -->
+    <g class="gg"><path d="M 692 95 C 718 95, 722 155, 723 165" marker-end="url(#mg)"/></g>
+
+    <!-- retained → after mkt share -->
+    <g class="gg"><path d="M 682 260 C 718 260, 722 205, 723 195" marker-end="url(#mg)"/></g>
+
+    <!-- after → customer base -->
+    <g class="gg"><line x1="790" y1="230" x2="790" y2="275" marker-end="url(#mg)"/></g>
+  </svg>
+
+  <!-- PRE-RENEWAL -->
+  <div class="ic" style="top:72px;left:60px;background:#dce5f0;">&#9993;</div>
+  <div class="ic" style="top:168px;left:60px;background:#ede7f6;">&#128101;</div>
+  <div class="ic" style="top:260px;left:60px;background:#fff3e0;font-size:13px;">&#10067;</div>
+
+  <div class="n bdr gn" style="top:355px;left:12px;width:130px;">
+    <div class="n-title" style="color:#2e9e5a">Pre-renewal<br>market share</div>
+    <div class="n-val" style="font-size:20px;color:#2e9e5a">13.0%</div>
+  </div>
+
+  <!-- RENEWAL -->
+  <div class="n tl" style="top:50px;left:255px;width:125px;">
+    <div class="n-icon">&#128100;+</div>
+    <div class="n-title" style="color:#1a9988">New business<br>acquisition</div>
+    <div class="n-val" style="color:#1a9988">39.4%</div>
+    <div class="n-sub">(38.5%)</div>
+  </div>
+
+  <div class="n bu" style="top:152px;left:245px;width:118px;">
+    <div class="n-icon">&#128222;</div>
+    <div class="n-title" style="color:#2979c9">Non-shoppers</div>
+    <div class="n-val" style="color:#2979c9">28.5%</div>
+    <div class="n-sub">(22.3%)</div>
+  </div>
+
+  <div class="n og" style="top:325px;left:245px;width:118px;">
+    <div class="n-icon">&#128722;</div>
+    <div class="n-title" style="color:#c47a00">Shoppers</div>
+    <div class="n-val" style="color:#c47a00">71.5%</div>
+    <div class="n-sub">(77.7%)</div>
+  </div>
+
+  <div class="n gn" style="top:260px;left:410px;width:108px;">
+    <div class="n-icon">&#128154;</div>
+    <div class="n-title" style="color:#2e9e5a">Shopped then<br>stayed</div>
+    <div class="n-val" style="color:#2e9e5a">65.3%</div>
+    <div class="n-sub">(50.4%)</div>
+  </div>
+
+  <div class="n rd" style="top:382px;left:410px;width:108px;">
+    <div class="n-icon">&#128260;</div>
+    <div class="n-title" style="color:#d63c3c">Shopped then<br>switched</div>
+    <div class="n-val" style="color:#d63c3c">34.7%</div>
+    <div class="n-sub">(49.6%)</div>
+  </div>
+
+  <!-- POST-RENEWAL -->
+  <div class="n gn" style="top:40px;left:550px;width:140px;">
+    <div class="n-title" style="color:#2e9e5a">Won from <span style="font-weight:400;color:#999">(top 3)</span></div>
+    <div class="ls">
+      <div class="lr"><span class="ln">Direct Line</span><span class="lvg">10.6%</span></div>
+      <div class="lr"><span class="ln">Admiral</span><span class="lvg">9.1%</span></div>
+      <div class="lr"><span class="ln">Churchill</span><span class="lvg">9.1%</span></div>
+    </div>
+  </div>
+
+  <div class="n gn" style="top:210px;left:550px;width:130px;">
+    <div class="n-icon">&#9989;</div>
+    <div class="n-title" style="color:#2e9e5a">Retained</div>
+    <div class="n-val" style="font-size:18px;color:#2e9e5a">75.2%</div>
+    <div class="n-sub">(61.5%)</div>
+  </div>
+
+  <div class="n gn" style="top:148px;left:725px;width:125px;">
+    <div class="n-icon">&#128101;</div>
+    <div class="n-title" style="color:#2e9e5a">After renewal<br>market share</div>
+    <div class="n-val" style="font-size:20px;color:#2e9e5a">16.1%</div>
+    <span class="badge">+3.1%</span>
+  </div>
+
+  <div class="n" style="top:280px;left:725px;width:125px;border-color:#c5c9d0;">
+    <div class="n-title" style="color:#555">Customer base</div>
+    <div class="cb">
+      <div style="width:60.6%;background:#2e9e5a;"></div>
+      <div style="width:39.4%;background:#1a9988;"></div>
+    </div>
+    <div class="cl">
+      <span><span class="dt" style="background:#2e9e5a"></span>Ret. 60.6%</span>
+      <span><span class="dt" style="background:#1a9988"></span>New 39.4%</span>
+    </div>
+  </div>
+
+  <div class="n rd" style="top:375px;left:550px;width:140px;">
+    <div class="n-title" style="color:#d63c3c">Lost to <span style="font-weight:400;color:#999">(top 3)</span></div>
+    <div class="ls">
+      <div class="lr"><span class="ln">AXA</span><span class="lvr">19.4%</span></div>
+      <div class="lr"><span class="ln">AA</span><span class="lvr">16.4%</span></div>
+      <div class="lr"><span class="ln">Admiral</span><span class="lvr">16.4%</span></div>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<script>
+function fitCanvas() {
+  const canvas = document.querySelector('.canvas');
+  const scene = document.querySelector('.scene');
+  const availW = scene.clientWidth - 8;
+  const scale = Math.min(1, availW / 860);
+  canvas.style.transform = `scale(${scale})`;
+  scene.style.height = (500 * scale + 12) + 'px';
+}
+fitCanvas();
+window.addEventListener('resize', fitCanvas);
+</script>
+
+</body>
+</html>

@@ -4,6 +4,7 @@ import { COLORS, FONT } from '../../utils/brandConstants';
 const TABS = [
   { label: 'Market Pulse',         path: '/' },
   { label: 'The Renewal Journey',  path: '/renewal-journey' },
+  { label: 'Renewal Flow',         path: '/renewal-flow' },
   { label: 'Who Shops, Who Stays', path: '/who-shops-who-stays' },
   { label: 'Why They Move',        path: '/why-they-move' },
   { label: 'Brand Lens',           path: '/brand-lens' },
