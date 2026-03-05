@@ -34,11 +34,14 @@ from config import (
     CI_WIDTH_PUBLISHABLE_RATE,
     CI_WIDTH_PUBLISHABLE_REASON,
     CI_YELLOW,
+    CONFIDENCE_LEVEL,
     MARKET_CI_ALERT_THRESHOLD,
     MIN_BASE_FLOW_CELL,
+    MIN_BASE_PUBLISHABLE,
     NPS_MIN_N,
     PRIOR_STRENGTH,
     SYSTEM_FLOOR_N,
+    TREND_NOISE_THRESHOLD,
 )
 from data.loader import PROCESSED_DIR
 from shared import DF_MOTOR, DF_QUESTIONS, DIMENSIONS, format_year_month
@@ -131,7 +134,7 @@ def _calc_insurer_quality(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _qc_flags_by_month(df: pd.DataFrame) -> pd.DataFrame:
-    """Q4=Q39 flag count per month."""
+    """Q4=Q39 flag count and rate per month."""
     if DF_QUESTIONS.empty or "RenewalYearMonth" not in df.columns:
         return pd.DataFrame()
 
@@ -203,6 +206,14 @@ def layout():
             ], md=6),
         ], className="mb-4"),
 
+        # Governance parameters (Spec 8.6)
+        dbc.Row([
+            dbc.Col([
+                html.H2("Governance Parameters"),
+                html.Div(id="admin-params-display"),
+            ], md=12),
+        ], className="mb-4"),
+
         # Market confidence + QC flags
         dbc.Row([
             dbc.Col([
@@ -243,6 +254,7 @@ def layout():
         Output("admin-kpis", "children"),
         Output("admin-threshold-table", "children"),
         Output("admin-changelog", "children"),
+        Output("admin-params-display", "children"),
         Output("admin-market-ci", "children"),
         Output("admin-qc-chart", "children"),
         Output("admin-distribution", "children"),
@@ -255,15 +267,15 @@ def layout():
 def update_admin(_path):
     total = len(DF_MOTOR)
     insurers = DIMENSIONS["DimInsurer"]["Insurer"].dropna().astype(str).tolist()
-    eligible = sum(1 for ins in insurers if len(DF_MOTOR[DF_MOTOR["CurrentCompany"] == ins]) >= SYSTEM_FLOOR_N)
+    eligible = sum(1 for ins in insurers if len(DF_MOTOR[DF_MOTOR["CurrentCompany"] == ins]) >= MIN_BASE_PUBLISHABLE)
     suppressed = len(insurers) - eligible
     freshness = _data_freshness_days(DF_MOTOR)
     fresh_alert = freshness is not None and freshness > 45
 
     kpis = [
         dbc.Col(ci_stat_card("Total Respondents", total, fmt="{:,}"), md=3),
-        dbc.Col(ci_stat_card("Eligible Insurers", eligible, fmt="{:,}"), md=3),
-        dbc.Col(ci_stat_card("Suppressed", suppressed, fmt="{:,}", alert=suppressed > 5), md=3),
+        dbc.Col(ci_stat_card("Eligible Insurers", eligible, fmt="{:,}", alert=eligible < 15), md=3),
+        dbc.Col(ci_stat_card("Suppressed", suppressed, fmt="{:,}", alert=suppressed > 10), md=3),
         dbc.Col(ci_stat_card(
             "Data Freshness",
             f"{freshness} days" if freshness else "N/A",
@@ -284,7 +296,7 @@ def update_admin(_path):
             {"name": "Description", "id": "description", "editable": False},
         ],
         style_table={"overflowX": "auto"},
-        style_header={"backgroundColor": "#F2F2F2", "fontWeight": 600, "fontSize": "12px"},
+        style_header={"backgroundColor": "#E9EAEB", "fontWeight": 600, "fontSize": "12px"},
         style_cell={"fontSize": "13px", "padding": "8px", "textAlign": "left"},
         style_data_conditional=[
             {"if": {"column_id": "value"}, "backgroundColor": "#FFFDE7"},
@@ -300,11 +312,29 @@ def update_admin(_path):
             data=log_df.to_dict("records"),
             columns=[{"name": c, "id": c} for c in log_df.columns],
             style_table={"overflowX": "auto", "maxHeight": "300px", "overflowY": "auto"},
-            style_header={"backgroundColor": "#F2F2F2", "fontWeight": 600, "fontSize": "11px"},
+            style_header={"backgroundColor": "#E9EAEB", "fontWeight": 600, "fontSize": "11px"},
             style_cell={"fontSize": "12px", "padding": "6px"},
         )
     else:
         changelog = html.P("No parameter changes recorded.", className="text-muted small")
+
+    # Governance parameters — read-only display (Spec 8.6)
+    market_ret = DF_MOTOR["IsRetained"].mean() if "IsRetained" in DF_MOTOR.columns else 0.5
+    params_table = dbc.Table(
+        [
+            html.Thead(html.Tr([html.Th("Parameter"), html.Th("Value"), html.Th("Description")])),
+            html.Tbody([
+                html.Tr([html.Td("Minimum base (publishable)"), html.Td(str(MIN_BASE_PUBLISHABLE)), html.Td("n \u2265 50 for client-facing outputs")]),
+                html.Tr([html.Td("Minimum base (indicative)"), html.Td("30"), html.Td("n \u2265 30 for internal review with caveat")]),
+                html.Tr([html.Td("Minimum base (flow cell)"), html.Td(str(MIN_BASE_FLOW_CELL)), html.Td("n \u2265 10 for insurer-to-insurer pairs")]),
+                html.Tr([html.Td("Bayesian prior strength"), html.Td(str(PRIOR_STRENGTH)), html.Td("Pseudo-observations (one month of small-insurer data)")]),
+                html.Tr([html.Td("Bayesian prior mean"), html.Td(f"{market_ret:.1%}"), html.Td("Market average retention rate")]),
+                html.Tr([html.Td("Confidence interval"), html.Td(f"{CONFIDENCE_LEVEL:.0%}"), html.Td("Credible interval level")]),
+                html.Tr([html.Td("Trend noise threshold"), html.Td(f"{TREND_NOISE_THRESHOLD:.1f}pp"), html.Td("Change must exceed avg CI width of comparison periods")]),
+            ]),
+        ],
+        striped=True, size="sm", className="ci-table",
+    )
 
     # Market-level CI
     from analytics.rates import calc_retention_rate, calc_shopping_rate, calc_switching_rate
@@ -320,15 +350,22 @@ def update_admin(_path):
             subtitle=f"Alert: > {MARKET_CI_ALERT_THRESHOLD}pp" if alert else None,
         ), md=4))
 
-    # QC flags chart
+    # QC flags chart — plot as RATE per month, with 2% threshold (Spec 12.4)
     qc_data = _qc_flags_by_month(DF_MOTOR)
     if not qc_data.empty:
         qc_data["month_label"] = qc_data["RenewalYearMonth"].apply(format_year_month)
         fig_qc = go.Figure()
-        fig_qc.add_trace(go.Bar(x=qc_data["month_label"], y=qc_data["flagged"], name="Flagged"))
+        fig_qc.add_trace(go.Bar(
+            x=qc_data["month_label"],
+            y=qc_data["flag_rate"],
+            name="Flag Rate",
+            marker_color=CI_GREY,
+            text=[f"{r:.1%}" for r in qc_data["flag_rate"]],
+            textposition="outside",
+        ))
         fig_qc.add_hline(y=0.02, line_dash="dash", line_color=CI_RED, annotation_text="2% threshold")
         fig_qc = create_branded_figure(fig_qc, title="")
-        fig_qc.update_layout(height=250, margin=dict(t=30))
+        fig_qc.update_layout(height=250, margin=dict(t=30), yaxis_tickformat=".1%")
         qc_chart = dcc.Graph(figure=fig_qc, config={"displayModeBar": False})
     else:
         qc_chart = html.P("No QC flag data available.", className="text-muted small")
@@ -368,20 +405,21 @@ def update_admin(_path):
             columns=[{"name": c, "id": c} for c in quality_df.columns],
             sort_action="native",
             style_table={"overflowX": "auto"},
-            style_header={"backgroundColor": "#F2F2F2", "fontWeight": 600, "fontSize": "12px"},
+            style_header={"backgroundColor": "#E9EAEB", "fontWeight": 600, "fontSize": "12px"},
             style_cell={"fontSize": "13px", "padding": "6px"},
             style_data_conditional=[
                 {"if": {"filter_query": "{Confidence} = HIGH"}, "color": CI_GREEN},
                 {"if": {"filter_query": "{Confidence} = MEDIUM"}, "color": CI_YELLOW},
                 {"if": {"filter_query": "{Confidence} = LOW"}, "color": "#E65100"},
                 {"if": {"filter_query": "{Confidence} = INSUFFICIENT"}, "color": CI_RED},
-                {"if": {"filter_query": "{n} < 15"}, "backgroundColor": "#FFEBEE"},
+                {"if": {"filter_query": "{n} < 50"}, "backgroundColor": "#FFEBEE"},
+                {"if": {"filter_query": "{n} < 100 && {n} >= 50"}, "backgroundColor": "#FFFDE7"},
             ],
         )
     else:
         quality_table = html.P("No insurer quality data.", className="text-muted")
 
-    return kpis, threshold_table, changelog, market_metrics, qc_chart, dist_div, val_table, quality_table
+    return kpis, threshold_table, changelog, params_table, market_metrics, qc_chart, dist_div, val_table, quality_table
 
 
 @callback(

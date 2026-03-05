@@ -17,7 +17,10 @@ from analytics.rates import calc_shopping_rate, calc_switching_rate, calc_retent
 from analytics.reasons import calc_reason_ranking
 from components.branded_chart import create_branded_figure
 from components.ci_card import ci_kpi_card, ci_stat_card
-from config import CI_GREEN, CI_GREY, CI_MAGENTA, MARKET_CI_ALERT_THRESHOLD
+from config import (
+    CI_GREEN, CI_GREY, CI_MAGENTA, DEFAULT_TIME_WINDOW_SHOPPING,
+    MARKET_CI_ALERT_THRESHOLD, MIN_BASE_REASON,
+)
 from shared import format_year_month
 
 
@@ -38,7 +41,7 @@ def register_callbacks(app, DF_MOTOR, DF_HOME):
     )
     def update_market_overview(product, time_window):
         product = product or "Motor"
-        tw = int(time_window or 24)
+        tw = int(time_window or DEFAULT_TIME_WINDOW_SHOPPING)
         df = DF_MOTOR if product == "Motor" else (DF_HOME if DF_HOME is not None and len(DF_HOME) > 0 else DF_MOTOR)
         df_market = apply_filters(df, product=product, time_window_months=tw)
         n = len(df_market)
@@ -47,15 +50,21 @@ def register_callbacks(app, DF_MOTOR, DF_HOME):
         switch = calc_switching_rate(df_market)
         retain = calc_retention_rate(df_market)
 
-        # KPI cards with Bayesian CI
+        # Data period card (Spec 5.2)
+        min_ym = df_market["RenewalYearMonth"].min() if "RenewalYearMonth" in df_market.columns else None
+        max_ym = df_market["RenewalYearMonth"].max() if "RenewalYearMonth" in df_market.columns else None
+        period_label = "—"
+        if pd.notna(min_ym) and pd.notna(max_ym):
+            period_label = f"{format_year_month(min_ym)} to {format_year_month(max_ym)}"
+
         kpi_cards = dbc.Row([
             dbc.Col(ci_kpi_card("Shopping Rate", shop, fmt="{:.0%}"), md=3),
             dbc.Col(ci_kpi_card("Switching Rate", switch, fmt="{:.0%}"), md=3),
             dbc.Col(ci_kpi_card("Retention Rate", retain, fmt="{:.0%}"), md=3),
-            dbc.Col(ci_stat_card("Respondents", n, fmt="{:,}"), md=3),
+            dbc.Col(ci_stat_card("Data Period", period_label, subtitle=f"n = {n:,}"), md=3),
         ], className="mb-4")
 
-        # Retention trend
+        # Retention trend with data period in title (Spec 5.3)
         by_month = df_market.groupby("RenewalYearMonth").agg(
             retained=("IsRetained", "sum"),
             total=("UniqueID", "count"),
@@ -72,12 +81,19 @@ def register_callbacks(app, DF_MOTOR, DF_HOME):
             marker=dict(size=6),
             hovertemplate="Retention: %{y:.1%}<br>%{x}<extra></extra>",
         ))
-        fig_trend = create_branded_figure(fig_trend, title="Market Retention Trend")
+        trend_title = f"Market Retention Trend — {period_label}"
+        fig_trend = create_branded_figure(fig_trend, title=trend_title)
         fig_trend.update_layout(yaxis_tickformat=".0%")
 
-        # Why customers shop (Q8) — rank 1 only
+        # Why customers shop (Q8) with suppression (Spec 5.4)
         why_content = html.P("Q8 data not available", className="text-muted")
-        if DF_QUESTIONS is not None and not DF_QUESTIONS.empty:
+        n_shoppers = df_market["IsShopper"].sum() if "IsShopper" in df_market.columns else 0
+        if n_shoppers < MIN_BASE_REASON:
+            why_content = html.Div(
+                f"Insufficient shoppers ({n_shoppers}) for reason analysis (minimum {MIN_BASE_REASON}).",
+                className="ci-suppression p-4",
+            )
+        elif DF_QUESTIONS is not None and not DF_QUESTIONS.empty:
             why = calc_reason_ranking(df_market, DF_QUESTIONS, "Q8", top_n=5)
             if why:
                 why_df = pd.DataFrame(why)
@@ -135,10 +151,8 @@ def register_callbacks(app, DF_MOTOR, DF_HOME):
         else:
             pcw_content = html.P("PCW data not available", className="text-muted")
 
-        max_ym = df_market["RenewalYearMonth"].max() if "RenewalYearMonth" in df_market.columns else ""
-        period_str = format_year_month(max_ym) if pd.notna(max_ym) and max_ym else "—"
         footer = html.Div(
-            f"Data period: {period_str} | n={n:,} | (c) Consumer Intelligence 2026",
+            f"Data period: {period_label} | n = {n:,} | \u00a9 Consumer Intelligence 2026",
             className="text-muted small mt-4",
         )
 

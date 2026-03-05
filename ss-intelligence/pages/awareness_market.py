@@ -22,7 +22,7 @@ from analytics.awareness import (
 from analytics.demographics import apply_filters
 from components.branded_chart import add_ci_whiskers, create_branded_figure, create_bump_chart
 from components.ci_card import ci_stat_card
-from config import BUMP_COLOURS, CI_GREY
+from config import CI_GREEN, CI_GREY, CI_RED, DEFAULT_TIME_WINDOW_INSURER
 from shared import DF_MOTOR, DF_QUESTIONS, format_year_month
 
 dash.register_page(__name__, path="/awareness-market", name="Awareness: Market")
@@ -34,15 +34,15 @@ def layout():
             html.H1("Brand Awareness — Market View"),
         ]),
 
-        # Awareness level toggle
+        # Awareness level toggle (Spec 9.2)
         dbc.Row([
             dbc.Col([
                 dbc.RadioItems(
                     id="awareness-level-toggle",
                     options=[
+                        {"label": "Spontaneous (Q1)", "value": "spontaneous", "disabled": True},
                         {"label": "Prompted (Q2)", "value": "prompted"},
                         {"label": "Consideration (Q27)", "value": "consideration"},
-                        {"label": "Spontaneous (Q1)", "value": "spontaneous", "disabled": True},
                     ],
                     value="prompted",
                     inline=True,
@@ -71,7 +71,7 @@ def layout():
         # Ranked bar chart
         dbc.Row([
             dbc.Col([
-                html.H2("Awareness Rate — Latest Month"),
+                html.H2(id="awareness-bar-title"),
                 html.Div(id="awareness-bar-chart"),
             ], md=12),
         ]),
@@ -87,6 +87,7 @@ def _norm(val):
         Output("awareness-kpi-row", "children"),
         Output("awareness-bump-chart", "children"),
         Output("awareness-bar-chart", "children"),
+        Output("awareness-bar-title", "children"),
         Output("q1-gating-msg", "style"),
     ],
     [
@@ -97,38 +98,42 @@ def _norm(val):
 )
 def update_awareness_market(level, product, time_window):
     product = product or "Motor"
-    tw = int(time_window or 24)
+    tw = int(time_window or DEFAULT_TIME_WINDOW_INSURER)
 
     # Show gating message for spontaneous
     gating_style = {"display": "block"} if level == "spontaneous" else {"display": "none"}
     if level == "spontaneous":
         empty_msg = html.Div(Q1_GATING_MESSAGE, className="ci-suppression p-4")
-        return [], empty_msg, empty_msg, gating_style
+        return [], empty_msg, empty_msg, "Awareness Rate — Latest Month", gating_style
 
     df_main = apply_filters(DF_MOTOR, product=product, time_window_months=tw)
 
-    # KPI summary
+    # KPI summary (Spec 9.3)
     summary = calc_awareness_summary(df_main, DF_QUESTIONS, level)
     if summary is None:
         no_data = html.Div("No awareness data available for this selection.", className="ci-suppression p-4")
-        return [], no_data, no_data, gating_style
+        return [], no_data, no_data, "Awareness Rate — Latest Month", gating_style
+
+    # Most improved card (Spec 9.3)
+    most_improved_text = "—"
+    if summary.get("most_improved_name"):
+        change = summary["most_improved_change"]
+        sign = "+" if change > 0 else ""
+        most_improved_text = f"{summary['most_improved_name']} ({sign}{change:.1%})"
 
     kpi_cards = dbc.Row([
-        dbc.Col(ci_stat_card("Brands Tracked", summary["n_brands"], fmt="{:,}"), md=3),
+        dbc.Col(ci_stat_card("Brands Eligible", summary["n_brands"], fmt="{:,}"), md=3),
+        dbc.Col(ci_stat_card("Market Average", summary["mean_rate"], fmt="{:.1%}"), md=3),
         dbc.Col(ci_stat_card(
-            "Top Brand Rate",
+            "Highest",
             summary["top_brand_rate"],
             fmt="{:.1%}",
             subtitle=summary["top_brand_name"],
         ), md=3),
-        dbc.Col(ci_stat_card("Market Median", summary["median_rate"], fmt="{:.1%}"), md=3),
-        dbc.Col(ci_stat_card(
-            "Period",
-            f"{format_year_month(summary['period_start'])} – {format_year_month(summary['period_end'])}",
-        ), md=3),
+        dbc.Col(ci_stat_card("Most Improved", most_improved_text), md=3),
     ])
 
-    # Bump chart
+    # Bump chart (Spec 9.4) — brands sorted alphabetically for colour assignment
     bump_data = calc_awareness_bump(df_main, DF_QUESTIONS, level)
     if bump_data.empty:
         bump_content = html.Div("Insufficient data for bump chart.", className="ci-suppression p-4")
@@ -139,34 +144,43 @@ def update_awareness_market(level, product, time_window):
             x_col="month_label",
             y_col="rank",
             brand_col="brand",
+            rate_col="rate",
             title="",
         )
         bump_content = dcc.Graph(figure=fig, config={"displayModeBar": False})
 
-    # Ranked bar chart (latest month)
+    # Ranked bar chart — latest month (Spec 9.5)
     rates = calc_awareness_rates(df_main, DF_QUESTIONS, level)
     if rates.empty:
         bar_content = html.Div("Insufficient data for bar chart.", className="ci-suppression p-4")
+        bar_title = "Awareness Rate — Latest Month"
     else:
-        latest = rates[rates["month"] == rates["month"].max()].sort_values("rate", ascending=True)
+        latest_month = rates["month"].max()
+        latest = rates[rates["month"] == latest_month].sort_values("rate", ascending=True)
+        market_avg = latest["rate"].mean()
+
+        # Green above market, red below (Spec 9.5)
+        bar_colours = [CI_GREEN if r > market_avg else CI_RED for r in latest["rate"]]
+
         fig_bar = go.Figure()
         fig_bar.add_trace(go.Bar(
             y=latest["brand"],
             x=latest["rate"],
             orientation="h",
-            marker_color=[BUMP_COLOURS[i % len(BUMP_COLOURS)] for i in range(len(latest))],
+            marker_color=bar_colours,
             text=[f"{r:.1%}" for r in latest["rate"]],
             textposition="outside",
             hovertemplate="<b>%{y}</b><br>Rate: %{x:.1%}<extra></extra>",
         ))
-        fig_bar = add_ci_whiskers(
-            fig_bar,
-            x_values=latest["rate"].tolist(),
-            y_values=latest["brand"].tolist(),
-            ci_lower=latest["ci_lower"].tolist(),
-            ci_upper=latest["ci_upper"].tolist(),
-            colour=CI_GREY,
-            horizontal=True,
+        # Market average reference line (Spec 9.5)
+        fig_bar.add_vline(
+            x=market_avg,
+            line_dash="dash",
+            line_color=CI_GREY,
+            line_width=1.5,
+            annotation_text=f"Market avg: {market_avg:.1%}",
+            annotation_font_size=11,
+            annotation_font_color=CI_GREY,
         )
         fig_bar = create_branded_figure(fig_bar, title="")
         fig_bar.update_layout(
@@ -176,5 +190,6 @@ def update_awareness_market(level, product, time_window):
             margin=dict(l=150),
         )
         bar_content = dcc.Graph(figure=fig_bar, config={"displayModeBar": False})
+        bar_title = f"Awareness Rate — {format_year_month(latest_month)}"
 
-    return kpi_cards, bump_content, bar_content, gating_style
+    return kpi_cards, bump_content, bar_content, bar_title, gating_style

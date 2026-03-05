@@ -105,22 +105,21 @@ def calc_awareness_bump(
     df_main: pd.DataFrame,
     df_questions: pd.DataFrame,
     awareness_level: str,
-    min_months: int = 3,
 ) -> pd.DataFrame:
     """
     Rank-by-month for bump chart.
 
     Returns: brand, month, rank, rate.
-    Brands with fewer than min_months of data are excluded.
-    Gaps for suppressed months — no interpolation.
+    Spec 9.4: brands are excluded entirely if they lack eligible data in any
+    month of the selected period — ensures continuous lines with no gaps.
     """
     rates = calc_awareness_rates(df_main, df_questions, awareness_level)
     if rates.empty:
         return pd.DataFrame()
 
-    # Only keep brands with enough months
+    all_months = rates["month"].nunique()
     brand_months = rates.groupby("brand")["month"].nunique()
-    eligible = brand_months[brand_months >= min_months].index
+    eligible = brand_months[brand_months >= all_months].index
     return rates[rates["brand"].isin(eligible)][["brand", "month", "rank", "rate"]].copy()
 
 
@@ -133,8 +132,8 @@ def calc_awareness_slopegraph(
     """
     Start/end rate + change for slopegraph panels (Page 6).
 
-    Returns dict: start_month, end_month, start_rate, end_rate, change, direction
-    or None if insufficient data.
+    Returns dict with insurer and market rates at start and end of period.
+    If start or end month is suppressed for this brand, uses nearest eligible month.
     """
     rates = calc_awareness_rates(df_main, df_questions, awareness_level)
     if rates.empty:
@@ -148,6 +147,10 @@ def calc_awareness_slopegraph(
     end = brand_data.iloc[-1]
     change = end["rate"] - start["rate"]
 
+    # Market average at start and end months
+    start_mkt = rates[rates["month"] == start["month"]]["rate"].mean()
+    end_mkt = rates[rates["month"] == end["month"]]["rate"].mean()
+
     conf = assess_confidence(
         n=int(end["n_total"]),
         rate=end["rate"],
@@ -160,6 +163,8 @@ def calc_awareness_slopegraph(
         "end_month": end["month"],
         "start_rate": start["rate"],
         "end_rate": end["rate"],
+        "start_market_rate": start_mkt,
+        "end_market_rate": end_mkt,
         "change": change,
         "direction": "up" if change > 0 else ("down" if change < 0 else "flat"),
         "confidence": conf.label.value,
@@ -198,22 +203,38 @@ def calc_awareness_summary(
     """
     Summary strip KPIs for Page 5.
 
-    Returns: n_brands, top_brand_rate, top_brand_name, median_rate, period_start, period_end
+    Returns: n_brands, top_brand_rate, top_brand_name, mean_rate,
+             most_improved_name, most_improved_change, period_start, period_end
     """
     rates = calc_awareness_rates(df_main, df_questions, awareness_level)
     if rates.empty:
         return None
 
     latest_month = rates["month"].max()
+    earliest_month = rates["month"].min()
     latest = rates[rates["month"] == latest_month]
 
-    earliest_month = rates["month"].min()
+    # Most improved: brand with largest positive change from earliest to latest month
+    most_improved_name = None
+    most_improved_change = None
+    if earliest_month != latest_month:
+        earliest = rates[rates["month"] == earliest_month]
+        merged = latest[["brand", "rate"]].merge(
+            earliest[["brand", "rate"]], on="brand", suffixes=("_end", "_start"),
+        )
+        if not merged.empty:
+            merged["change"] = merged["rate_end"] - merged["rate_start"]
+            best = merged.loc[merged["change"].idxmax()]
+            most_improved_name = best["brand"]
+            most_improved_change = best["change"]
 
     return {
         "n_brands": latest["brand"].nunique(),
         "top_brand_name": latest.loc[latest["rate"].idxmax(), "brand"] if not latest.empty else None,
         "top_brand_rate": latest["rate"].max() if not latest.empty else None,
-        "median_rate": latest["rate"].median() if not latest.empty else None,
+        "mean_rate": latest["rate"].mean() if not latest.empty else None,
+        "most_improved_name": most_improved_name,
+        "most_improved_change": most_improved_change,
         "period_start": int(earliest_month),
         "period_end": int(latest_month),
     }

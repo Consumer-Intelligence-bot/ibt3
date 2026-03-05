@@ -10,7 +10,7 @@
   --ci-red: #F4364C;
   --ci-blue: #5BC2E7;
   --ci-grey: #54585A;
-  --ci-light-grey: #F2F2F2;
+  --ci-light-grey: #E9EAEB;
   --ci-white: #FFFFFF;
 
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
@@ -271,10 +271,11 @@ h3 {
 
 .ci-suppression {
   background: var(--ci-light-grey);
-  border: 1px dashed #CCC;
+  border: none;
+  border-left: 4px solid var(--ci-yellow);
   border-radius: var(--radius);
   padding: 2rem;
-  text-align: center;
+  text-align: left;
   color: var(--ci-grey);
 }
 

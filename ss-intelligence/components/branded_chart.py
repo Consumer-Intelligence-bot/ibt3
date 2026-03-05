@@ -82,36 +82,67 @@ def create_bump_chart(
     x_col: str = "month",
     y_col: str = "rank",
     brand_col: str = "brand",
+    rate_col: str | None = "rate",
     title: str = "",
 ) -> go.Figure:
     """
     Bump chart: rank over time, one line per brand.
 
-    Y axis inverted (1 = top). Colours from BUMP_COLOURS sequence.
+    Y axis inverted (1 = top). Colours from BUMP_COLOURS assigned alphabetically.
+    Labels at rightmost data point instead of a legend. Hover includes rate.
     Gaps where data is missing (no interpolation).
     """
     fig = go.Figure()
-    brands = df[brand_col].unique()
+    brands = sorted(df[brand_col].unique())
 
+    annotations = []
     for i, brand in enumerate(brands):
         brand_data = df[df[brand_col] == brand].sort_values(x_col)
         colour = BUMP_COLOURS[i % len(BUMP_COLOURS)]
-        fig.add_trace(go.Scatter(
-            x=brand_data[x_col],
-            y=brand_data[y_col],
-            mode="lines+markers",
-            name=brand,
-            line=dict(color=colour, width=2.5),
-            marker=dict(size=7, color=colour),
-            connectgaps=False,
-            hovertemplate=f"<b>{brand}</b><br>Rank: %{{y}}<br>%{{x}}<extra></extra>",
+
+        if rate_col and rate_col in brand_data.columns:
+            custom = brand_data[rate_col].tolist()
+            hover = f"<b>{brand}</b><br>Rank: %{{y}}<br>Rate: %{{customdata:.1%}}<br>%{{x}}<extra></extra>"
+            fig.add_trace(go.Scatter(
+                x=brand_data[x_col],
+                y=brand_data[y_col],
+                customdata=custom,
+                mode="lines+markers",
+                name=brand,
+                line=dict(color=colour, width=2.5),
+                marker=dict(size=7, color=colour),
+                connectgaps=False,
+                hovertemplate=hover,
+                showlegend=False,
+            ))
+        else:
+            fig.add_trace(go.Scatter(
+                x=brand_data[x_col],
+                y=brand_data[y_col],
+                mode="lines+markers",
+                name=brand,
+                line=dict(color=colour, width=2.5),
+                marker=dict(size=7, color=colour),
+                connectgaps=False,
+                hovertemplate=f"<b>{brand}</b><br>Rank: %{{y}}<br>%{{x}}<extra></extra>",
+                showlegend=False,
+            ))
+
+        last = brand_data.iloc[-1]
+        annotations.append(dict(
+            x=last[x_col],
+            y=last[y_col],
+            text=f"  {brand}",
+            xanchor="left",
+            showarrow=False,
+            font=dict(size=11, color=colour, family=_FONT),
         ))
 
     fig.update_layout(
         template="ci_brand",
         title=title,
         font=dict(family=_FONT, color=CI_GREY),
-        margin=dict(l=50, r=20, t=50, b=40),
+        margin=dict(l=50, r=140, t=50, b=40),
         yaxis=dict(
             autorange="reversed",
             dtick=1,
@@ -119,13 +150,9 @@ def create_bump_chart(
             gridcolor=CI_LIGHT_GREY,
         ),
         xaxis=dict(title=""),
-        legend=dict(
-            orientation="h",
-            yanchor="top",
-            y=-0.15,
-            font=dict(size=11),
-        ),
+        annotations=annotations,
         hovermode="x unified",
+        showlegend=False,
     )
     return fig
 

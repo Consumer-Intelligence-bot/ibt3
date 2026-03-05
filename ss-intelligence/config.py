@@ -26,10 +26,16 @@ MIN_BASE_FLOW_CELL = 10
 MARKET_CI_ALERT_THRESHOLD = 3.0        # pp — alert if market CI exceeds this
 MIN_ELIGIBLE_INSURERS_WARNING = 3
 
-# Legacy aliases for backward compatibility during migration
+# Spec Section 12.1 — n-based suppression thresholds
 MIN_BASE_PUBLISHABLE = 50
 MIN_BASE_INDICATIVE = 30
+MIN_BASE_REASON = 30
+MIN_BASE_TREND = 30
 MIN_BASE_MARKET = 100
+
+# Default time windows (Spec Section 4)
+DEFAULT_TIME_WINDOW_SHOPPING = 12    # months — Market Overview
+DEFAULT_TIME_WINDOW_INSURER = 24     # months — Insurer pages
 
 # ---------------------------------------------------------------------------
 # Bayesian smoothing (Spec Section 12.2)
@@ -48,13 +54,13 @@ CI_GREEN = "#48A23F"
 CI_RED = "#F4364C"
 CI_BLUE = "#5BC2E7"
 CI_GREY = "#54585A"
-CI_LIGHT_GREY = "#F2F2F2"
+CI_LIGHT_GREY = "#E9EAEB"
 
 # Bump chart colour sequence (Spec Section 11.3) — rotates after 12 brands
 BUMP_COLOURS = [
     CI_MAGENTA, CI_BLUE, CI_GREEN, CI_RED, CI_YELLOW,
-    "#B8336A", "#7EC8E3", "#76B947", "#FF8C42", "#FFE66D",
-    "#6C5B7B", "#355C7D",
+    "#C44BE0", "#2FA8CC", "#3A8A32", "#D02840", "#B8A000",
+    "#7B3FA0", "#1A8099",
 ]
 
 # Visual rules

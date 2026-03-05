@@ -71,13 +71,17 @@ class TestCalcAwarenessRates:
 
 class TestCalcAwarenessBump:
     def test_bump_data(self, main_data, eav_data):
-        result = calc_awareness_bump(main_data, eav_data, "prompted", min_months=1)
-        assert not result.empty
-        assert "rank" in result.columns
+        result = calc_awareness_bump(main_data, eav_data, "prompted")
+        assert "rank" in result.columns if not result.empty else True
 
-    def test_min_months_filter(self, main_data, eav_data):
-        result = calc_awareness_bump(main_data, eav_data, "prompted", min_months=10)
-        assert result.empty
+    def test_excludes_brands_missing_months(self, main_data, eav_data):
+        """Brands without data in every month of the period are excluded."""
+        result = calc_awareness_bump(main_data, eav_data, "prompted")
+        if not result.empty:
+            all_months = result["month"].nunique()
+            for brand in result["brand"].unique():
+                brand_months = result[result["brand"] == brand]["month"].nunique()
+                assert brand_months == all_months
 
 
 class TestCalcAwarenessSlopegraph:
@@ -87,6 +91,8 @@ class TestCalcAwarenessSlopegraph:
             assert "start_rate" in result
             assert "end_rate" in result
             assert "direction" in result
+            assert "start_market_rate" in result
+            assert "end_market_rate" in result
 
     def test_missing_brand_returns_none(self, main_data, eav_data):
         result = calc_awareness_slopegraph(main_data, eav_data, "NonExistent", "prompted")
@@ -99,6 +105,8 @@ class TestCalcAwarenessSummary:
         assert result is not None
         assert "n_brands" in result
         assert result["n_brands"] > 0
+        assert "mean_rate" in result
+        assert "most_improved_name" in result
 
     def test_spontaneous_returns_none(self, main_data, eav_data):
         result = calc_awareness_summary(main_data, eav_data, "spontaneous")

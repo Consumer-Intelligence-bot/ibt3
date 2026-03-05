@@ -20,7 +20,7 @@ def test_no_duplicate_ids():
     })
     results = _run_data_validation(df)
     dup_check = next(r for r in results if "duplicate" in r["check"].lower())
-    assert dup_check["status"] == "pass"
+    assert dup_check["status"] == "PASS"
 
 
 def test_duplicate_ids_fail():
@@ -35,10 +35,10 @@ def test_duplicate_ids_fail():
     })
     results = _run_data_validation(df)
     dup_check = next(r for r in results if "duplicate" in r["check"].lower())
-    assert dup_check["status"] == "fail"
+    assert dup_check["status"] == "FAIL"
 
 
 def test_empty_data():
     results = _run_data_validation(pd.DataFrame())
     assert len(results) == 1
-    assert results[0]["status"] == "fail"
+    assert results[0]["status"] == "FAIL"
