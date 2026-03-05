@@ -98,12 +98,41 @@ pip install -r requirements.txt
 
 ### 3. Data
 
-Data loads from `ss-intelligence/data/raw/` (canonical location). Supported filenames:
+Data files are **not tracked in git** (`data/raw/` is gitignored). You must copy them to the server manually.
+
+Copy your CSV into `ss-intelligence/data/raw/`:
+
+```bash
+mkdir -p ss-intelligence/data/raw
+scp /path/to/ibt_motor_export_FINAL.csv server:ehubot/ss-intelligence/data/raw/
+```
+
+**Preferred file (full flat export with Q-code columns):**
+
+- `ibt_motor_export_FINAL.csv` — contains both profile data and survey questions (Q1–Q63). Required for awareness, reasons, and channel analytics.
+
+Without the flat export, only profile-based pages (market overview, renewal journey) will work. Awareness (Q2/Q27), reasons (Q8/Q18), and other question-based analytics will show "Insufficient data".
+
+**Profile-only alternatives** (limited functionality):
 
 - **Motor:** `motor all data.csv`, `motor_main_data.csv`, `motor_main_data_demo.csv`, `motor.csv`
-- **Home:** `all home data.csv`, `home_main_data.csv`, `ff_home_updated.csv`, `ff_home.csv`, `home.csv`
+- **Home:** `all home data.csv`, `home_main_data.csv`, `home.csv`
 
-Fallback: `../public/data/` if not found in `data/raw/`. Run refresh: `python -m data.refresh`
+**Custom data directory:** Set the `DATA_DIR` environment variable to search an additional directory first:
+
+```bash
+export DATA_DIR=/path/to/your/data
+```
+
+**Validate and cache:** After copying data, run the refresh script to validate and generate Parquet caches for faster startup:
+
+```bash
+cd ss-intelligence
+source venv/bin/activate
+python -m data.refresh
+```
+
+Fallback: `../public/data/` if not found in `data/raw/` (contains demo data only).
 
 ### 4. Run with gunicorn (production)
 

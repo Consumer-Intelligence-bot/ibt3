@@ -4,10 +4,13 @@ Shared data and dimensions — imported by app and pages.
 Loads both MainData (wide, profile) and AllOtherData (EAV, questions) on startup.
 Pages access DF_MOTOR, DF_QUESTIONS, DIMENSIONS, and format_year_month from here.
 """
+import logging
 import pandas as pd
 
 from data.loader import load_main, load_questions
 from data.dimensions import get_all_dimensions
+
+log = logging.getLogger(__name__)
 
 _MONTH_ABBR = [
     "", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -35,6 +38,12 @@ except FileNotFoundError:
 
 # AllOtherData — EAV, one row per answer per respondent
 DF_QUESTIONS, _Q_META = load_questions("Motor")
+if DF_QUESTIONS.empty:
+    log.warning(
+        "AllOtherData (Motor) is empty — awareness, reasons, and channel analytics "
+        "will show 'Insufficient data'. Copy the flat export CSV (e.g. "
+        "ibt_motor_export_FINAL.csv) into data/raw/ and restart, or set DATA_DIR."
+    )
 try:
     DF_QUESTIONS_HOME, _ = load_questions("Home")
 except FileNotFoundError:

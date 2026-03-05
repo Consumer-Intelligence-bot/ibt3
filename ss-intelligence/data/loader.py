@@ -23,7 +23,7 @@ RAW_DIR = _DATA_DIR / "raw"
 PROCESSED_DIR = _DATA_DIR / "processed"
 FALLBACK_DIR = _DATA_DIR.parent.parent / "public" / "data"
 
-DATA_DIR = os.getenv("DATA_DIR", r"c:\Users\ianch\OneDrive - CONSUMER INTELLIGENCE LTD")
+DATA_DIR = os.getenv("DATA_DIR")
 _DATA_DIR_PATH = Path(DATA_DIR) if DATA_DIR else None
 
 # Q-code columns are those starting with Q followed by a digit
