@@ -46,3 +46,18 @@ def test_flow_cell_suppression():
     assert is_flow_cell_suppressed(9) is True
     assert is_flow_cell_suppressed(10) is False
     assert is_flow_cell_suppressed(0) is True
+
+
+def test_q4_eq_q39_excluded():
+    """Records where CurrentCompany == PreviousCompany are excluded from flows."""
+    df = pd.DataFrame({
+        "UniqueID": range(1, 31),
+        "IsSwitcher": [True] * 30,
+        "CurrentCompany": ["B"] * 10 + ["A"] * 10 + ["A"] * 10,
+        "PreviousCompany": ["A"] * 10 + ["B"] * 10 + ["A"] * 10,
+    })
+    nf = calc_net_flow(df, "A")
+    # 10 gained (from B→A), 10 lost (A→B), 10 excluded (A→A)
+    assert nf["gained"] == 10
+    assert nf["lost"] == 10
+    assert nf["net"] == 0
