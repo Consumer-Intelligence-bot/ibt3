@@ -1,65 +1,154 @@
-"""Page 3: Insurer Comparison."""
+"""
+Page 3: Insurer Comparison (Spec Section 7).
+
+Side-by-side view of retention with CI whiskers, market line, and confidence labels.
+"""
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from dash import html, dcc, callback, Input, Output
-import dash_bootstrap_components as dbc
-import plotly.graph_objects as go
-import pandas as pd
-from shared import DF_MOTOR, DIMENSIONS
-from analytics.rates import calc_retention_rate
-from analytics.bayesian import bayesian_smooth_rate
-from analytics.demographics import apply_filters
-from config import MIN_BASE_PUBLISHABLE
-from components.filter_bar import filter_bar
-from components.branded_chart import create_branded_figure
-from auth.access import get_authorized_insurers
+
 import dash
+import dash_bootstrap_components as dbc
+import pandas as pd
+import plotly.graph_objects as go
+from dash import Input, Output, callback, dash_table, dcc, html
+
+from analytics.bayesian import bayesian_smooth_rate
+from analytics.confidence import ConfidenceLabel, MetricType, assess_confidence
+from analytics.demographics import apply_filters
+from analytics.flows import calc_net_flow
+from analytics.rates import calc_retention_rate, calc_shopping_rate
+from auth.access import get_authorized_insurers
+from components.branded_chart import add_ci_whiskers, create_branded_figure
+from components.filter_bar import filter_bar
+from config import CI_GREEN, CI_GREY, CI_MAGENTA, CI_RED, CI_YELLOW, SYSTEM_FLOOR_N
+from shared import DF_MOTOR, DIMENSIONS
+
 dash.register_page(__name__, path="/insurer-comparison", name="Insurer Comparison")
+
 
 def layout():
     return dbc.Container([
+        html.Div(className="ci-page-header", children=[html.H1("Insurer Comparison")]),
         html.Div(id="filter-bar-comp"),
         dbc.Row([dbc.Col(html.Div(id="retention-chart-comp"), md=12)], className="mb-4"),
         dbc.Row([dbc.Col(html.Div(id="metrics-table-comp"), md=12)]),
     ], fluid=True)
 
+
 def _norm(val):
     return None if val in (None, "ALL", "") else val
 
+
 @callback(
     [Output("filter-bar-comp", "children"), Output("retention-chart-comp", "children"), Output("metrics-table-comp", "children")],
-    [Input("global-age-band", "value"), Input("global-region", "value"), Input("global-payment-type", "value"), Input("global-product", "value"), Input("global-time-window", "value")],
+    [Input("global-age-band", "value"), Input("global-region", "value"), Input("global-payment-type", "value"),
+     Input("global-product", "value"), Input("global-time-window", "value")],
 )
 def update_comparison(age_band, region, payment_type, product, time_window):
     product = product or "Motor"
     tw = int(time_window or 24)
     age_band, region, payment_type = _norm(age_band), _norm(region), _norm(payment_type)
+
     df_mkt = apply_filters(DF_MOTOR, product=product, time_window_months=tw, age_band=age_band, region=region, payment_type=payment_type)
     market_ret = calc_retention_rate(df_mkt)
+
     all_insurers = DIMENSIONS["DimInsurer"]["Insurer"].dropna().astype(str).tolist()
     insurers = get_authorized_insurers(all_insurers)
     rows = []
+
     for ins in insurers:
         df_ins = apply_filters(DF_MOTOR, insurer=ins, product=product, time_window_months=tw, age_band=age_band, region=region, payment_type=payment_type)
-        if len(df_ins) < MIN_BASE_PUBLISHABLE:
+        n = len(df_ins)
+        if n < SYSTEM_FLOOR_N:
             continue
+
         retained = (df_ins["IsRetained"] & ~df_ins["IsNewToMarket"]).sum()
         total = len(df_ins[~df_ins["IsNewToMarket"]])
-        bay = bayesian_smooth_rate(int(retained), total, market_ret)
-        rows.append({"Insurer": ins, "n": total, "Retention": "%.1f%%" % (bay["posterior_mean"] * 100)})
+        if total == 0:
+            continue
+
+        bay = bayesian_smooth_rate(int(retained), total, market_ret or 0.5)
+        ci_w = (bay["ci_upper"] - bay["ci_lower"]) * 100
+        conf = assess_confidence(n, bay["posterior_mean"], MetricType.RATE, posterior_ci_width=ci_w)
+
+        # Hide INSUFFICIENT
+        if conf.label == ConfidenceLabel.INSUFFICIENT:
+            continue
+
+        shopping = calc_shopping_rate(df_ins)
+        nf = calc_net_flow(df_mkt, ins)
+
+        rows.append({
+            "Insurer": ins,
+            "n": total,
+            "retention": bay["posterior_mean"],
+            "ci_lower": bay["ci_lower"],
+            "ci_upper": bay["ci_upper"],
+            "ci_width": ci_w,
+            "shopping": shopping,
+            "net_flow": nf["net"],
+            "confidence": conf.label.value,
+        })
+
     df_tbl = pd.DataFrame(rows)
     eligible = len(df_tbl)
     filter_bar_el = filter_bar(age_band, region, payment_type, eligible_count=eligible)
-    if len(df_tbl) > 0:
-        df_tbl["_ret_num"] = df_tbl["Retention"].str.rstrip("%").astype(float)
-        df_tbl = df_tbl.sort_values("_ret_num", ascending=False).drop(columns=["_ret_num"])
-        ret_vals = df_tbl["Retention"].str.rstrip("%").astype(float)
-        fig = go.Figure(go.Bar(x=ret_vals, y=df_tbl["Insurer"], orientation="h"))
-        fig = create_branded_figure(fig, title="Retention by Insurer", show_market_line=True, market_value=market_ret)
-        chart = dcc.Graph(figure=fig)
-        tbl = dbc.Table.from_dataframe(df_tbl, striped=True, size="sm")
-    else:
-        chart = html.P("No insurers meet threshold", className="text-muted")
-        tbl = html.P("No data", className="text-muted")
-    return filter_bar_el, chart, tbl
+
+    if df_tbl.empty:
+        return filter_bar_el, html.P("No insurers meet threshold.", className="ci-suppression p-4"), html.Div()
+
+    df_tbl = df_tbl.sort_values("retention", ascending=False)
+
+    # Retention bar chart with CI whiskers and market line
+    colours = [CI_GREEN if r > (market_ret or 0) else CI_RED for r in df_tbl["retention"]]
+    fig = go.Figure(go.Bar(
+        x=df_tbl["retention"],
+        y=df_tbl["Insurer"],
+        orientation="h",
+        marker_color=colours,
+        text=[f"{r:.1%}" for r in df_tbl["retention"]],
+        textposition="outside",
+        hovertemplate="<b>%{y}</b><br>Retention: %{x:.1%}<extra></extra>",
+    ))
+    fig = add_ci_whiskers(
+        fig,
+        x_values=df_tbl["retention"].tolist(),
+        y_values=df_tbl["Insurer"].tolist(),
+        ci_lower=df_tbl["ci_lower"].tolist(),
+        ci_upper=df_tbl["ci_upper"].tolist(),
+        colour=CI_GREY,
+        horizontal=True,
+    )
+    fig = create_branded_figure(fig, title="", show_market_line=True, market_value=market_ret)
+    fig.update_layout(
+        xaxis_tickformat=".0%",
+        yaxis=dict(autorange="reversed"),
+        height=max(400, len(df_tbl) * 35),
+        margin=dict(l=150),
+    )
+    chart = dcc.Graph(figure=fig, config={"displayModeBar": False})
+
+    # Metrics table
+    display = df_tbl.copy()
+    display["Retention"] = display["retention"].apply(lambda x: f"{x:.1%}")
+    display["Shopping Rate"] = display["shopping"].apply(lambda x: f"{x:.1%}" if x else "-")
+    display["Net Flow"] = display["net_flow"].apply(lambda x: f"{x:+,}" if x else "-")
+    display["Confidence"] = display["confidence"]
+    display["Renewals"] = display["n"].apply(lambda x: f"{x:,}")
+    display = display[["Insurer", "Renewals", "Retention", "Shopping Rate", "Net Flow", "Confidence"]]
+
+    table = dash_table.DataTable(
+        data=display.to_dict("records"),
+        columns=[{"name": c, "id": c} for c in display.columns],
+        sort_action="native",
+        style_table={"overflowX": "auto"},
+        style_header={"backgroundColor": "#F2F2F2", "fontWeight": 600, "fontSize": "12px", "color": CI_GREY},
+        style_cell={"fontSize": "13px", "padding": "8px 12px"},
+        style_data_conditional=[
+            {"if": {"filter_query": "{Confidence} = LOW"}, "fontStyle": "italic", "color": "#E65100"},
+            {"if": {"filter_query": "{Confidence} = HIGH"}, "color": CI_GREEN},
+        ],
+    )
+
+    return filter_bar_el, chart, table

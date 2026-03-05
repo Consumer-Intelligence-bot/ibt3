@@ -1,90 +1,99 @@
 """
-Monthly data refresh: validate CSV, transform, build dimensions, save Parquet.
-Run: python -m data.refresh
+Data refresh entry point.
+
+Validates source data, applies transforms, pre-computes Bayesian rates,
+and saves Parquet cache for fast startup.
+
+Usage:
+    python -m data.refresh            # from ss-intelligence/
+    python data/refresh.py Motor      # explicit product
 """
+from __future__ import annotations
+
+import sys
+import time
 from pathlib import Path
 
 import pandas as pd
 
-from data.loader import RAW_DIR, PROCESSED_DIR, load_data
-from data.transforms import transform
-from data.dimensions import get_all_dimensions
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from data.loader import PROCESSED_DIR, load_main, load_questions
 
 
-def _normalise_column_name(name: str) -> str:
-    """Strip MainData[, RespondentProfile[, etc. prefixes."""
-    if not name:
-        return name
-    name = name.replace("\ufeff", "").strip()
-    for prefix in ("MainData_Motor[", "MainData[", "RespondentProfile["):
-        if name.startswith(prefix):
-            name = name[len(prefix) :]
-    if name.endswith("]"):
-        name = name[:-1]
-    return name.strip()
+def _validate(df_main: pd.DataFrame, df_questions: pd.DataFrame) -> list[str]:
+    """Run validation checks. Returns list of warnings (empty = OK)."""
+    warnings = []
+
+    if "UniqueID" not in df_main.columns:
+        warnings.append("MainData missing UniqueID column")
+        return warnings
+
+    dup = df_main["UniqueID"].duplicated().sum()
+    if dup > 0:
+        warnings.append(f"{dup} duplicate UniqueIDs in MainData")
+
+    for col in ("CurrentCompany", "RenewalYearMonth", "Switchers", "Shoppers"):
+        if col not in df_main.columns:
+            warnings.append(f"MainData missing expected column: {col}")
+
+    if df_questions.empty:
+        warnings.append("AllOtherData is empty — EAV queries will return no results")
+    else:
+        for col in ("UniqueID", "QuestionNumber", "Answer"):
+            if col not in df_questions.columns:
+                warnings.append(f"AllOtherData missing column: {col}")
+        q_ids = set(df_questions["UniqueID"].unique())
+        m_ids = set(df_main["UniqueID"].unique())
+        orphans = q_ids - m_ids
+        if orphans:
+            warnings.append(f"{len(orphans)} AllOtherData respondents not in MainData")
+
+    return warnings
 
 
-def _read_csv(path: Path) -> pd.DataFrame:
-    """Read CSV and normalise column names."""
-    df = pd.read_csv(path, dtype=str, low_memory=False)
-    df.columns = [_normalise_column_name(c) for c in df.columns]
-    return df
+def refresh(product: str = "Motor"):
+    """Full refresh pipeline: load → validate → cache."""
+    print(f"[refresh] Loading {product}...")
+    t0 = time.time()
 
+    df_main, meta_main = load_main(product)
+    print(f"  MainData: {len(df_main):,} rows from {meta_main['source']}")
 
-def refresh_product(product: str, csv_path: Path | None = None) -> pd.DataFrame:
-    """
-    Load CSV from path or default location, transform, return DataFrame.
-    Uses load_data (same as app) so DATA_DIR, raw, fallback are all respected.
-    """
-    if csv_path and csv_path.exists():
-        df = _read_csv(csv_path)
-        return transform(df, product)
-    df, _ = load_data(product)
-    return df
+    df_questions, meta_q = load_questions(product)
+    print(f"  AllOtherData: {len(df_questions):,} rows from {meta_q['source']}")
 
+    # Validate
+    warnings = _validate(df_main, df_questions)
+    for w in warnings:
+        print(f"  WARNING: {w}")
 
-def run_refresh() -> None:
-    """
-    Main refresh: load Motor (and Home if available), save Parquet, build dimensions,
-    pre-compute Bayesian cache.
-    """
-    import sys
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-
+    # Save Parquet cache
     PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
-    RAW_DIR.mkdir(parents=True, exist_ok=True)
+    main_path = PROCESSED_DIR / f"{product.lower()}_main.parquet"
+    q_path = PROCESSED_DIR / f"{product.lower()}_questions.parquet"
 
-    dfs = {}
-    for product in ("Motor", "Home"):
-        try:
-            df = refresh_product(product)
-            dfs[product] = df
-            out_path = PROCESSED_DIR / f"{product.lower()}.parquet"
-            try:
-                df.to_parquet(out_path, index=False)
-            except ImportError:
-                print(f"Warning: pyarrow not installed. Run: pip install pyarrow")
-                print(f"{product}: {len(df)} rows (Parquet not saved)")
-            else:
-                get_all_dimensions(df)  # validate dimensions build
-                print(f"{product}: {len(df)} rows -> {out_path}")
-        except FileNotFoundError as e:
-            print(f"{product}: skipped - {e}")
+    df_main.to_parquet(main_path, index=False)
+    print(f"  Cached MainData → {main_path}")
 
-    # Bayesian pre-compute
+    if not df_questions.empty:
+        df_questions.to_parquet(q_path, index=False)
+        print(f"  Cached AllOtherData → {q_path}")
+
+    # Pre-compute Bayesian rates
     try:
-        from analytics.bayesian_precompute import run_precompute
-        df_motor = dfs.get("Motor")
-        df_home = dfs.get("Home")
-        if df_motor is not None and len(df_motor) > 0:
-            path = run_precompute(df_motor, df_home if df_home is not None and len(df_home) > 0 else None)
-            if path:
-                print(f"Bayesian cache -> {path}")
-            else:
-                print("Bayesian cache: skipped (pyarrow required)")
-    except Exception as e:
-        print(f"Bayesian pre-compute: {e}")
+        from analytics.bayesian_precompute import precompute_all
+        precompute_all(product)
+        print("  Bayesian rates pre-computed")
+    except (ImportError, Exception) as e:
+        print(f"  Bayesian pre-compute skipped: {e}")
+
+    elapsed = time.time() - t0
+    status = "OK" if not warnings else f"{len(warnings)} warnings"
+    print(f"[refresh] Done in {elapsed:.1f}s — {status}")
+    return warnings
 
 
 if __name__ == "__main__":
-    run_refresh()
+    product = sys.argv[1] if len(sys.argv) > 1 else "Motor"
+    refresh(product)

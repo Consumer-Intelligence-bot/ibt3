@@ -1,1 +1,1 @@
-"""Data loading, transforms, dimensions, and refresh."""
+"""Data loading, transforms, dimensions, queries, and refresh."""

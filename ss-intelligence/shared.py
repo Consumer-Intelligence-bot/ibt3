@@ -1,18 +1,22 @@
 """
-Shared data and dimensions - imported by app and pages.
-Lives in a separate module to avoid circular imports: pages must not import from app,
-otherwise app.py is loaded twice (as __main__ and as app) and callbacks register twice.
+Shared data and dimensions — imported by app and pages.
+
+Loads both MainData (wide, profile) and AllOtherData (EAV, questions) on startup.
+Pages access DF_MOTOR, DF_QUESTIONS, DIMENSIONS, and format_year_month from here.
 """
 import pandas as pd
 
-from data.loader import load_data
+from data.loader import load_main, load_questions
+from data.dimensions import get_all_dimensions
 
-# Month abbreviations for YYYYMM formatting
-_MONTH_ABBR = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+_MONTH_ABBR = [
+    "", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+]
 
 
 def format_year_month(ym) -> str:
-    """Convert YYYYMM (e.g. 202401) to readable label (e.g. 'Jan 2024'). Avoids Plotly displaying as '202.4k'."""
+    """Convert YYYYMM (e.g. 202401) to readable label (e.g. 'Jan 2024')."""
     if pd.isna(ym) or ym is None:
         return ""
     ym = int(float(ym))
@@ -20,19 +24,34 @@ def format_year_month(ym) -> str:
     if 1 <= m <= 12:
         return f"{_MONTH_ABBR[m]} {y}"
     return str(ym)
-from data.dimensions import get_all_dimensions
 
-# Load data on startup (single load, reused by app and pages)
-DF_MOTOR, _ = load_data("Motor")
+
+# MainData — wide, one row per respondent
+DF_MOTOR, _MOTOR_META = load_main("Motor")
 try:
-    DF_HOME, _ = load_data("Home")
+    DF_HOME, _ = load_main("Home")
 except FileNotFoundError:
     DF_HOME = None
+
+# AllOtherData — EAV, one row per answer per respondent
+DF_QUESTIONS, _Q_META = load_questions("Motor")
+try:
+    DF_QUESTIONS_HOME, _ = load_questions("Home")
+except FileNotFoundError:
+    DF_QUESTIONS_HOME = None
+
 DIMENSIONS = get_all_dimensions(DF_MOTOR)
 
+# Combined Motor + Home MainData (legacy alias)
 DF_ALL = DF_MOTOR.copy()
 if DF_HOME is not None and len(DF_HOME) > 0:
-    # Deduplicate columns before concat (Home/Motor CSVs can have duplicate column names)
     m = DF_MOTOR.loc[:, ~DF_MOTOR.columns.duplicated()]
     h = DF_HOME.loc[:, ~DF_HOME.columns.duplicated()]
     DF_ALL = pd.concat([m, h], ignore_index=True)
+
+# Metadata for Admin page
+DATA_METADATA = {
+    "motor": _MOTOR_META,
+    "questions": _Q_META,
+    "has_questions": len(DF_QUESTIONS) > 0,
+}

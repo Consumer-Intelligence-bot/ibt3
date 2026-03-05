@@ -1,23 +1,27 @@
 """
-Market Overview - defined outside Dash Pages to avoid duplicate callback registration.
-Rendered when path="/" via app.py routing.
+Market Overview (Page 1, Spec Section 5).
+
+Public-facing page showing market-level KPIs, trends, top reasons, and channels.
+No individual insurer names. Uses Bayesian CI where appropriate.
 """
 import pandas as pd
 from dash import html, dcc, callback, Input, Output
 import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
 
-from analytics.rates import calc_shopping_rate, calc_switching_rate, calc_retention_rate
-from analytics.demographics import apply_filters
-from analytics.reasons import calc_reason_ranking
+from analytics.bayesian import bayesian_smooth_rate
 from analytics.channels import calc_channel_usage, calc_pcw_usage
-from components.cards import kpi_card
+from analytics.confidence import calc_ci_width
+from analytics.demographics import apply_filters
+from analytics.rates import calc_shopping_rate, calc_switching_rate, calc_retention_rate
+from analytics.reasons import calc_reason_ranking
 from components.branded_chart import create_branded_figure
+from components.ci_card import ci_kpi_card, ci_stat_card
+from config import CI_GREEN, CI_GREY, CI_MAGENTA, MARKET_CI_ALERT_THRESHOLD
 from shared import format_year_month
 
 
 def layout(DF_MOTOR, DF_HOME):
-    """Return Market Overview layout. Uses global filter bar from app layout."""
     return dbc.Container(
         [html.Div(id="market-overview-content-mo")],
         fluid=True,
@@ -26,7 +30,7 @@ def layout(DF_MOTOR, DF_HOME):
 
 
 def register_callbacks(app, DF_MOTOR, DF_HOME):
-    """Register Market Overview callbacks. Called from app.py after app creation."""
+    from shared import DF_QUESTIONS
 
     @app.callback(
         Output("market-overview-content-mo", "children"),
@@ -37,72 +41,115 @@ def register_callbacks(app, DF_MOTOR, DF_HOME):
         tw = int(time_window or 24)
         df = DF_MOTOR if product == "Motor" else (DF_HOME if DF_HOME is not None and len(DF_HOME) > 0 else DF_MOTOR)
         df_market = apply_filters(df, product=product, time_window_months=tw)
+        n = len(df_market)
 
+        shop = calc_shopping_rate(df_market)
+        switch = calc_switching_rate(df_market)
+        retain = calc_retention_rate(df_market)
+
+        # KPI cards with Bayesian CI
+        kpi_cards = dbc.Row([
+            dbc.Col(ci_kpi_card("Shopping Rate", shop, fmt="{:.0%}"), md=3),
+            dbc.Col(ci_kpi_card("Switching Rate", switch, fmt="{:.0%}"), md=3),
+            dbc.Col(ci_kpi_card("Retention Rate", retain, fmt="{:.0%}"), md=3),
+            dbc.Col(ci_stat_card("Respondents", n, fmt="{:,}"), md=3),
+        ], className="mb-4")
+
+        # Retention trend
         by_month = df_market.groupby("RenewalYearMonth").agg(
             retained=("IsRetained", "sum"),
             total=("UniqueID", "count"),
         ).reset_index()
         by_month["retention"] = by_month["retained"] / by_month["total"]
         by_month["month_label"] = by_month["RenewalYearMonth"].apply(format_year_month)
+
         fig_trend = go.Figure()
-        fig_trend.add_trace(go.Scatter(x=by_month["month_label"], y=by_month["retention"], mode="lines+markers"))
+        fig_trend.add_trace(go.Scatter(
+            x=by_month["month_label"],
+            y=by_month["retention"],
+            mode="lines+markers",
+            line=dict(color=CI_MAGENTA, width=2.5),
+            marker=dict(size=6),
+            hovertemplate="Retention: %{y:.1%}<br>%{x}<extra></extra>",
+        ))
         fig_trend = create_branded_figure(fig_trend, title="Market Retention Trend")
+        fig_trend.update_layout(yaxis_tickformat=".0%")
 
-        why = calc_reason_ranking(df_market, "Q8", 5) if "Q8" in df_market.columns else []
-        if why:
-            why_df = pd.DataFrame(why)
-            if "pct" in why_df.columns:
-                why_df["pct"] = (why_df["pct"] * 100).round(1).astype(str) + "%"
-            why_table = dbc.Table.from_dataframe(why_df[["reason", "pct"]] if "reason" in why_df.columns else why_df, striped=True, size="sm")
-        else:
-            why_table = html.P("Data not available", className="text-muted")
+        # Why customers shop (Q8) — rank 1 only
+        why_content = html.P("Q8 data not available", className="text-muted")
+        if DF_QUESTIONS is not None and not DF_QUESTIONS.empty:
+            why = calc_reason_ranking(df_market, DF_QUESTIONS, "Q8", top_n=5)
+            if why:
+                why_df = pd.DataFrame(why)
+                fig_why = go.Figure(go.Bar(
+                    x=why_df["rank1_pct"],
+                    y=why_df["reason"],
+                    orientation="h",
+                    marker_color=CI_MAGENTA,
+                    text=[f"{p:.0%}" for p in why_df["rank1_pct"]],
+                    textposition="outside",
+                ))
+                fig_why = create_branded_figure(fig_why, title="")
+                fig_why.update_layout(
+                    xaxis_tickformat=".0%",
+                    height=250,
+                    margin=dict(l=200, t=10),
+                )
+                why_content = dcc.Graph(figure=fig_why, config={"displayModeBar": False})
+        elif "Q8" in df_market.columns:
+            why = calc_reason_ranking(df_market, pd.DataFrame(), "Q8", top_n=5)
+            if why:
+                why_df = pd.DataFrame(why)
+                why_content = dbc.Table.from_dataframe(
+                    why_df[["reason", "rank1_pct"]].rename(columns={"rank1_pct": "%"}),
+                    striped=True, size="sm",
+                )
 
-        ch = calc_channel_usage(df_market)
+        # Channel usage (Q9b via EAV)
+        ch = calc_channel_usage(df_market, DF_QUESTIONS)
         if ch is not None and len(ch) > 0:
-            fig_ch = go.Figure(go.Bar(x=ch.values, y=ch.index, orientation="h"))
-            fig_ch = create_branded_figure(fig_ch, title="Channel Usage")
-            channel_div = dcc.Graph(figure=fig_ch)
+            ch = ch.head(8)
+            fig_ch = go.Figure(go.Bar(
+                x=ch.values, y=ch.index, orientation="h",
+                marker_color=CI_GREEN,
+                text=[f"{v:.0%}" for v in ch.values],
+                textposition="outside",
+            ))
+            fig_ch = create_branded_figure(fig_ch, title="")
+            fig_ch.update_layout(xaxis_tickformat=".0%", height=250, margin=dict(l=150, t=10))
+            channel_div = dcc.Graph(figure=fig_ch, config={"displayModeBar": False})
         else:
-            channel_div = html.P("Data not available", className="text-muted")
+            channel_div = html.P("Channel data not available", className="text-muted")
 
-        pcw = calc_pcw_usage(df_market)
+        # PCW usage (Q11)
+        pcw = calc_pcw_usage(df_market, DF_QUESTIONS)
         if pcw is not None and len(pcw) > 0:
-            fig_pcw = go.Figure(go.Pie(labels=pcw.index, values=pcw.values, hole=0.4))
-            fig_pcw = create_branded_figure(fig_pcw, title="PCW Market Share")
-            pcw_content = dcc.Graph(figure=fig_pcw)
+            fig_pcw = go.Figure(go.Pie(
+                labels=pcw.index, values=pcw.values, hole=0.4,
+                textinfo="label+percent",
+                marker=dict(line=dict(color="white", width=2)),
+            ))
+            fig_pcw = create_branded_figure(fig_pcw, title="")
+            fig_pcw.update_layout(height=250, margin=dict(t=10))
+            pcw_content = dcc.Graph(figure=fig_pcw, config={"displayModeBar": False})
         else:
-            pcw_content = html.P("Data not available", className="text-muted")
+            pcw_content = html.P("PCW data not available", className="text-muted")
 
-        n = len(df_market)
         max_ym = df_market["RenewalYearMonth"].max() if "RenewalYearMonth" in df_market.columns else ""
         period_str = format_year_month(max_ym) if pd.notna(max_ym) and max_ym else "—"
         footer = html.Div(
             f"Data period: {period_str} | n={n:,} | (c) Consumer Intelligence 2026",
             className="text-muted small mt-4",
         )
-        pcw_div = html.Div([pcw_content, footer])
 
-        shop = calc_shopping_rate(df_market)
-        switch = calc_switching_rate(df_market)
-        retain = calc_retention_rate(df_market)
-        kpi_shop = kpi_card("Shopping Rate", shop, shop, format_str="{:.0%}")
-        kpi_switch = kpi_card("Switching Rate", switch, switch, format_str="{:.0%}")
-        kpi_retain = kpi_card("Retention Rate", retain, retain, format_str="{:.0%}")
-
-        return dbc.Container(
-            [
-                dbc.Row(
-                    [dbc.Col(kpi_shop, md=4), dbc.Col(kpi_switch, md=4), dbc.Col(kpi_retain, md=4)],
-                    className="mb-4",
-                ),
-                dbc.Row(
-                    [
-                        dbc.Col(dcc.Graph(figure=fig_trend), md=6),
-                        dbc.Col(html.Div([html.H6("Why Customers Shop", className="mb-2"), why_table]), md=6),
-                    ],
-                    className="mb-4",
-                ),
-                dbc.Row([dbc.Col(channel_div, md=6), dbc.Col(pcw_div, md=6)]),
-            ],
-            fluid=True,
-        )
+        return dbc.Container([
+            kpi_cards,
+            dbc.Row([
+                dbc.Col(dcc.Graph(figure=fig_trend, config={"displayModeBar": False}), md=6),
+                dbc.Col(html.Div([html.H2("Why Customers Shop (Q8)"), why_content]), md=6),
+            ], className="mb-4"),
+            dbc.Row([
+                dbc.Col(html.Div([html.H2("Shopping Channels"), channel_div]), md=6),
+                dbc.Col(html.Div([html.H2("PCW Market Share"), pcw_content, footer]), md=6),
+            ]),
+        ], fluid=True)

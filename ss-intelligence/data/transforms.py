@@ -1,12 +1,19 @@
 """
-Derived fields, cleaning, and mapping.
-Mirrors logic from src/utils/deriveFields.js and normaliseColumns.js.
+Derived fields, cleaning, and mapping for MainData.
+
+Produces a consistent set of columns regardless of source format:
+  Profile:   Product, CurrentCompany, PreRenewalCompany, PreviousCompany
+  Time:      RenewalYearMonth, SurveyYearMonth
+  Segments:  IsShopper, IsSwitcher, IsNewToMarket, IsRetained
+  Demo:      AgeBand, Region, PaymentType
+  Derived:   PriceDirection, UsedPCW
 """
+from __future__ import annotations
+
 import pandas as pd
 
 
 def _derive_price_direction(row: pd.Series) -> str | None:
-    """Map renewal premium change to PriceDirection (Up, Down, Unchanged, New)."""
     change = row.get("Renewal premium change combined") or row.get("Renewal premium change") or ""
     s = str(change).lower().strip()
     if not s or s == "nan":
@@ -23,30 +30,25 @@ def _derive_price_direction(row: pd.Series) -> str | None:
 
 
 def _derive_age_band(age_group: str) -> str | None:
-    """Map Age Group to AgeBand (spec format: 17-24, 25-34, 35-44, 45-54, 55-64, 65+)."""
     if pd.isna(age_group) or not str(age_group).strip():
         return None
     s = str(age_group).strip()
-    # Already in spec format
     if s in ("17-24", "18-24", "25-34", "35-44", "45-54", "55-64", "65+"):
-        return "18-24" if s == "18-24" else s  # Normalise 18-24 to match common format
-    # Map 18-24 -> 17-24 for spec alignment if needed; keep 18-24 as valid
+        return s
     return s
 
 
 def _derive_used_pcw(row: pd.Series) -> bool:
-    """Did you use a PCW for shopping -> UsedPCW boolean."""
     val = row.get("Did you use a PCW for shopping")
     return val in ("Yes", "1", True, "yes", "true")
 
 
 def transform(df: pd.DataFrame, product: str = "Motor") -> pd.DataFrame:
     """
-    Clean and derive fields. Returns DataFrame with:
-    - Product, CurrentCompany, PreRenewalCompany, PreviousCompany
-    - RenewalYearMonth, AgeBand, Region, PaymentType
-    - IsShopper, IsSwitcher, IsNewToMarket
-    - PriceDirection, UsedPCW
+    Clean and derive fields from MainData.
+
+    Returns DataFrame with standardised columns. Safe to call on both
+    legacy 25-column and new flat-export profile data.
     """
     if df is None or len(df) == 0:
         return df
@@ -56,7 +58,7 @@ def transform(df: pd.DataFrame, product: str = "Motor") -> pd.DataFrame:
     # Product
     out["Product"] = product
 
-    # Column aliases (some analytics use PreRenewalCompany, flows use PreviousCompany)
+    # Column aliases
     if "PreRenewalCompany" in out.columns and "PreviousCompany" not in out.columns:
         out["PreviousCompany"] = out["PreRenewalCompany"]
 
@@ -64,28 +66,32 @@ def transform(df: pd.DataFrame, product: str = "Motor") -> pd.DataFrame:
     if "RenewalYearMonth" in out.columns:
         out["RenewalYearMonth"] = pd.to_numeric(out["RenewalYearMonth"], errors="coerce")
 
-    # UniqueID
+    # UniqueID as string
     if "UniqueID" in out.columns:
         out["UniqueID"] = out["UniqueID"].astype(str)
 
-    # Shoppers -> IsShopper
+    # Shoppers → IsShopper
     if "Shoppers" in out.columns:
         out["IsShopper"] = out["Shoppers"].astype(str).str.strip().str.lower() == "shoppers"
     else:
         out["IsShopper"] = False
 
-    # Switchers -> IsSwitcher, IsNewToMarket, IsRetained
+    # Switchers → IsSwitcher, IsNewToMarket, IsRetained
     if "Switchers" in out.columns:
-        sw = out["Switchers"].astype(str).str.strip()
-        out["IsSwitcher"] = sw.str.lower() == "switcher"
-        out["IsNewToMarket"] = sw.str.lower().str.contains("new-to-market", na=False)
-        out["IsRetained"] = sw.str.lower().isin(("retained", "non-switcher"))
+        sw = out["Switchers"].astype(str).str.strip().str.lower()
+        out["IsSwitcher"] = sw == "switcher"
+        out["IsNewToMarket"] = sw.str.contains("new-to-market", na=False)
+        out["IsRetained"] = sw.isin(("retained", "non-switcher"))
+    elif "Retained" in out.columns:
+        out["IsRetained"] = out["Retained"].astype(str).str.strip().str.lower().isin(("true", "1", "yes", "retained"))
+        out["IsSwitcher"] = ~out["IsRetained"]
+        out["IsNewToMarket"] = False
     else:
         out["IsSwitcher"] = False
         out["IsNewToMarket"] = False
-        out["IsRetained"] = ~out["IsSwitcher"]
+        out["IsRetained"] = True
 
-    # AgeBand from Age Group
+    # AgeBand
     if "Age Group" in out.columns:
         out["AgeBand"] = out["Age Group"].apply(_derive_age_band)
     elif "AgeBand" not in out.columns:
@@ -95,7 +101,7 @@ def transform(df: pd.DataFrame, product: str = "Motor") -> pd.DataFrame:
     if "Region" not in out.columns:
         out["Region"] = None
 
-    # PaymentType (Q43 maps to payment; demo data often lacks it)
+    # PaymentType
     if "PaymentType" not in out.columns and "Q43" in out.columns:
         out["PaymentType"] = out["Q43"].astype(str)
     elif "PaymentType" not in out.columns:
@@ -106,5 +112,9 @@ def transform(df: pd.DataFrame, product: str = "Motor") -> pd.DataFrame:
 
     # UsedPCW
     out["UsedPCW"] = out.apply(_derive_used_pcw, axis=1)
+
+    # Derive 'Renewal premium change combined' if missing (needed for PriceDirection in some paths)
+    if "Renewal premium change combined" not in out.columns and "Renewal premium change" in out.columns:
+        out["Renewal premium change combined"] = out["Renewal premium change"]
 
     return out

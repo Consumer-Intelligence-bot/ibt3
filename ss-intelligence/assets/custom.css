@@ -1,31 +1,300 @@
-/* CI Brand typography and styles - spec Section 11 */
+/* ===================================================================
+   Consumer Intelligence — Brand Design System
+   Spec Sections 11.1–11.5
+   =================================================================== */
+
+:root {
+  --ci-magenta: #981D97;
+  --ci-yellow: #FFCD00;
+  --ci-green: #48A23F;
+  --ci-red: #F4364C;
+  --ci-blue: #5BC2E7;
+  --ci-grey: #54585A;
+  --ci-light-grey: #F2F2F2;
+  --ci-white: #FFFFFF;
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.10);
+  --radius: 8px;
+  --radius-sm: 4px;
+  --transition: 0.15s ease;
+}
+
+/* ---- Typography (Spec 11.2) ---- */
+
 body {
-  font-family: 'Segoe UI', Arial, sans-serif;
-  color: #54585A;
+  font-family: Verdana, Geneva, sans-serif;
+  font-size: 14px;
+  color: var(--ci-grey);
+  background: #FAFAFA;
 }
 
 h1 {
   font-size: 24px;
   font-weight: bold;
-  color: #981D97;
+  color: var(--ci-magenta);
+  margin-bottom: 0.75rem;
 }
 
 h2 {
   font-size: 16px;
   font-weight: 600;
-  color: #54585A;
+  color: var(--ci-grey);
+  margin-bottom: 0.5rem;
+}
+
+h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ci-grey);
+}
+
+/* ---- Navbar ---- */
+
+.ci-navbar {
+  background: var(--ci-white);
+  border-top: 3px solid var(--ci-magenta);
+  box-shadow: var(--shadow-sm);
+  padding: 0.5rem 1.5rem;
+}
+
+.ci-navbar .navbar-brand {
+  font-weight: 700;
+  color: var(--ci-magenta);
+  font-size: 16px;
+  letter-spacing: -0.3px;
+}
+
+.ci-navbar .nav-link {
+  color: var(--ci-grey);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 0.5rem 0.85rem;
+  border-radius: var(--radius-sm);
+  transition: background var(--transition), color var(--transition);
+}
+
+.ci-navbar .nav-link:hover {
+  background: var(--ci-light-grey);
+  color: var(--ci-magenta);
+}
+
+.ci-navbar .nav-link.active {
+  background: var(--ci-magenta);
+  color: var(--ci-white);
+}
+
+/* ---- KPI Cards ---- */
+
+.ci-card {
+  background: var(--ci-white);
+  border: none;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow var(--transition);
+  overflow: hidden;
+}
+
+.ci-card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.ci-card .card-header {
+  background: transparent;
+  border-bottom: 1px solid var(--ci-light-grey);
+  padding: 0.6rem 1rem;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ci-grey);
+}
+
+.ci-card .card-body {
+  padding: 1rem;
 }
 
 .kpi-value {
   font-size: 28px;
   font-weight: bold;
+  line-height: 1.2;
 }
+
+.kpi-value--insurer { color: var(--ci-magenta); }
+.kpi-value--market  { color: var(--ci-grey); }
+.kpi-value--muted   { color: #999; }
 
 .kpi-title {
   font-size: 12px;
   font-weight: 600;
+  color: var(--ci-grey);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin-bottom: 0.25rem;
 }
 
-.card-body {
-  font-size: 14px;
+.kpi-subtitle {
+  font-size: 11px;
+  color: #888;
+  margin-top: 0.15rem;
 }
+
+/* ---- Gap badges ---- */
+
+.gap-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.gap-badge--positive { background: #E8F5E9; color: var(--ci-green); }
+.gap-badge--negative { background: #FFEBEE; color: var(--ci-red); }
+.gap-badge--neutral  { background: var(--ci-light-grey); color: var(--ci-grey); }
+
+/* ---- Confidence badges (Spec 12.1) ---- */
+
+.badge-confidence {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.badge-HIGH         { background: #E8F5E9; color: var(--ci-green); }
+.badge-MEDIUM       { background: #FFF8E1; color: #B8860B; }
+.badge-LOW          { background: #FFF3E0; color: #E65100; }
+.badge-INSUFFICIENT { background: #FFEBEE; color: var(--ci-red); }
+
+/* ---- Confidence banner ---- */
+
+.ci-banner {
+  background: var(--ci-white);
+  border-radius: var(--radius);
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.ci-banner--high   { border-left: 4px solid var(--ci-green); }
+.ci-banner--medium { border-left: 4px solid var(--ci-yellow); }
+.ci-banner--low    { border-left: 4px solid #E65100; }
+.ci-banner--insuff { border-left: 4px solid var(--ci-red); }
+
+/* ---- Tables ---- */
+
+.ci-table .dash-spreadsheet-container {
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+
+.ci-table .dash-header {
+  background: var(--ci-light-grey);
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--ci-grey);
+}
+
+.ci-table .dash-cell {
+  font-size: 13px;
+  border-bottom: 1px solid #F0F0F0;
+}
+
+.ci-table .dash-cell:hover {
+  background: #F8F4FC;
+}
+
+/* ---- Slopegraph panels (Page 6) ---- */
+
+.slopegraph-panel {
+  border-right: 1px solid #E8E8E8;
+  padding: 1.25rem;
+  text-align: center;
+}
+
+.slopegraph-panel:last-child {
+  border-right: none;
+}
+
+.slopegraph-value {
+  font-size: 22px;
+  font-weight: bold;
+}
+
+.slopegraph-arrow {
+  font-size: 18px;
+  margin: 0.5rem 0;
+}
+
+.slopegraph-arrow--up   { color: var(--ci-green); }
+.slopegraph-arrow--down { color: var(--ci-red); }
+.slopegraph-arrow--flat { color: var(--ci-grey); }
+
+.slopegraph-delta {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* ---- Bump chart container ---- */
+
+.bump-chart-container {
+  background: var(--ci-white);
+  border-radius: var(--radius);
+  padding: 1rem;
+  box-shadow: var(--shadow-sm);
+}
+
+/* ---- Filter bar ---- */
+
+.ci-filter-bar {
+  background: var(--ci-white);
+  border-radius: var(--radius);
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.ci-filter-bar .Select-control {
+  border-radius: var(--radius-sm);
+}
+
+/* ---- Suppression message (Spec 11.5) ---- */
+
+.ci-suppression {
+  background: var(--ci-light-grey);
+  border: 1px dashed #CCC;
+  border-radius: var(--radius);
+  padding: 2rem;
+  text-align: center;
+  color: var(--ci-grey);
+}
+
+.ci-suppression h3 {
+  margin-bottom: 0.5rem;
+}
+
+/* ---- General utilities ---- */
+
+.ci-section {
+  margin-bottom: 1.5rem;
+}
+
+.ci-page-header {
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid var(--ci-magenta);
+}
+
+.text-ci-magenta { color: var(--ci-magenta); }
+.text-ci-green   { color: var(--ci-green); }
+.text-ci-red     { color: var(--ci-red); }
+.bg-ci-light     { background: var(--ci-light-grey); }
