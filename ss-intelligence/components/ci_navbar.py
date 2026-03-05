@@ -12,6 +12,7 @@ NAV_ITEMS = [
     {"label": "Market Overview", "href": "/"},
     {"label": "Insurer Diagnostic", "href": "/insurer-diagnostic"},
     {"label": "Insurer Comparison", "href": "/insurer-comparison"},
+    {"label": "Renewal Flow", "href": "/renewal-flow"},
     {"label": "Awareness: Market", "href": "/awareness-market"},
     {"label": "Awareness: Insurer", "href": "/awareness-insurer"},
 ]
