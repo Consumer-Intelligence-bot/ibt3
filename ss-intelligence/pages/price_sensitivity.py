@@ -29,11 +29,11 @@ def _norm(val):
 )
 def update_price(insurer, age_band, region, payment_type, product, time_window):
     product = product or "Motor"
-    tw = int(time_window or 24)
+    selected = [int(v) for v in time_window] if time_window else None
     age_band, region, payment_type = _norm(age_band), _norm(region), _norm(payment_type)
     df_main = DF_MOTOR if product == "Motor" else (DF_HOME if DF_HOME is not None and len(DF_HOME) > 0 else DF_MOTOR)
-    df_ins = apply_filters(df_main, insurer=insurer, product=product, time_window_months=tw, age_band=age_band, region=region, payment_type=payment_type)
-    df_mkt = apply_filters(df_main, insurer=None, product=product, time_window_months=tw, age_band=age_band, region=region, payment_type=payment_type)
+    df_ins = apply_filters(df_main, insurer=insurer, product=product, selected_months=selected, age_band=age_band, region=region, payment_type=payment_type)
+    df_mkt = apply_filters(df_main, insurer=None, product=product, selected_months=selected, age_band=age_band, region=region, payment_type=payment_type)
     sup = check_suppression(df_ins, df_mkt)
     filter_bar_el = filter_bar(age_band, region, payment_type)
     dist_ins = calc_price_direction_dist(df_ins) if insurer and sup.can_show_insurer else None

@@ -16,7 +16,7 @@ export function DashboardProvider({ children }) {
   const [mode, setMode] = useState('market');
   const [selectedInsurer, setSelectedInsurer] = useState(null);
   const [product, setProduct] = useState('motor');
-  const [timeWindow, setTimeWindow] = useState('all');
+  const [selectedMonths, setSelectedMonths] = useState([]); // array of YYYYMM ints
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -45,18 +45,29 @@ export function DashboardProvider({ children }) {
 
   const rawData = product === 'motor' ? rawDataMotor : rawDataHome;
 
-  const filterByTimeWindow = (data) => {
+  // All unique YYYYMM values from the active product data, sorted descending (newest first)
+  const availableMonths = useMemo(() => {
+    const all = [...new Set(rawData.map((r) => r.RenewalYearMonth).filter(Boolean))];
+    return all.sort((a, b) => b - a);
+  }, [rawData]);
+
+  // Default to last 12 months when data loads or product changes
+  useEffect(() => {
+    if (availableMonths.length > 0) {
+      setSelectedMonths(availableMonths.slice(0, 12));
+    }
+  }, [availableMonths]);
+
+  const filterBySelectedMonths = (data) => {
     if (!data?.length) return [];
-    if (timeWindow === 'all') return data;
-    const months = timeWindow === '12m' ? 12 : 24;
-    const allMonths = [...new Set(data.map((r) => r.RenewalYearMonth))].sort((a, b) => b - a);
-    const cutoffMonths = allMonths.slice(0, months);
-    return data.filter((r) => cutoffMonths.includes(r.RenewalYearMonth));
+    if (!selectedMonths?.length) return data;
+    const monthSet = new Set(selectedMonths);
+    return data.filter((r) => monthSet.has(r.RenewalYearMonth));
   };
 
-  const filteredData = useMemo(() => filterByTimeWindow(rawData), [rawData, timeWindow]);
-  const filteredDataMotor = useMemo(() => filterByTimeWindow(rawDataMotor), [rawDataMotor, timeWindow]);
-  const filteredDataHome = useMemo(() => filterByTimeWindow(rawDataHome), [rawDataHome, timeWindow]);
+  const filteredData = useMemo(() => filterBySelectedMonths(rawData), [rawData, selectedMonths]);
+  const filteredDataMotor = useMemo(() => filterBySelectedMonths(rawDataMotor), [rawDataMotor, selectedMonths]);
+  const filteredDataHome = useMemo(() => filterBySelectedMonths(rawDataHome), [rawDataHome, selectedMonths]);
 
   // Build insurer list (those meeting publishable threshold)
   const insurerList = useMemo(() => {
@@ -83,8 +94,9 @@ export function DashboardProvider({ children }) {
     setSelectedInsurer,
     product,
     setProduct,
-    timeWindow,
-    setTimeWindow,
+    availableMonths,
+    selectedMonths,
+    setSelectedMonths,
     insurerList,
     loading,
     error,

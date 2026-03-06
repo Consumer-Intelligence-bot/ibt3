@@ -118,7 +118,7 @@ def _slopegraph_panel(title: str, data: dict | None, gated: bool = False) -> dbc
 )
 def update_awareness_insurer(insurer, product, time_window):
     product = product or "Motor"
-    tw = int(time_window or DEFAULT_TIME_WINDOW_INSURER)
+    selected = [int(v) for v in time_window] if time_window else None
 
     if not insurer:
         msg = html.Div("Select an insurer to view awareness data.", className="ci-suppression p-4")
@@ -126,12 +126,12 @@ def update_awareness_insurer(insurer, product, time_window):
 
     df_main = DF_MOTOR if product == "Motor" else (DF_HOME if DF_HOME is not None and len(DF_HOME) > 0 else DF_MOTOR)
     df_questions = DF_QUESTIONS if product == "Motor" else (DF_QUESTIONS_HOME if DF_QUESTIONS_HOME is not None and len(DF_QUESTIONS_HOME) > 0 else DF_QUESTIONS)
-    df_main = apply_filters(df_main, product=product, time_window_months=tw)
+    df_main = apply_filters(df_main, product=product, selected_months=selected)
     n_insurer = len(df_main[df_main["CurrentCompany"] == insurer])
 
     banner = confidence_banner(
         n=n_insurer,
-        time_window=f"Last {tw} months",
+        time_window=f"{len(selected or [])} months",
         metric_type=MetricType.AWARENESS,
     )
 

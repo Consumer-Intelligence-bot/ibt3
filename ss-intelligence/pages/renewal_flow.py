@@ -431,17 +431,17 @@ def _norm(val):
 )
 def update_renewal_flow(insurer, age_band, region, payment_type, product, time_window):
     product = product or "Motor"
-    tw = int(time_window or 24)
+    selected = [int(v) for v in time_window] if time_window else None
     age_band, region, payment_type = _norm(age_band), _norm(region), _norm(payment_type)
 
     df_main = DF_MOTOR if product == "Motor" else (DF_HOME if DF_HOME is not None and len(DF_HOME) > 0 else DF_MOTOR)
     df_mkt = apply_filters(
         df_main, insurer=None, age_band=age_band, region=region,
-        payment_type=payment_type, product=product, time_window_months=tw,
+        payment_type=payment_type, product=product, selected_months=selected,
     )
     df_ins = apply_filters(
         df_main, insurer=insurer, age_band=age_band, region=region,
-        payment_type=payment_type, product=product, time_window_months=tw,
+        payment_type=payment_type, product=product, selected_months=selected,
     ) if insurer else df_mkt
 
     filter_bar_el = filter_bar(age_band, region, payment_type)

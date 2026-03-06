@@ -11,16 +11,23 @@ def apply_filters(
     region: str | None = None,
     payment_type: str | None = None,
     product: str = "Motor",
-    time_window_months: int = 24,
+    time_window_months: int | None = None,
+    selected_months: list[int] | None = None,
 ) -> pd.DataFrame:
     """
     Filter DataFrame by demographics. insurer=None means market (no insurer filter).
+
+    Time filtering: if *selected_months* (list of YYYYMM ints) is provided it
+    takes precedence.  Otherwise falls back to *time_window_months* (legacy).
     """
     if df is None or len(df) == 0:
         return df
     filtered = df.copy()
     filtered = filtered[filtered["Product"] == product]
-    filtered = _apply_time_window(filtered, time_window_months)
+    if selected_months is not None:
+        filtered = _apply_selected_months(filtered, selected_months)
+    elif time_window_months is not None:
+        filtered = _apply_time_window(filtered, time_window_months)
     if age_band:
         filtered = filtered[filtered["AgeBand"] == age_band]
     if region:
@@ -32,8 +39,15 @@ def apply_filters(
     return filtered
 
 
+def _apply_selected_months(df: pd.DataFrame, months: list[int]) -> pd.DataFrame:
+    """Keep only rows whose RenewalYearMonth is in the given list."""
+    if not months or "RenewalYearMonth" not in df.columns:
+        return df
+    return df[df["RenewalYearMonth"].isin(months)]
+
+
 def _apply_time_window(df: pd.DataFrame, months: int) -> pd.DataFrame:
-    """Keep only rows within the last N months of RenewalYearMonth."""
+    """Keep only rows within the last N months of RenewalYearMonth (legacy)."""
     if "RenewalYearMonth" not in df.columns or months <= 0:
         return df
     max_ym = df["RenewalYearMonth"].max()
