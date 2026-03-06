@@ -2,7 +2,8 @@ import { NavLink } from 'react-router-dom';
 import { COLORS, FONT } from '../../utils/brandConstants';
 
 const TABS = [
-  { label: 'Market Pulse',         path: '/' },
+  { label: 'Headline',             path: '/' },
+  { label: 'Market Pulse',         path: '/market-pulse' },
   { label: 'The Renewal Journey',  path: '/renewal-journey' },
   { label: 'Renewal Flow',         path: '/renewal-flow' },
   { label: 'Who Shops, Who Stays', path: '/who-shops-who-stays' },
