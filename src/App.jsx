@@ -9,6 +9,7 @@ import ScreenLayout from './components/shared/ScreenLayout';
 import MarketPulse from './components/screen1/MarketPulse';
 import ShopOrStay from './components/screen2/ShopOrStay';
 import RenewalFlow from './components/screen2/RenewalFlow';
+import HeadlinePage from './components/headline/HeadlinePage';
 import ErrorBoundary from './components/shared/ErrorBoundary';
 import { FONT, COLORS } from './utils/brandConstants';
 
@@ -41,6 +42,11 @@ function AppContent() {
       <main style={{ padding: '24px', maxWidth: '1400px', margin: '0 auto' }}>
         <Routes>
           <Route path="/" element={
+            <ScreenLayout activeStage="renewals">
+              <HeadlinePage />
+            </ScreenLayout>
+          } />
+          <Route path="/market-pulse" element={
             <ScreenLayout activeStage="renewals">
               <MarketPulse />
             </ScreenLayout>
