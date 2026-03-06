@@ -6,14 +6,15 @@
 
 const useMocks = import.meta.env.VITE_USE_MOCKS === 'true';
 
-let _api = null;
+let _apiPromise = null;
 
-async function getApi() {
-  if (_api) return _api;
-  _api = useMocks
-    ? await import('./mockApi.js').then(m => m.mockApi)
-    : await import('./realApi.js');
-  return _api;
+function getApi() {
+  if (!_apiPromise) {
+    _apiPromise = useMocks
+      ? import('./mockApi.js').then(m => m.mockApi)
+      : import('./realApi.js');
+  }
+  return _apiPromise;
 }
 
 export const getKpis = (...args) => getApi().then(api => api.getKpis(...args));
