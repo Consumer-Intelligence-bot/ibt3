@@ -9,6 +9,7 @@ import dash_bootstrap_components as dbc
 
 
 NAV_ITEMS = [
+    {"label": "Headline", "href": "/headline"},
     {"label": "Market Overview", "href": "/"},
     {"label": "Insurer Diagnostic", "href": "/insurer-diagnostic"},
     {"label": "Insurer Comparison", "href": "/insurer-comparison"},
