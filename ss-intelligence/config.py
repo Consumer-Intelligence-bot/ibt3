@@ -69,3 +69,9 @@ MARKET_COLOUR = CI_GREY
 POSITIVE_GAP_COLOUR = CI_GREEN
 NEGATIVE_GAP_COLOUR = CI_RED
 NEUTRAL_GAP_THRESHOLD = 1.0  # percentage points
+
+# ---------------------------------------------------------------------------
+# AI-generated narrative (Headline page)
+# ---------------------------------------------------------------------------
+NARRATIVE_MODEL = "claude-opus-4-6"
+NARRATIVE_ENABLED = True
