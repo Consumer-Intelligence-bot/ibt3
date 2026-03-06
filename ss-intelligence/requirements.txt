@@ -14,6 +14,9 @@ pyarrow>=16.0.0
 dash-auth>=2.3.0
 flask-login>=0.6.0
 
+# AI-generated narratives
+anthropic>=0.39.0
+
 # Configuration
 python-dotenv>=1.0.0
 
