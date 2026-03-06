@@ -350,7 +350,7 @@ export default function RenewalLandscape() {
       <div style={{ marginBottom: '24px' }}>
         <Placeholder
           title="Premium distribution (Q43a)"
-          dataNeeded="Requires response data file"
+          dataNeeded="Additional survey response data to display premium distribution"
         />
       </div>
 

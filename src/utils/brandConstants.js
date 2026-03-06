@@ -24,6 +24,4 @@ export const THRESHOLDS = {
   publishable: 50,      // n >= 50: show value
   indicative: 30,       // n >= 30: show with "indicative" label
   minimum: 30,          // n < 30: suppress entirely
-  // TODO: REMOVE BEFORE DELIVERY — dev override for testing with demo data
-  devOverride: 5,       // FOR DEVELOPMENT ONLY. Reset to 50 before delivery.
 };

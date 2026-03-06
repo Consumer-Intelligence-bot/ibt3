@@ -17,21 +17,21 @@ const SECTIONS = [
     title: 'Why Customers Shop (Q8)',
     questionGroup: 'reasons-for-shopping',
     proxyFn: proxyReasonsForShopping,
-    placeholderText: 'Requires response data file',
+    placeholderText: 'Additional survey response data to display detailed reasons',
   },
   {
     key: 'switching',
     title: 'Why They Switched (Q31)',
     questionGroup: 'reasons-for-switching',
     proxyFn: proxyReasonsForSwitching,
-    placeholderText: 'Requires response data file',
+    placeholderText: 'Additional survey response data to display detailed reasons',
   },
   {
     key: 'not-shopping',
     title: "Why Customers Don't Shop (Q19)",
     questionGroup: 'reasons-for-not-shopping',
     proxyFn: proxyReasonsForNotShopping,
-    placeholderText: 'Requires response data file',
+    placeholderText: 'Additional survey response data to display detailed reasons',
   },
 ];
 
@@ -46,25 +46,28 @@ export default function WhyTheyMove() {
     let cancelled = false;
     setApiError(false);
     const load = async () => {
-      const results = {};
-      for (const s of SECTIONS) {
-        try {
-          const res = await getReasons({
+      const settled = await Promise.allSettled(
+        SECTIONS.map(s =>
+          getReasons({
             product: product || 'motor',
             brand: insurerMode ? selectedInsurer : null,
             questionGroup: s.questionGroup,
-          });
-          if (!cancelled && res?.reasons?.length) {
-            results[s.key] = {
-              reasons: res.reasons,
-              base_n: res.base_n,
-            };
+          }).then(res => ({ key: s.key, res }))
+        )
+      );
+      if (cancelled) return;
+      const results = {};
+      for (const outcome of settled) {
+        if (outcome.status === 'fulfilled') {
+          const { key, res } = outcome.value;
+          if (res?.reasons?.length) {
+            results[key] = { reasons: res.reasons, base_n: res.base_n };
           }
-        } catch {
-          if (!cancelled) setApiError(true);
+        } else {
+          setApiError(true);
         }
       }
-      if (!cancelled) setApiData(results);
+      setApiData(results);
     };
     load();
     return () => { cancelled = true; };

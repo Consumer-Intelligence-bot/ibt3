@@ -6,7 +6,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { useDashboard } from '../../context/DashboardContext';
-import KPICard from '../shared/KPICard';
+import KPICard, { cardStyle, labelStyle } from '../shared/KPICard';
 import Placeholder from '../shared/Placeholder';
 import ReasonChart from '../screen4/ReasonChart';
 import { getReasons } from '../../api';
@@ -22,25 +22,6 @@ import {
   generateNarrative,
 } from '../../utils/measures/screen2Measures';
 import NarrativeCard from './NarrativeCard';
-
-// ── Shared card styles (matches KPICard internals) ─────────────────────────────
-
-const kpiCardStyle = {
-  backgroundColor: COLORS.white,
-  borderRadius: '8px',
-  boxShadow: '0 1px 4px rgba(0,0,0,0.10)',
-  padding: '16px',
-  minWidth: '160px',
-  fontFamily: FONT.family,
-};
-
-const kpiLabelStyle = {
-  fontSize: FONT.cardLabel,
-  color: '#444',
-  textTransform: 'uppercase',
-  letterSpacing: '0.5px',
-  lineHeight: 1.3,
-};
 
 const chartCard = {
   backgroundColor: COLORS.white,
@@ -75,8 +56,8 @@ function TrendKPICard({ marketTrend, marketSupp, insurerMode, insurerTrend, insu
   }
 
   return (
-    <div style={kpiCardStyle}>
-      <div style={kpiLabelStyle}>Trend</div>
+    <div style={cardStyle}>
+      <div style={labelStyle}>Trend</div>
 
       {primaryTrend ? (
         <>
@@ -409,14 +390,14 @@ export default function ShopOrStay() {
           ) : reasonsApiError && proxyReasonsForShopping(filteredData)?.length ? (
             <ReasonChart title="Why Customers Shop (Q8) (proxy)" reasons={proxyReasonsForShopping(filteredData)} baseN={getSegmentCounts(filteredData, insurerMode ? selectedInsurer : null).shopping} insurerMode={!!insurerMode} />
           ) : (
-            <Placeholder title="Why Customers Shop (Q8)" dataNeeded="Requires response data file" />
+            <Placeholder title="Why Customers Shop (Q8)" dataNeeded="Additional survey response data to display detailed reasons" />
           )}
           {reasonsQ19?.reasons?.length ? (
             <ReasonChart title="Why Customers Don't Shop (Q19)" reasons={reasonsQ19.reasons} baseN={reasonsQ19.base_n} insurerMode={!!insurerMode} />
           ) : reasonsApiError && proxyReasonsForNotShopping(filteredData)?.length ? (
             <ReasonChart title="Why Customers Don't Shop (Q19) (proxy)" reasons={proxyReasonsForNotShopping(filteredData)} baseN={getSegmentCounts(filteredData, insurerMode ? selectedInsurer : null)['not-shopping']} insurerMode={!!insurerMode} />
           ) : (
-            <Placeholder title="Why Customers Don't Shop (Q19)" dataNeeded="Requires response data file" />
+            <Placeholder title="Why Customers Don't Shop (Q19)" dataNeeded="Additional survey response data to display detailed reasons" />
           )}
         </div>
 

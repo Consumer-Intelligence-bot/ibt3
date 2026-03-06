@@ -29,38 +29,70 @@ def format_year_month(ym) -> str:
     return str(ym)
 
 
-# MainData — wide, one row per respondent
-DF_MOTOR, _MOTOR_META = load_main("Motor")
-try:
-    DF_HOME, _ = load_main("Home")
-except FileNotFoundError:
-    DF_HOME = None
+# ---- Lazy data loading ----
+_loaded = False
+DF_MOTOR = pd.DataFrame()
+DF_HOME = None
+DF_QUESTIONS = pd.DataFrame()
+DF_QUESTIONS_HOME = None
+DIMENSIONS = {}
+DF_ALL = pd.DataFrame()
+DATA_METADATA = {}
 
-# AllOtherData — EAV, one row per answer per respondent
-DF_QUESTIONS, _Q_META = load_questions("Motor")
-if DF_QUESTIONS.empty:
-    log.warning(
-        "AllOtherData (Motor) is empty — awareness, reasons, and channel analytics "
-        "will show 'Insufficient data'. Copy the flat export CSV (e.g. "
-        "ibt_motor_export_FINAL.csv) into data/raw/ and restart, or set DATA_DIR."
-    )
-try:
-    DF_QUESTIONS_HOME, _ = load_questions("Home")
-except FileNotFoundError:
-    DF_QUESTIONS_HOME = None
+_MOTOR_META = {}
+_Q_META = {}
 
-DIMENSIONS = get_all_dimensions(DF_MOTOR)
 
-# Combined Motor + Home MainData (legacy alias)
-DF_ALL = DF_MOTOR.copy()
-if DF_HOME is not None and len(DF_HOME) > 0:
-    m = DF_MOTOR.loc[:, ~DF_MOTOR.columns.duplicated()]
-    h = DF_HOME.loc[:, ~DF_HOME.columns.duplicated()]
-    DF_ALL = pd.concat([m, h], ignore_index=True)
+def _load_all():
+    """Load all data on first access. Called once."""
+    global _loaded, DF_MOTOR, DF_HOME, DF_QUESTIONS, DF_QUESTIONS_HOME
+    global DIMENSIONS, DF_ALL, DATA_METADATA, _MOTOR_META, _Q_META
 
-# Metadata for Admin page
-DATA_METADATA = {
-    "motor": _MOTOR_META,
-    "questions": _Q_META,
-    "has_questions": len(DF_QUESTIONS) > 0,
-}
+    if _loaded:
+        return
+    _loaded = True
+
+    # MainData — wide, one row per respondent
+    DF_MOTOR, _MOTOR_META = load_main("Motor")
+    try:
+        DF_HOME, _ = load_main("Home")
+    except FileNotFoundError:
+        DF_HOME = None
+
+    # AllOtherData — EAV, one row per answer per respondent
+    DF_QUESTIONS, _Q_META = load_questions("Motor")
+    if DF_QUESTIONS.empty:
+        log.warning(
+            "AllOtherData (Motor) is empty — awareness, reasons, and channel analytics "
+            "will show 'Insufficient data'. Copy the flat export CSV (e.g. "
+            "ibt_motor_export_FINAL.csv) into data/raw/ and restart, or set DATA_DIR."
+        )
+    try:
+        DF_QUESTIONS_HOME, _ = load_questions("Home")
+    except FileNotFoundError:
+        DF_QUESTIONS_HOME = None
+
+    DIMENSIONS = get_all_dimensions(DF_MOTOR)
+
+    # Combined Motor + Home MainData (legacy alias)
+    DF_ALL = DF_MOTOR.copy()
+    if DF_HOME is not None and len(DF_HOME) > 0:
+        m = DF_MOTOR.loc[:, ~DF_MOTOR.columns.duplicated()]
+        h = DF_HOME.loc[:, ~DF_HOME.columns.duplicated()]
+        DF_ALL = pd.concat([m, h], ignore_index=True)
+
+    # Metadata for Admin page
+    DATA_METADATA = {
+        "motor": _MOTOR_META,
+        "questions": _Q_META,
+        "has_questions": len(DF_QUESTIONS) > 0,
+    }
+
+
+def ensure_loaded():
+    """Ensure data is loaded. Called by app.py on startup."""
+    _load_all()
+
+
+# Auto-load on import for backward compatibility with existing pages
+_load_all()

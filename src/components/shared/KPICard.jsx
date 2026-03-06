@@ -123,7 +123,7 @@ export default function KPICard({
   );
 }
 
-const cardStyle = {
+export const cardStyle = {
   backgroundColor: COLORS.white,
   borderRadius: '8px',
   boxShadow: '0 1px 4px rgba(0,0,0,0.10)',
@@ -132,7 +132,7 @@ const cardStyle = {
   fontFamily: FONT.family,
 };
 
-const labelStyle = {
+export const labelStyle = {
   fontSize: FONT.cardLabel,
   color: '#444',
   textTransform: 'uppercase',

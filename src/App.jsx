@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { DashboardProvider, useDashboard } from './context/DashboardContext';
 import Header from './components/shared/Header';
@@ -10,27 +9,11 @@ import ScreenLayout from './components/shared/ScreenLayout';
 import MarketPulse from './components/screen1/MarketPulse';
 import ShopOrStay from './components/screen2/ShopOrStay';
 import RenewalFlow from './components/screen2/RenewalFlow';
-import ValidationPage from './components/shared/ValidationPage';
-import { runValidation } from './utils/validation';
+import ErrorBoundary from './components/shared/ErrorBoundary';
 import { FONT, COLORS } from './utils/brandConstants';
 
 function AppContent() {
-  const { loading, error, rawData } = useDashboard();
-
-  // TODO: REMOVE BEFORE DELIVERY — Ctrl+Shift+V runs validation and logs to console
-  useEffect(() => {
-    function handleKeyDown(e) {
-      if (e.key === 'V' && e.ctrlKey && e.shiftKey) {
-        e.preventDefault();
-        const data = rawData?.length ? rawData : [];
-        const results = runValidation(data);
-        console.table(results.map(r => ({ ...r, pass: r.pass ? '✓' : '✗' })));
-        console.log('Validation:', results.filter(r => !r.pass).length ? 'some failures' : 'all pass');
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [rawData]);
+  const { loading, error } = useDashboard();
 
   if (loading) {
     return (
@@ -83,8 +66,6 @@ function AppContent() {
             </ScreenLayout>
           } />
           <Route path="/brand-lens" element={<PlaceholderScreen title="Brand Lens" />} />
-          {/* TODO: REMOVE BEFORE DELIVERY — dev-only validation route */}
-          <Route path="/validation" element={<ValidationPage />} />
         </Routes>
       </main>
     </>
@@ -95,7 +76,9 @@ export default function App() {
   return (
     <BrowserRouter>
       <DashboardProvider>
-        <AppContent />
+        <ErrorBoundary>
+          <AppContent />
+        </ErrorBoundary>
       </DashboardProvider>
     </BrowserRouter>
   );

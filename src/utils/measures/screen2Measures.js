@@ -1,10 +1,4 @@
-/**
- * Filter data to a specific insurer (by CurrentCompany) if provided.
- */
-function filterByInsurer(data, insurer) {
-  if (!insurer) return data;
-  return data.filter(row => row.CurrentCompany === insurer);
-}
+import { filterByInsurer } from './shared';
 
 /**
  * Shopping rate: proportion who shopped around.

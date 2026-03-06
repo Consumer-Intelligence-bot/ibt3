@@ -8,6 +8,9 @@ import { normaliseColumns } from './normaliseColumns';
 export async function loadCSV(filename) {
   const base = import.meta.env.BASE_URL || '/';
   const response = await fetch(`${base}data/${filename}`);
+  if (!response.ok) {
+    throw new Error(`Failed to load ${filename}: ${response.status} ${response.statusText}`);
+  }
   const text = await response.text();
 
   return new Promise((resolve, reject) => {
