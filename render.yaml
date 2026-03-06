@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: ss-intelligence
+    runtime: docker
+    dockerfilePath: ./ss-intelligence/Dockerfile
+    dockerContext: ./ss-intelligence
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false  # must be set manually in Render dashboard (secret)
