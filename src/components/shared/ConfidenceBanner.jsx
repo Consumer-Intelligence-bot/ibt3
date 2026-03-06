@@ -1,5 +1,5 @@
 import { getConfidenceBannerInfo } from '../../utils/governance';
-import { FONT } from '../../utils/brandConstants';
+import styles from './ConfidenceBanner.module.css';
 
 /**
  * Full-width confidence banner for insurer mode.
@@ -10,15 +10,7 @@ export default function ConfidenceBanner({ n }) {
   const { colour, label } = getConfidenceBannerInfo(n);
 
   return (
-    <div style={{
-      backgroundColor: colour,
-      color: '#fff',
-      fontFamily: FONT.family,
-      fontSize: '12px',
-      padding: '8px 16px',
-      borderRadius: '4px',
-      width: '100%',
-    }}>
+    <div className={styles.banner} style={{ backgroundColor: colour }}>
       {label} — based on {n} responses
     </div>
   );

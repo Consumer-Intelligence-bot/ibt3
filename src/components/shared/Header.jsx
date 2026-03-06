@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useDashboard } from '../../context/DashboardContext';
-import { COLORS, FONT, THRESHOLDS } from '../../utils/brandConstants';
+import { THRESHOLDS } from '../../utils/brandConstants';
+import styles from './Header.module.css';
 
 const PERIOD_OPTIONS = [
   { value: 'all', label: 'All data' },
@@ -52,23 +53,15 @@ export default function Header() {
   const filteredPublished = insurerList.filter(n => n.toLowerCase().includes(lowerSearch));
 
   return (
-    <div style={{
-      backgroundColor: COLORS.magenta,
-      padding: '12px 24px',
-      boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
-    }}>
+    <div className={styles.header}>
       {/* Logo row */}
-      <div style={{ marginBottom: '10px' }}>
-        <div style={{ color: '#fff', fontSize: '16px', fontWeight: 'bold', fontFamily: FONT.family }}>
-          Consumer Intelligence
-        </div>
-        <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: '12px', fontFamily: FONT.family }}>
-          Shopping &amp; Switching
-        </div>
+      <div className={styles.logoRow}>
+        <div className={styles.logoTitle}>Consumer Intelligence</div>
+        <div className={styles.logoSubtitle}>Shopping &amp; Switching</div>
       </div>
 
       {/* Controls row */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+      <div className={styles.controls}>
 
         {/* Market / Insurer toggle */}
         <ToggleGroup>
@@ -85,65 +78,29 @@ export default function Header() {
           <div ref={dropdownRef} style={{ position: 'relative' }}>
             <button
               onClick={() => setDropdownOpen(prev => !prev)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '6px 12px',
-                backgroundColor: 'rgba(255,255,255,0.15)',
-                border: '1px solid rgba(255,255,255,0.45)',
-                borderRadius: '4px',
-                color: '#fff',
-                fontSize: '13px',
-                fontFamily: FONT.family,
-                cursor: 'pointer',
-                minWidth: '180px',
-              }}
+              className={styles.dropdownTrigger}
             >
-              <span style={{ flex: 1, textAlign: 'left' }}>
+              <span className={styles.dropdownTriggerLabel}>
                 {selectedInsurer || 'Select insurer…'}
               </span>
-              <span style={{ fontSize: '10px' }}>▾</span>
+              <span className={styles.chevron}>▾</span>
             </button>
 
             {dropdownOpen && (
-              <div style={{
-                position: 'absolute',
-                top: 'calc(100% + 4px)',
-                left: 0,
-                backgroundColor: '#fff',
-                border: '1px solid #ddd',
-                borderRadius: '4px',
-                boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
-                zIndex: 200,
-                minWidth: '240px',
-                maxHeight: '340px',
-                display: 'flex',
-                flexDirection: 'column',
-                overflow: 'hidden',
-              }}>
+              <div className={styles.dropdownPanel}>
                 {/* Search */}
-                <div style={{ padding: '8px', borderBottom: '1px solid #eee' }}>
+                <div className={styles.searchBox}>
                   <input
                     autoFocus
                     value={searchText}
                     onChange={e => setSearchText(e.target.value)}
                     placeholder="Search insurers…"
-                    style={{
-                      width: '100%',
-                      padding: '6px 10px',
-                      border: '1px solid #ddd',
-                      borderRadius: '3px',
-                      fontSize: '13px',
-                      fontFamily: FONT.family,
-                      outline: 'none',
-                      boxSizing: 'border-box',
-                    }}
+                    className={styles.searchInput}
                   />
                 </div>
 
                 {/* List body */}
-                <div style={{ overflowY: 'auto', flex: 1 }}>
+                <div className={styles.listBody}>
                   {filteredPublished.length > 0
                     ? filteredPublished.map(name => (
                         <DropdownItem
@@ -154,13 +111,7 @@ export default function Header() {
                         />
                       ))
                     : (
-                        <div style={{
-                          padding: '10px 16px',
-                          fontSize: '12px',
-                          color: '#888',
-                          fontFamily: FONT.family,
-                          fontStyle: 'italic',
-                        }}>
+                        <div className={styles.emptyMessage}>
                           No insurers meet the minimum sample size (n ≥ {THRESHOLDS.publishable})
                         </div>
                       )
@@ -186,37 +137,15 @@ export default function Header() {
           <select
             value={timeWindow}
             onChange={e => setTimeWindow(e.target.value)}
-            style={{
-              padding: '6px 32px 6px 12px',
-              backgroundColor: 'rgba(255,255,255,0.15)',
-              border: '1px solid rgba(255,255,255,0.45)',
-              borderRadius: '4px',
-              color: '#fff',
-              fontSize: '13px',
-              fontFamily: FONT.family,
-              cursor: 'pointer',
-              appearance: 'none',
-              WebkitAppearance: 'none',
-            }}
+            className={styles.periodSelect}
           >
             {PERIOD_OPTIONS.map(opt => (
-              <option key={opt.value} value={opt.value} style={{ backgroundColor: '#fff', color: '#333' }}>
+              <option key={opt.value} value={opt.value} className={styles.periodOption}>
                 {opt.label}
               </option>
             ))}
           </select>
-          {/* Custom chevron */}
-          <span style={{
-            position: 'absolute',
-            right: '10px',
-            top: '50%',
-            transform: 'translateY(-50%)',
-            fontSize: '10px',
-            color: '#fff',
-            pointerEvents: 'none',
-          }}>
-            ▾
-          </span>
+          <span className={styles.selectChevron}>▾</span>
         </div>
 
       </div>
@@ -228,15 +157,7 @@ export default function Header() {
 
 function ToggleGroup({ children }) {
   return (
-    <div style={{
-      display: 'flex',
-      backgroundColor: 'rgba(255,255,255,0.2)',
-      borderRadius: '4px',
-      padding: '2px',
-      alignItems: 'center',
-    }}>
-      {children}
-    </div>
+    <div className={styles.toggleGroup}>{children}</div>
   );
 }
 
@@ -244,18 +165,7 @@ function ToggleBtn({ active, onClick, children }) {
   return (
     <button
       onClick={onClick}
-      style={{
-        padding: '5px 13px',
-        fontSize: '13px',
-        fontFamily: FONT.family,
-        border: 'none',
-        borderRadius: '3px',
-        backgroundColor: active ? '#fff' : 'transparent',
-        color: active ? COLORS.magenta : 'rgba(255,255,255,0.9)',
-        fontWeight: active ? 'bold' : 'normal',
-        cursor: 'pointer',
-        transition: 'background-color 0.15s, color 0.15s',
-      }}
+      className={active ? styles.toggleBtnActive : styles.toggleBtnInactive}
     >
       {children}
     </button>
@@ -263,25 +173,10 @@ function ToggleBtn({ active, onClick, children }) {
 }
 
 function DropdownItem({ name, selected, onSelect }) {
-  const [hovered, setHovered] = useState(false);
   return (
     <button
       onClick={() => onSelect(name)}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        display: 'block',
-        width: '100%',
-        textAlign: 'left',
-        padding: '8px 16px',
-        border: 'none',
-        backgroundColor: selected ? '#F3E8F3' : hovered ? '#f5f5f5' : 'transparent',
-        color: selected ? COLORS.magenta : '#333',
-        fontSize: '13px',
-        fontFamily: FONT.family,
-        cursor: 'pointer',
-        fontWeight: selected ? 'bold' : 'normal',
-      }}
+      className={selected ? styles.dropdownItemSelected : styles.dropdownItem}
     >
       {name}
     </button>

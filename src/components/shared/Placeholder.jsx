@@ -1,4 +1,4 @@
-import { FONT } from '../../utils/brandConstants';
+import styles from './Placeholder.module.css';
 
 /**
  * Placeholder for visuals that require data not yet available.
@@ -8,25 +8,9 @@ import { FONT } from '../../utils/brandConstants';
  */
 export default function Placeholder({ title, dataNeeded }) {
   return (
-    <div style={{
-      border: '2px dashed #ccc',
-      borderRadius: '8px',
-      backgroundColor: '#f9f9f9',
-      minHeight: '250px',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '24px',
-      fontFamily: FONT.family,
-      textAlign: 'center',
-    }}>
-      <p style={{ fontWeight: 'bold', fontSize: '14px', color: '#555', margin: '0 0 8px' }}>
-        {title}
-      </p>
-      <p style={{ fontSize: '12px', color: '#999', margin: 0 }}>
-        {dataNeeded}
-      </p>
+    <div className={styles.container}>
+      <p className={styles.title}>{title}</p>
+      <p className={styles.detail}>{dataNeeded}</p>
     </div>
   );
 }

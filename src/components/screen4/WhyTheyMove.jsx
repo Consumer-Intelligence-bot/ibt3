@@ -9,7 +9,7 @@ import {
   proxyReasonsForSwitching,
   getSegmentCounts,
 } from '../../utils/measures/whyTheyMoveMeasures';
-import { FONT, COLORS } from '../../utils/brandConstants';
+import styles from './WhyTheyMove.module.css';
 
 const SECTIONS = [
   {
@@ -74,21 +74,13 @@ export default function WhyTheyMove() {
   }, [insurerMode, selectedInsurer, product]);
 
   return (
-    <div style={{ fontFamily: FONT.family }}>
-      <h2 style={{ fontSize: 20, fontWeight: 'bold', color: COLORS.darkGrey, marginBottom: 20 }}>
-        Why They Move
-      </h2>
-      <p style={{ fontSize: 14, color: '#666', marginBottom: 24 }}>
+    <div className={styles.container}>
+      <h2 className={styles.heading}>Why They Move</h2>
+      <p className={styles.subtitle}>
         Reasons behind shopping, switching, and not shopping. Actionable insight for insurers.
       </p>
 
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(3, 1fr)',
-          gap: 24,
-        }}
-      >
+      <div className={styles.grid}>
         {SECTIONS.map((section) => {
           const apiResult = apiData[section.key];
           const proxyReasons = section.proxyFn(filteredData);

@@ -1,0 +1,146 @@
+.container {
+  font-family: var(--font-family);
+}
+
+.kpiRow {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
+/* ── KPI Card (local to MarketPulse) ──────────────────── */
+.kpiCard {
+  background-color: var(--ci-white);
+  border-radius: var(--card-radius);
+  box-shadow: var(--card-shadow);
+  padding: var(--card-padding);
+  min-width: 160px;
+  font-family: var(--font-family);
+}
+
+.kpiLabel {
+  font-size: var(--font-card-label);
+  color: #444;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  line-height: 1.3;
+}
+
+.kpiSuppressed {
+  color: #ccc;
+  font-size: var(--font-card-value);
+  font-weight: bold;
+  margin: 8px 0;
+}
+
+.kpiSuppressedText {
+  font-size: 11px;
+  color: #999;
+}
+
+.kpiValue {
+  font-size: var(--font-card-value);
+  font-weight: bold;
+  color: var(--ci-grey);
+  margin: 8px 0 4px;
+}
+
+.kpiTrendInline {
+  font-size: 14px;
+  margin-left: 8px;
+}
+
+.kpiSampleSize {
+  font-size: 11px;
+  color: #666;
+  margin-top: 4px;
+}
+
+/* ── Trend chart panel ────────────────────────────────── */
+.chartPanel {
+  background-color: var(--ci-white);
+  border-radius: var(--card-radius);
+  box-shadow: var(--card-shadow);
+  padding: var(--card-padding);
+  margin-bottom: 24px;
+}
+
+.chartTitle {
+  font-size: 14px;
+  font-weight: bold;
+  margin-bottom: 12px;
+  color: #333;
+}
+
+/* ── Tooltip ──────────────────────────────────────────── */
+.tooltip {
+  background-color: #fff;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 10px;
+  font-family: var(--font-family);
+  font-size: 12px;
+  min-width: 140px;
+}
+
+.tooltipTitle {
+  font-weight: bold;
+  margin-bottom: 6px;
+}
+
+.tooltipN {
+  color: #888;
+  margin-top: 4px;
+  font-size: 11px;
+}
+
+/* ── Comparison panels ────────────────────────────────── */
+.panel {
+  background-color: var(--ci-white);
+  border-radius: var(--card-radius);
+  box-shadow: var(--card-shadow);
+  padding: var(--card-padding);
+}
+
+.panelTitle {
+  font-size: 14px;
+  font-weight: bold;
+  margin-bottom: 12px;
+  color: #333;
+}
+
+.comparisonGrid {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.comparisonSectionLabel {
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 4px;
+}
+
+.comparisonItem {
+  font-size: 11px;
+}
+
+/* ── Price direction bar ──────────────────────────────── */
+.priceBar {
+  display: flex;
+  gap: 2px;
+  align-items: flex-end;
+  height: 32px;
+}
+
+.priceBarSegment {
+  min-width: 0;
+  border-radius: 2px;
+}
+
+.priceSummary {
+  font-size: 11px;
+  color: #666;
+  margin-top: 8px;
+}

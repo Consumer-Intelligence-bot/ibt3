@@ -1,0 +1,19 @@
+.container {
+  padding: 24px;
+  border: 1px dashed #ccc;
+  border-radius: var(--card-radius);
+  background-color: #FAFAFA;
+  text-align: center;
+  font-family: var(--font-family);
+  font-size: var(--font-body);
+  color: #666;
+}
+
+.title {
+  margin: 0;
+}
+
+.detail {
+  margin: 8px 0 0 0;
+  font-size: 12px;
+}

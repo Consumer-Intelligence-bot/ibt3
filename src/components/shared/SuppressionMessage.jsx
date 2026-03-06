@@ -1,4 +1,4 @@
-import { FONT } from '../../utils/brandConstants';
+import styles from './SuppressionMessage.module.css';
 
 /**
  * Displayed when data cannot be shown due to insufficient sample size.
@@ -7,22 +7,9 @@ import { FONT } from '../../utils/brandConstants';
  */
 export default function SuppressionMessage({ message }) {
   return (
-    <div style={{
-      padding: '24px',
-      border: '1px dashed #ccc',
-      borderRadius: '8px',
-      backgroundColor: '#FAFAFA',
-      textAlign: 'center',
-      fontFamily: FONT.family,
-      fontSize: FONT.body,
-      color: '#666',
-    }}>
-      <p style={{ margin: 0 }}>
-        <strong>Data suppressed</strong>
-      </p>
-      <p style={{ margin: '8px 0 0 0', fontSize: '12px' }}>
-        {message || 'Insufficient data for this view.'}
-      </p>
+    <div className={styles.container}>
+      <p className={styles.title}><strong>Data suppressed</strong></p>
+      <p className={styles.detail}>{message || 'Insufficient data for this view.'}</p>
     </div>
   );
 }

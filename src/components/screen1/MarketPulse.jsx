@@ -10,10 +10,9 @@ import {
   ComposedChart,
 } from 'recharts';
 import { useDashboard } from '../../context/DashboardContext';
-import { COLORS, FONT } from '../../utils/brandConstants';
+import { COLORS } from '../../utils/brandConstants';
 import { formatPct } from '../../utils/formatters';
 import { checkSuppression } from '../../utils/governance';
-import { cardStyle, labelStyle } from '../shared/KPICard';
 import {
   shoppingRate,
   switchingRate,
@@ -23,6 +22,7 @@ import {
   trendChange,
   priceDirectionSplit,
 } from '../../utils/measures/marketPulseMeasures';
+import styles from './MarketPulse.module.css';
 
 const TREND_ARROW = { up: '▲', down: '▼', flat: '—' };
 
@@ -59,27 +59,27 @@ function MarketPulseKPICard({ label, value, sparklineValues, trend, trendValue, 
 
   if (suppressed) {
     return (
-      <div style={cardStyle}>
-        <div style={labelStyle}>{label}</div>
-        <div style={{ color: '#ccc', fontSize: FONT.cardValue, fontWeight: 'bold', margin: '8px 0' }}>—</div>
-        <div style={{ fontSize: '11px', color: '#999' }}>Insufficient data</div>
+      <div className={styles.kpiCard}>
+        <div className={styles.kpiLabel}>{label}</div>
+        <div className={styles.kpiSuppressed}>—</div>
+        <div className={styles.kpiSuppressedText}>Insufficient data</div>
       </div>
     );
   }
 
   return (
-    <div style={cardStyle}>
-      <div style={labelStyle}>{label}</div>
-      <div style={{ fontSize: FONT.cardValue, fontWeight: 'bold', color: COLORS.grey, margin: '8px 0 4px' }}>
+    <div className={styles.kpiCard}>
+      <div className={styles.kpiLabel}>{label}</div>
+      <div className={styles.kpiValue}>
         {formatPct(value)}
         {arrow && trend?.changePts != null && (
-          <span style={{ fontSize: '14px', marginLeft: 8, color: trendColor }}>
+          <span className={styles.kpiTrendInline} style={{ color: trendColor }}>
             {arrow} {(trend.changePts * 100).toFixed(1)}pts
           </span>
         )}
       </div>
       <Sparkline values={sparklineValues} color={COLORS.magenta} />
-      <div style={{ fontSize: '11px', color: '#666', marginTop: 4 }}>n={n?.toLocaleString()}</div>
+      <div className={styles.kpiSampleSize}>n={n?.toLocaleString()}</div>
     </div>
   );
 }
@@ -89,27 +89,17 @@ function TrendTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null;
   const p = payload[0]?.payload;
   return (
-    <div style={tooltipStyle}>
-      <div style={{ fontWeight: 'bold', marginBottom: 6 }}>{label}</div>
+    <div className={styles.tooltip}>
+      <div className={styles.tooltipTitle}>{label}</div>
       {payload.map((entry) => (
         <div key={entry.dataKey} style={{ color: entry.color, marginBottom: 2 }}>
           {entry.name}: {formatPct(entry.value)}
         </div>
       ))}
-      {p?.n != null && <div style={{ color: '#888', marginTop: 4, fontSize: 11 }}>n={p.n}</div>}
+      {p?.n != null && <div className={styles.tooltipN}>n={p.n}</div>}
     </div>
   );
 }
-
-const tooltipStyle = {
-  backgroundColor: '#fff',
-  border: '1px solid #ddd',
-  borderRadius: 6,
-  padding: 10,
-  fontFamily: FONT.family,
-  fontSize: 12,
-  minWidth: 140,
-};
 
 export default function MarketPulse() {
   const { filteredData, filteredDataMotor, filteredDataHome, selectedInsurer, mode } = useDashboard();
@@ -162,9 +152,9 @@ export default function MarketPulse() {
   const showHomeVsMotor = !insurer && filteredDataMotor.length > 0 && filteredDataHome.length > 0;
 
   return (
-    <div style={{ fontFamily: FONT.family }}>
+    <div className={styles.container}>
       {/* KPI cards */}
-      <div style={{ display: 'flex', gap: 16, marginBottom: 24, flexWrap: 'wrap' }}>
+      <div className={styles.kpiRow}>
         <MarketPulseKPICard
           label="Shopping Rate"
           value={shopping}
@@ -200,18 +190,8 @@ export default function MarketPulse() {
       </div>
 
       {/* Trend chart */}
-      <div
-        style={{
-          backgroundColor: COLORS.white,
-          borderRadius: 8,
-          boxShadow: '0 1px 4px rgba(0,0,0,0.10)',
-          padding: 16,
-          marginBottom: 24,
-        }}
-      >
-        <div style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 12, color: '#333' }}>
-          Trend (last 12 periods)
-        </div>
+      <div className={styles.chartPanel}>
+        <div className={styles.chartTitle}>Trend (last 12 periods)</div>
         <ResponsiveContainer width="100%" height={300}>
           <ComposedChart data={ratesByMonthData}>
             <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
@@ -250,59 +230,59 @@ export default function MarketPulse() {
       {/* Comparison panels */}
       <div style={{ display: 'grid', gridTemplateColumns: showHomeVsMotor ? '1fr 1fr' : '1fr', gap: 24 }}>
         {showHomeVsMotor && (
-          <div style={panelStyle}>
-            <div style={panelTitle}>Home vs Motor</div>
-            <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
+          <div className={styles.panel}>
+            <div className={styles.panelTitle}>Home vs Motor</div>
+            <div className={styles.comparisonGrid}>
               <div>
-                <div style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>Motor (n={motorRates.n})</div>
-                <div style={{ fontSize: 11 }}>Shopping: {formatPct(motorRates.shopping)}</div>
-                <div style={{ fontSize: 11 }}>Switching: {formatPct(motorRates.switching)}</div>
-                <div style={{ fontSize: 11 }}>Shop & Stay: {formatPct(motorRates.shopStay)}</div>
-                <div style={{ fontSize: 11 }}>PCW: {formatPct(motorRates.pcw)}</div>
+                <div className={styles.comparisonSectionLabel}>Motor (n={motorRates.n})</div>
+                <div className={styles.comparisonItem}>Shopping: {formatPct(motorRates.shopping)}</div>
+                <div className={styles.comparisonItem}>Switching: {formatPct(motorRates.switching)}</div>
+                <div className={styles.comparisonItem}>Shop & Stay: {formatPct(motorRates.shopStay)}</div>
+                <div className={styles.comparisonItem}>PCW: {formatPct(motorRates.pcw)}</div>
               </div>
               <div>
-                <div style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>Home (n={homeRates.n})</div>
-                <div style={{ fontSize: 11 }}>Shopping: {formatPct(homeRates.shopping)}</div>
-                <div style={{ fontSize: 11 }}>Switching: {formatPct(homeRates.switching)}</div>
-                <div style={{ fontSize: 11 }}>Shop & Stay: {formatPct(homeRates.shopStay)}</div>
-                <div style={{ fontSize: 11 }}>PCW: {formatPct(homeRates.pcw)}</div>
+                <div className={styles.comparisonSectionLabel}>Home (n={homeRates.n})</div>
+                <div className={styles.comparisonItem}>Shopping: {formatPct(homeRates.shopping)}</div>
+                <div className={styles.comparisonItem}>Switching: {formatPct(homeRates.switching)}</div>
+                <div className={styles.comparisonItem}>Shop & Stay: {formatPct(homeRates.shopStay)}</div>
+                <div className={styles.comparisonItem}>PCW: {formatPct(homeRates.pcw)}</div>
               </div>
             </div>
           </div>
         )}
 
-        <div style={panelStyle}>
-          <div style={panelTitle}>Price Direction Split</div>
-          <div style={{ display: 'flex', gap: 2, alignItems: 'flex-end', height: 32 }}>
+        <div className={styles.panel}>
+          <div className={styles.panelTitle}>Price Direction Split</div>
+          <div className={styles.priceBar}>
             <div
+              className={styles.priceBarSegment}
               style={{
                 width: `${(priceSplit.higher || 0) * 100}%`,
                 backgroundColor: COLORS.red,
                 minWidth: priceSplit.higher > 0 ? 8 : 0,
-                borderRadius: 2,
               }}
               title={`Higher: ${formatPct(priceSplit.higher)}`}
             />
             <div
+              className={styles.priceBarSegment}
               style={{
                 width: `${(priceSplit.unchanged || 0) * 100}%`,
                 backgroundColor: COLORS.grey,
                 minWidth: priceSplit.unchanged > 0 ? 8 : 0,
-                borderRadius: 2,
               }}
               title={`Unchanged: ${formatPct(priceSplit.unchanged)}`}
             />
             <div
+              className={styles.priceBarSegment}
               style={{
                 width: `${(priceSplit.lower || 0) * 100}%`,
                 backgroundColor: COLORS.green,
                 minWidth: priceSplit.lower > 0 ? 8 : 0,
-                borderRadius: 2,
               }}
               title={`Lower: ${formatPct(priceSplit.lower)}`}
             />
           </div>
-          <div style={{ fontSize: 11, color: '#666', marginTop: 8 }}>
+          <div className={styles.priceSummary}>
             Higher {formatPct(priceSplit.higher)} · Unchanged {formatPct(priceSplit.unchanged)} · Lower{' '}
             {formatPct(priceSplit.lower)} (n={priceSplit.n})
           </div>
@@ -311,17 +291,3 @@ export default function MarketPulse() {
     </div>
   );
 }
-
-const panelStyle = {
-  backgroundColor: COLORS.white,
-  borderRadius: 8,
-  boxShadow: '0 1px 4px rgba(0,0,0,0.10)',
-  padding: 16,
-};
-
-const panelTitle = {
-  fontSize: 14,
-  fontWeight: 'bold',
-  marginBottom: 12,
-  color: '#333',
-};

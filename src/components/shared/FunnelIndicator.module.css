@@ -1,0 +1,29 @@
+.container {
+  font-family: var(--font-family);
+  font-size: 12px;
+  width: 100%;
+}
+
+.stage {
+  margin-bottom: 6px;
+}
+
+.stageHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2px;
+}
+
+.track {
+  height: 10px;
+  background-color: #eee;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}

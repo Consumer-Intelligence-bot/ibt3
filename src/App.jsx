@@ -10,35 +10,26 @@ import MarketPulse from './components/screen1/MarketPulse';
 import ShopOrStay from './components/screen2/ShopOrStay';
 import RenewalFlow from './components/screen2/RenewalFlow';
 import ErrorBoundary from './components/shared/ErrorBoundary';
-import { FONT, COLORS } from './utils/brandConstants';
+import styles from './App.module.css';
 
 function AppContent() {
   const { loading, error } = useDashboard();
 
   if (loading) {
-    return (
-      <div style={{ padding: 40, fontFamily: FONT.family, fontSize: FONT.body }}>
-        Loading data…
-      </div>
-    );
+    return <div className={styles.loading}>Loading data…</div>;
   }
   if (error) {
-    return (
-      <div style={{ padding: 40, fontFamily: FONT.family, fontSize: FONT.body, color: COLORS.red }}>
-        Error: {error}
-      </div>
-    );
+    return <div className={styles.error}>Error: {error}</div>;
   }
 
   return (
     <>
-      {/* Sticky shell: header + tabs scroll away together */}
-      <div style={{ position: 'sticky', top: 0, zIndex: 100 }}>
+      <div className={styles.stickyShell}>
         <Header />
         <TabNavigation />
       </div>
 
-      <main style={{ padding: '24px', maxWidth: '1400px', margin: '0 auto' }}>
+      <main className={styles.main}>
         <Routes>
           <Route path="/" element={
             <ScreenLayout activeStage="renewals">

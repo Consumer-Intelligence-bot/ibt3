@@ -1,0 +1,117 @@
+.container {
+  font-family: var(--font-family);
+}
+
+.kpiRow {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+
+.chartGrid {
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.chartCard {
+  background-color: var(--ci-white);
+  border-radius: var(--card-radius);
+  box-shadow: var(--card-shadow);
+  padding: var(--card-padding);
+}
+
+.chartTitle {
+  font-size: 14px;
+  font-weight: bold;
+  font-family: var(--font-family);
+  color: #333;
+  margin-bottom: 12px;
+}
+
+.reasonColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ── Trend KPI card ───────────────────────────────────── */
+.trendCard {
+  background-color: var(--ci-white);
+  border-radius: var(--card-radius);
+  box-shadow: var(--card-shadow);
+  padding: var(--card-padding);
+  min-width: 160px;
+  font-family: var(--font-family);
+}
+
+.trendLabel {
+  font-size: var(--font-card-label);
+  color: #444;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  line-height: 1.3;
+}
+
+.trendVs {
+  font-size: 11px;
+  color: #999;
+}
+
+.trendSuppressed {
+  font-size: 28px;
+  font-weight: bold;
+  color: #ccc;
+  margin: 8px 0;
+}
+
+.trendSuppressedMsg {
+  font-size: 11px;
+  color: #999;
+}
+
+.indicativeBadge {
+  display: inline-block;
+  font-size: 10px;
+  color: #F5A623;
+  border: 1px solid #F5A623;
+  border-radius: 3px;
+  padding: 1px 5px;
+  margin-bottom: 6px;
+}
+
+.marketSection {
+  border-top: 1px solid #eee;
+  margin-top: 8px;
+  padding-top: 8px;
+}
+
+.marketLabel {
+  font-size: 11px;
+  color: var(--ci-grey);
+}
+
+/* ── Tooltip ──────────────────────────────────────────── */
+.tooltip {
+  background-color: #fff;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 10px;
+  font-family: var(--font-family);
+  font-size: 12px;
+  min-width: 160px;
+}
+
+.tooltipTitle {
+  font-weight: bold;
+  margin-bottom: 6px;
+}
+
+.tooltipN {
+  color: #888;
+  margin-top: 6px;
+  border-top: 1px solid #eee;
+  padding-top: 4px;
+}

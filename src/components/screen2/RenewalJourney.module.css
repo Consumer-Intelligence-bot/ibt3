@@ -1,0 +1,27 @@
+.container {
+  font-family: var(--font-family);
+}
+
+.heading {
+  font-size: 24px;
+  margin-bottom: 16px;
+}
+
+.flowWrapper {
+  background-color: #fff;
+  border-radius: var(--card-radius);
+  box-shadow: var(--card-shadow);
+  overflow: auto;
+}
+
+.empty {
+  padding: 60px;
+  text-align: center;
+  color: #999;
+  font-family: var(--font-family);
+}
+
+.emptyHeading {
+  font-size: 24px;
+  margin-bottom: 12px;
+}

@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
-import { COLORS, FONT } from '../../utils/brandConstants';
+import { COLORS } from '../../utils/brandConstants';
+import styles from './FunnelIndicator.module.css';
 
 /**
  * Three horizontal bars representing the customer journey funnel.
@@ -30,39 +31,28 @@ export default function FunnelIndicator({ data, activeStage, insurer }) {
   const maxCount = counts.allRenewals || 1;
 
   return (
-    <div style={{ fontFamily: FONT.family, fontSize: '12px', width: '100%' }}>
+    <div className={styles.container}>
       {stages.map(stage => {
         const isActive = stage.key === activeStage;
         const widthPct = Math.round((stage.count / maxCount) * 100);
+        const color = isActive ? COLORS.magenta : COLORS.grey;
+        const fillColor = isActive ? COLORS.magenta : '#bbb';
 
         return (
-          <div key={stage.key} style={{ marginBottom: '6px' }}>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              marginBottom: '2px',
-            }}>
-              <span style={{ color: isActive ? COLORS.magenta : COLORS.grey, fontWeight: isActive ? 'bold' : 'normal' }}>
+          <div key={stage.key} className={styles.stage}>
+            <div className={styles.stageHeader}>
+              <span style={{ color, fontWeight: isActive ? 'bold' : 'normal' }}>
                 {stage.label}
               </span>
-              <span style={{ color: isActive ? COLORS.magenta : COLORS.grey, fontWeight: isActive ? 'bold' : 'normal' }}>
+              <span style={{ color, fontWeight: isActive ? 'bold' : 'normal' }}>
                 {stage.count.toLocaleString('en-GB')}
               </span>
             </div>
-            <div style={{
-              height: '10px',
-              backgroundColor: '#eee',
-              borderRadius: '3px',
-              overflow: 'hidden',
-            }}>
-              <div style={{
-                height: '100%',
-                width: `${widthPct}%`,
-                backgroundColor: isActive ? COLORS.magenta : '#bbb',
-                borderRadius: '3px',
-                transition: 'width 0.3s ease',
-              }} />
+            <div className={styles.track}>
+              <div
+                className={styles.fill}
+                style={{ width: `${widthPct}%`, backgroundColor: fillColor }}
+              />
             </div>
           </div>
         );

@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { COLORS, FONT } from '../../utils/brandConstants';
+import styles from './TabNavigation.module.css';
 
 const TABS = [
   { label: 'Market Pulse',         path: '/' },
@@ -12,29 +12,13 @@ const TABS = [
 
 export default function TabNavigation() {
   return (
-    <nav style={{
-      backgroundColor: '#fff',
-      borderBottom: '1px solid #e0e0e0',
-      display: 'flex',
-    }}>
+    <nav className={styles.nav}>
       {TABS.map(tab => (
         <NavLink
           key={tab.path}
           to={tab.path}
           end={tab.path === '/'}
-          style={({ isActive }) => ({
-            padding: '12px 24px',
-            fontSize: '14px',
-            fontFamily: FONT.family,
-            color: isActive ? COLORS.magenta : COLORS.grey,
-            textDecoration: 'none',
-            borderBottom: isActive ? `3px solid ${COLORS.magenta}` : '3px solid transparent',
-            fontWeight: isActive ? 'bold' : 'normal',
-            whiteSpace: 'nowrap',
-            transition: 'color 0.15s, border-bottom-color 0.15s',
-            flex: 1,
-            textAlign: 'center',
-          })}
+          className={({ isActive }) => isActive ? styles.tabActive : styles.tab}
         >
           {tab.label}
         </NavLink>

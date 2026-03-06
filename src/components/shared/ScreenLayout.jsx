@@ -4,6 +4,7 @@ import ConfidenceBanner from './ConfidenceBanner';
 import FunnelIndicator from './FunnelIndicator';
 import SuppressionMessage from './SuppressionMessage';
 import { checkSuppression } from '../../utils/governance';
+import styles from './ScreenLayout.module.css';
 
 /**
  * Standard screen layout wrapper.
@@ -30,7 +31,7 @@ export default function ScreenLayout({ activeStage, children }) {
     <div>
       {/* Confidence banner — insurer mode only */}
       {isInsurerWithSelection && (
-        <div style={{ marginBottom: '16px' }}>
+        <div className={styles.bannerWrap}>
           <ConfidenceBanner n={n} />
         </div>
       )}
@@ -42,7 +43,7 @@ export default function ScreenLayout({ activeStage, children }) {
       }
 
       {/* Funnel indicator — always visible */}
-      <div style={{ marginTop: '32px', maxWidth: '400px' }}>
+      <div className={styles.funnelWrap}>
         <FunnelIndicator
           data={filteredData}
           activeStage={activeStage}

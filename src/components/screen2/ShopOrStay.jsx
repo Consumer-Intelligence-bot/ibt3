@@ -6,7 +6,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { useDashboard } from '../../context/DashboardContext';
-import KPICard, { cardStyle, labelStyle } from '../shared/KPICard';
+import KPICard from '../shared/KPICard';
 import Placeholder from '../shared/Placeholder';
 import ReasonChart from '../screen4/ReasonChart';
 import { getReasons } from '../../api';
@@ -22,21 +22,7 @@ import {
   generateNarrative,
 } from '../../utils/measures/screen2Measures';
 import NarrativeCard from './NarrativeCard';
-
-const chartCard = {
-  backgroundColor: COLORS.white,
-  borderRadius: '8px',
-  boxShadow: '0 1px 4px rgba(0,0,0,0.10)',
-  padding: '16px',
-};
-
-const chartTitle = {
-  fontSize: '14px',
-  fontWeight: 'bold',
-  fontFamily: FONT.family,
-  color: '#333',
-  marginBottom: '12px',
-};
+import styles from './ShopOrStay.module.css';
 
 // ── Trend KPI card (custom: CI Blue for arrow + value) ──────────────────────────
 
@@ -56,8 +42,8 @@ function TrendKPICard({ marketTrend, marketSupp, insurerMode, insurerTrend, insu
   }
 
   return (
-    <div style={cardStyle}>
-      <div style={labelStyle}>Trend</div>
+    <div className={styles.trendCard}>
+      <div className={styles.trendLabel}>Trend</div>
 
       {primaryTrend ? (
         <>
@@ -72,24 +58,14 @@ function TrendKPICard({ marketTrend, marketSupp, insurerMode, insurerTrend, insu
           </div>
 
           {indicative && (
-            <div style={{
-              display: 'inline-block',
-              fontSize: '10px',
-              color: '#F5A623',
-              border: '1px solid #F5A623',
-              borderRadius: '3px',
-              padding: '1px 5px',
-              marginBottom: '6px',
-            }}>
-              Indicative
-            </div>
+            <div className={styles.indicativeBadge}>Indicative</div>
           )}
 
-          <div style={{ fontSize: '11px', color: '#999' }}>vs prior period</div>
+          <div className={styles.trendVs}>vs prior period</div>
 
           {insurerMode && showMarket && (
-            <div style={{ borderTop: '1px solid #eee', marginTop: '8px', paddingTop: '8px' }}>
-              <div style={{ fontSize: '11px', color: COLORS.grey }}>
+            <div className={styles.marketSection}>
+              <div className={styles.marketLabel}>
                 Market: {trendLabel(marketTrend)}
               </div>
             </div>
@@ -97,8 +73,8 @@ function TrendKPICard({ marketTrend, marketSupp, insurerMode, insurerTrend, insu
         </>
       ) : (
         <>
-          <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#ccc', margin: '8px 0' }}>—</div>
-          <div style={{ fontSize: '11px', color: '#999' }}>
+          <div className={styles.trendSuppressed}>—</div>
+          <div className={styles.trendSuppressedMsg}>
             {(marketSupp && !marketSupp.show)
               ? marketSupp.message
               : 'Insufficient data for trend analysis'}
@@ -120,25 +96,15 @@ function LineTooltip({ active, payload, label }) {
   if (!visible.length) return null;
   const n = payload[0]?.payload?.n;
   return (
-    <div style={{
-      backgroundColor: '#fff',
-      border: '1px solid #ddd',
-      borderRadius: '6px',
-      padding: '10px',
-      fontFamily: FONT.family,
-      fontSize: '12px',
-      minWidth: '160px',
-    }}>
-      <div style={{ fontWeight: 'bold', marginBottom: '6px' }}>{label}</div>
+    <div className={styles.tooltip}>
+      <div className={styles.tooltipTitle}>{label}</div>
       {visible.map(p => (
         <div key={p.dataKey} style={{ color: p.stroke, marginBottom: '2px' }}>
           {p.name}: {typeof p.value === 'number' ? `${p.value.toFixed(1)}%` : '—'}
         </div>
       ))}
       {n !== undefined && (
-        <div style={{ color: '#888', marginTop: '6px', borderTop: '1px solid #eee', paddingTop: '4px' }}>
-          n = {n}
-        </div>
+        <div className={styles.tooltipN}>n = {n}</div>
       )}
     </div>
   );
@@ -281,10 +247,10 @@ export default function ShopOrStay() {
   }
 
   return (
-    <div style={{ fontFamily: FONT.family }}>
+    <div className={styles.container}>
 
       {/* ── Row 1: KPI cards ──────────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', marginBottom: '24px' }}>
+      <div className={styles.kpiRow}>
 
         <KPICard {...kpiProps('Shopping Rate', marketShopRate, insurerShopRate, 'pct', 'neutral')} />
         <KPICard {...kpiProps('Non-Shopping Rate', marketNonShopRate, insurerNonShopRate, 'pct', 'neutral')} />
@@ -303,16 +269,11 @@ export default function ShopOrStay() {
       </div>
 
       {/* ── Row 2: Charts (60/40) ─────────────────────────────────────────────── */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: '3fr 2fr',
-        gap: '16px',
-        marginBottom: '24px',
-      }}>
+      <div className={styles.chartGrid}>
 
         {/* Left: shopping rate line chart with confidence band */}
-        <div style={chartCard}>
-          <div style={chartTitle}>Shopping rate over time</div>
+        <div className={styles.chartCard}>
+          <div className={styles.chartTitle}>Shopping rate over time</div>
           <ResponsiveContainer width="100%" height={300}>
             <ComposedChart data={chartData} margin={{ top: 4, right: 16, bottom: 0, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -384,7 +345,7 @@ export default function ShopOrStay() {
         </div>
 
         {/* Right: Why they shop / don't shop */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div className={styles.reasonColumn}>
           {reasonsQ8?.reasons?.length ? (
             <ReasonChart title="Why Customers Shop (Q8)" reasons={reasonsQ8.reasons} baseN={reasonsQ8.base_n} insurerMode={!!insurerMode} />
           ) : reasonsApiError && proxyReasonsForShopping(filteredData)?.length ? (

@@ -1,5 +1,5 @@
 import { Component } from 'react';
-import { FONT, COLORS } from '../../utils/brandConstants';
+import styles from './ErrorBoundary.module.css';
 
 export default class ErrorBoundary extends Component {
   constructor(props) {
@@ -14,29 +14,14 @@ export default class ErrorBoundary extends Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{
-          padding: 40,
-          fontFamily: FONT.family,
-          textAlign: 'center',
-          maxWidth: 600,
-          margin: '80px auto',
-        }}>
-          <h2 style={{ color: COLORS.red, marginBottom: 16 }}>Something went wrong</h2>
-          <p style={{ color: '#666', fontSize: 14, marginBottom: 24 }}>
+        <div className={styles.container}>
+          <h2 className={styles.heading}>Something went wrong</h2>
+          <p className={styles.message}>
             An unexpected error occurred. Please refresh the page to try again.
           </p>
           <button
             onClick={() => window.location.reload()}
-            style={{
-              padding: '8px 24px',
-              backgroundColor: COLORS.magenta,
-              color: '#fff',
-              border: 'none',
-              borderRadius: 4,
-              fontSize: 14,
-              fontFamily: FONT.family,
-              cursor: 'pointer',
-            }}
+            className={styles.refreshBtn}
           >
             Refresh Page
           </button>

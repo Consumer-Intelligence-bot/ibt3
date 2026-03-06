@@ -1,0 +1,11 @@
+.card {
+  background-color: var(--ci-white);
+  border-radius: var(--card-radius);
+  box-shadow: var(--card-shadow);
+  padding: var(--card-padding);
+  border-left: 4px solid var(--ci-magenta);
+  font-family: var(--font-family);
+  font-size: 14px;
+  line-height: 1.6;
+  margin-bottom: 24px;
+}

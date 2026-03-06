@@ -1,0 +1,24 @@
+.loading {
+  padding: 40px;
+  font-family: var(--font-family);
+  font-size: var(--font-body);
+}
+
+.error {
+  padding: 40px;
+  font-family: var(--font-family);
+  font-size: var(--font-body);
+  color: var(--ci-red);
+}
+
+.stickyShell {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.main {
+  padding: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+}

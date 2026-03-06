@@ -1,4 +1,5 @@
-import { FONT, COLORS } from '../../utils/brandConstants';
+import { COLORS } from '../../utils/brandConstants';
+import styles from './ReasonChart.module.css';
 
 /**
  * Horizontal ranked bar chart for reason breakdowns.
@@ -10,21 +11,10 @@ export default function ReasonChart({ title, reasons, baseN, insurerMode }) {
   const maxPct = Math.max(...reasons.map((r) => r.market_pct ?? r.insurer_pct ?? 0), 0.01);
 
   return (
-    <div
-      style={{
-        backgroundColor: COLORS.white,
-        borderRadius: 8,
-        boxShadow: '0 1px 4px rgba(0,0,0,0.10)',
-        padding: 16,
-        minHeight: 280,
-        fontFamily: FONT.family,
-      }}
-    >
-      <div style={{ fontSize: 14, fontWeight: 'bold', color: '#333', marginBottom: 12 }}>
-        {title}
-      </div>
+    <div className={styles.card}>
+      <div className={styles.title}>{title}</div>
       {baseN && (
-        <div style={{ fontSize: 11, marginBottom: 10, display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+        <div className={styles.baseN}>
           <span style={{ color: COLORS.grey }}>
             Market n={typeof baseN.market === 'number' ? baseN.market.toLocaleString() : (typeof baseN === 'number' ? baseN.toLocaleString() : baseN.market ?? '—')}
           </span>
@@ -35,7 +25,7 @@ export default function ReasonChart({ title, reasons, baseN, insurerMode }) {
           )}
         </div>
       )}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div className={styles.reasons}>
         {reasons.map((r, i) => {
           const pct = insurerMode && r.insurer_pct != null ? r.insurer_pct : r.market_pct;
           const marketPct = r.market_pct ?? 0;
@@ -44,27 +34,9 @@ export default function ReasonChart({ title, reasons, baseN, insurerMode }) {
 
           return (
             <div key={r.code || i} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <div
-                style={{
-                  fontSize: 12,
-                  color: '#333',
-                  lineHeight: 1.3,
-                  marginBottom: 2,
-                }}
-              >
-                {r.label}
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div
-                  style={{
-                    flex: 1,
-                    height: 20,
-                    backgroundColor: COLORS.lightGrey,
-                    borderRadius: 3,
-                    overflow: 'hidden',
-                    position: 'relative',
-                  }}
-                >
+              <div className={styles.reasonLabel}>{r.label}</div>
+              <div className={styles.barRow}>
+                <div className={styles.barTrack}>
                   {/* Market bar (background) */}
                   <div
                     style={{
@@ -94,15 +66,7 @@ export default function ReasonChart({ title, reasons, baseN, insurerMode }) {
                     />
                   )}
                 </div>
-                <span
-                  style={{
-                    fontSize: 12,
-                    fontWeight: 'bold',
-                    color: '#333',
-                    minWidth: 48,
-                    textAlign: 'right',
-                  }}
-                >
+                <span className={styles.barPct}>
                   {((pct ?? 0) * 100).toFixed(1)}%
                 </span>
               </div>

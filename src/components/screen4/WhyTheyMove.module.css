@@ -1,0 +1,22 @@
+.container {
+  font-family: var(--font-family);
+}
+
+.heading {
+  font-size: 20px;
+  font-weight: bold;
+  color: var(--ci-dark-grey);
+  margin-bottom: 20px;
+}
+
+.subtitle {
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 24px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+}

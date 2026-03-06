@@ -1,0 +1,30 @@
+/*
+ * Design tokens — CSS custom properties for the CI brand system.
+ * Import once in main.jsx; use throughout CSS modules.
+ */
+:root {
+  /* ── Brand colours ────────────────────────────────────── */
+  --ci-magenta: #981D97;
+  --ci-grey: #54585A;
+  --ci-green: #48A23F;
+  --ci-red: #F4364C;
+  --ci-blue: #5BC2E7;
+  --ci-yellow: #FFCD00;
+  --ci-dark-grey: #4D5153;
+  --ci-light-grey: #E9EAEB;
+  --ci-white: #FFFFFF;
+  --ci-bg-light: #F5F5F5;
+  --ci-confidence-fill: rgba(224, 224, 224, 0.3);
+
+  /* ── Typography ───────────────────────────────────────── */
+  --font-family: Verdana, Geneva, sans-serif;
+  --font-card-value: 32px;
+  --font-card-label: 11px;
+  --font-body: 14px;
+  --font-heading: 18px;
+
+  /* ── Shared surfaces ──────────────────────────────────── */
+  --card-radius: 8px;
+  --card-shadow: 0 1px 4px rgba(0, 0, 0, 0.10);
+  --card-padding: 16px;
+}

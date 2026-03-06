@@ -1,4 +1,4 @@
-import { COLORS, FONT } from '../../utils/brandConstants';
+import styles from './NarrativeCard.module.css';
 
 /**
  * NarrativeCard — insurer mode only.
@@ -12,17 +12,7 @@ export default function NarrativeCard({ insurer, text }) {
   const parts = text.split(insurer);
 
   return (
-    <div style={{
-      backgroundColor: COLORS.white,
-      borderRadius: '8px',
-      boxShadow: '0 1px 4px rgba(0,0,0,0.10)',
-      padding: '16px',
-      borderLeft: `4px solid ${COLORS.magenta}`,
-      fontFamily: FONT.family,
-      fontSize: '14px',
-      lineHeight: '1.6',
-      marginBottom: '24px',
-    }}>
+    <div className={styles.card}>
       {parts.map((part, i) => (
         <span key={i}>
           {i > 0 && <strong>{insurer}</strong>}
