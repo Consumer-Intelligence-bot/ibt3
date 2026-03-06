@@ -30,7 +30,7 @@ from analytics.demographics import apply_filters
 from components.branded_chart import create_branded_figure
 from components.confidence_banner import confidence_banner
 from config import CI_BLUE, CI_GREEN, CI_GREY, CI_LIGHT_GREY, CI_MAGENTA, CI_RED, DEFAULT_TIME_WINDOW_INSURER
-from shared import DF_MOTOR, DF_QUESTIONS, DIMENSIONS, format_year_month
+from shared import DF_MOTOR, DF_HOME, DF_QUESTIONS, DF_QUESTIONS_HOME, DIMENSIONS, format_year_month
 
 dash.register_page(__name__, path="/awareness-insurer", name="Awareness: Insurer")
 
@@ -124,7 +124,9 @@ def update_awareness_insurer(insurer, product, time_window):
         msg = html.Div("Select an insurer to view awareness data.", className="ci-suppression p-4")
         return msg, [], msg
 
-    df_main = apply_filters(DF_MOTOR, product=product, time_window_months=tw)
+    df_main = DF_MOTOR if product == "Motor" else (DF_HOME if DF_HOME is not None and len(DF_HOME) > 0 else DF_MOTOR)
+    df_questions = DF_QUESTIONS if product == "Motor" else (DF_QUESTIONS_HOME if DF_QUESTIONS_HOME is not None and len(DF_QUESTIONS_HOME) > 0 else DF_QUESTIONS)
+    df_main = apply_filters(df_main, product=product, time_window_months=tw)
     n_insurer = len(df_main[df_main["CurrentCompany"] == insurer])
 
     banner = confidence_banner(
@@ -134,8 +136,8 @@ def update_awareness_insurer(insurer, product, time_window):
     )
 
     # Slopegraph panels (Spec 10.3)
-    prompted_slope = calc_awareness_slopegraph(df_main, DF_QUESTIONS, insurer, "prompted")
-    consideration_slope = calc_awareness_slopegraph(df_main, DF_QUESTIONS, insurer, "consideration")
+    prompted_slope = calc_awareness_slopegraph(df_main, df_questions, insurer, "prompted")
+    consideration_slope = calc_awareness_slopegraph(df_main, df_questions, insurer, "consideration")
 
     slopegraph = [
         _slopegraph_panel("Spontaneous (Q1)", None, gated=True),
@@ -144,10 +146,10 @@ def update_awareness_insurer(insurer, product, time_window):
     ]
 
     # Trend chart with market percentile bands (Spec 10.4)
-    prompted_rates = calc_awareness_rates(df_main, DF_QUESTIONS, "prompted")
-    consideration_rates = calc_awareness_rates(df_main, DF_QUESTIONS, "consideration")
-    prompted_bands = calc_awareness_market_bands(df_main, DF_QUESTIONS, "prompted")
-    consideration_bands = calc_awareness_market_bands(df_main, DF_QUESTIONS, "consideration")
+    prompted_rates = calc_awareness_rates(df_main, df_questions, "prompted")
+    consideration_rates = calc_awareness_rates(df_main, df_questions, "consideration")
+    prompted_bands = calc_awareness_market_bands(df_main, df_questions, "prompted")
+    consideration_bands = calc_awareness_market_bands(df_main, df_questions, "consideration")
 
     fig = go.Figure()
 

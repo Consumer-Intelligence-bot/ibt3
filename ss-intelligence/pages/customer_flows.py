@@ -5,7 +5,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from dash import html, dcc, callback, Input, Output
 import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
-from shared import DF_MOTOR
+from shared import DF_MOTOR, DF_HOME
 from analytics.flows import calc_net_flow, calc_top_sources, calc_top_destinations
 from analytics.demographics import apply_filters
 from analytics.suppression import check_suppression
@@ -33,8 +33,9 @@ def update_flows(insurer, age_band, region, payment_type, product, time_window):
     product = product or "Motor"
     tw = int(time_window or 24)
     age_band, region, payment_type = _norm(age_band), _norm(region), _norm(payment_type)
-    df = apply_filters(DF_MOTOR, insurer=insurer, product=product, time_window_months=tw, age_band=age_band, region=region, payment_type=payment_type)
-    df_mkt = apply_filters(DF_MOTOR, insurer=None, product=product, time_window_months=tw, age_band=age_band, region=region, payment_type=payment_type)
+    df_main = DF_MOTOR if product == "Motor" else (DF_HOME if DF_HOME is not None and len(DF_HOME) > 0 else DF_MOTOR)
+    df = apply_filters(df_main, insurer=insurer, product=product, time_window_months=tw, age_band=age_band, region=region, payment_type=payment_type)
+    df_mkt = apply_filters(df_main, insurer=None, product=product, time_window_months=tw, age_band=age_band, region=region, payment_type=payment_type)
     sup = check_suppression(df, df_mkt)
     filter_bar_el = filter_bar(age_band, region, payment_type)
     if not insurer:

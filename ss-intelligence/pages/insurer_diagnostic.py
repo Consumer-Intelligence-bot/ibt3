@@ -36,7 +36,7 @@ from config import (
     CI_GREEN, CI_GREY, CI_MAGENTA, CI_RED, DEFAULT_TIME_WINDOW_INSURER,
     MIN_BASE_REASON, NPS_MIN_N,
 )
-from shared import DF_MOTOR, DF_QUESTIONS, format_year_month
+from shared import DF_MOTOR, DF_HOME, DF_QUESTIONS, format_year_month
 
 dash.register_page(__name__, path="/insurer-diagnostic", name="Insurer Diagnostic")
 
@@ -159,8 +159,9 @@ def update_insurer_diagnostic(insurer, age_band, region, payment_type, product, 
     tw = int(time_window or DEFAULT_TIME_WINDOW_INSURER)
     age_band, region, payment_type = _norm(age_band), _norm(region), _norm(payment_type)
 
-    df_ins = apply_filters(DF_MOTOR, insurer=insurer, age_band=age_band, region=region, payment_type=payment_type, product=product, time_window_months=tw)
-    df_mkt = apply_filters(DF_MOTOR, insurer=None, age_band=age_band, region=region, payment_type=payment_type, product=product, time_window_months=tw)
+    df_main = DF_MOTOR if product == "Motor" else (DF_HOME if DF_HOME is not None and len(DF_HOME) > 0 else DF_MOTOR)
+    df_ins = apply_filters(df_main, insurer=insurer, age_band=age_band, region=region, payment_type=payment_type, product=product, time_window_months=tw)
+    df_mkt = apply_filters(df_main, insurer=None, age_band=age_band, region=region, payment_type=payment_type, product=product, time_window_months=tw)
 
     market_ret = calc_retention_rate(df_mkt)
 

@@ -23,7 +23,7 @@ from analytics.demographics import apply_filters
 from components.branded_chart import add_ci_whiskers, create_branded_figure, create_bump_chart
 from components.ci_card import ci_stat_card
 from config import CI_GREEN, CI_GREY, CI_RED, DEFAULT_TIME_WINDOW_INSURER
-from shared import DF_MOTOR, DF_QUESTIONS, format_year_month
+from shared import DF_MOTOR, DF_HOME, DF_QUESTIONS, DF_QUESTIONS_HOME, format_year_month
 
 dash.register_page(__name__, path="/awareness-market", name="Awareness: Market")
 
@@ -106,10 +106,12 @@ def update_awareness_market(level, product, time_window):
         empty_msg = html.Div(Q1_GATING_MESSAGE, className="ci-suppression p-4")
         return [], empty_msg, empty_msg, "Awareness Rate — Latest Month", gating_style
 
-    df_main = apply_filters(DF_MOTOR, product=product, time_window_months=tw)
+    df_main = DF_MOTOR if product == "Motor" else (DF_HOME if DF_HOME is not None and len(DF_HOME) > 0 else DF_MOTOR)
+    df_questions = DF_QUESTIONS if product == "Motor" else (DF_QUESTIONS_HOME if DF_QUESTIONS_HOME is not None and len(DF_QUESTIONS_HOME) > 0 else DF_QUESTIONS)
+    df_main = apply_filters(df_main, product=product, time_window_months=tw)
 
     # KPI summary (Spec 9.3)
-    summary = calc_awareness_summary(df_main, DF_QUESTIONS, level)
+    summary = calc_awareness_summary(df_main, df_questions, level)
     if summary is None:
         no_data = html.Div("No awareness data available for this selection.", className="ci-suppression p-4")
         return [], no_data, no_data, "Awareness Rate — Latest Month", gating_style
@@ -134,7 +136,7 @@ def update_awareness_market(level, product, time_window):
     ])
 
     # Bump chart (Spec 9.4) — brands sorted alphabetically for colour assignment
-    bump_data = calc_awareness_bump(df_main, DF_QUESTIONS, level)
+    bump_data = calc_awareness_bump(df_main, df_questions, level)
     if bump_data.empty:
         bump_content = html.Div("Insufficient data for bump chart.", className="ci-suppression p-4")
     else:
@@ -150,7 +152,7 @@ def update_awareness_market(level, product, time_window):
         bump_content = dcc.Graph(figure=fig, config={"displayModeBar": False})
 
     # Ranked bar chart — latest month (Spec 9.5)
-    rates = calc_awareness_rates(df_main, DF_QUESTIONS, level)
+    rates = calc_awareness_rates(df_main, df_questions, level)
     if rates.empty:
         bar_content = html.Div("Insufficient data for bar chart.", className="ci-suppression p-4")
         bar_title = "Awareness Rate — Latest Month"

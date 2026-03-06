@@ -27,7 +27,7 @@ from config import (
     CI_GREEN, CI_GREY, CI_MAGENTA, CI_RED, CI_YELLOW,
     DEFAULT_TIME_WINDOW_INSURER, MIN_BASE_PUBLISHABLE, SYSTEM_FLOOR_N,
 )
-from shared import DF_MOTOR, DIMENSIONS
+from shared import DF_MOTOR, DF_HOME, DIMENSIONS
 
 dash.register_page(__name__, path="/insurer-comparison", name="Insurer Comparison")
 
@@ -69,7 +69,8 @@ def update_comparison(age_band, region, payment_type, product, time_window, sele
     tw = int(time_window or DEFAULT_TIME_WINDOW_INSURER)
     age_band, region, payment_type = _norm(age_band), _norm(region), _norm(payment_type)
 
-    df_mkt = apply_filters(DF_MOTOR, product=product, time_window_months=tw, age_band=age_band, region=region, payment_type=payment_type)
+    df_main = DF_MOTOR if product == "Motor" else (DF_HOME if DF_HOME is not None and len(DF_HOME) > 0 else DF_MOTOR)
+    df_mkt = apply_filters(df_main, product=product, time_window_months=tw, age_band=age_band, region=region, payment_type=payment_type)
     market_ret = calc_retention_rate(df_mkt)
 
     all_insurers = DIMENSIONS["DimInsurer"]["Insurer"].dropna().astype(str).tolist()
@@ -81,7 +82,7 @@ def update_comparison(age_band, region, payment_type, product, time_window, sele
     rows = []
 
     for ins in insurers:
-        df_ins = apply_filters(DF_MOTOR, insurer=ins, product=product, time_window_months=tw, age_band=age_band, region=region, payment_type=payment_type)
+        df_ins = apply_filters(df_main, insurer=ins, product=product, time_window_months=tw, age_band=age_band, region=region, payment_type=payment_type)
         n = len(df_ins)
         if n < SYSTEM_FLOOR_N:
             continue

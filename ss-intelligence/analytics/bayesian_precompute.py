@@ -78,6 +78,22 @@ def run_precompute(df_motor: pd.DataFrame, df_home: pd.DataFrame | None = None) 
         return None
 
 
+def precompute_all(product: str = "Motor") -> Path | None:
+    """
+    Pre-compute Bayesian cache for Motor and Home (if available).
+    Loads data from loader and calls run_precompute.
+    The product argument is for API compatibility; both products are precomputed when available.
+    """
+    from data.loader import load_main
+    df_motor, _ = load_main("Motor")
+    df_home = None
+    try:
+        df_home, _ = load_main("Home")
+    except FileNotFoundError:
+        pass
+    return run_precompute(df_motor, df_home)
+
+
 def get_cached_rate(insurer: str, product: str, time_window_months: int) -> dict | None:
     """
     Look up pre-computed Bayesian result. Returns None if not in cache.

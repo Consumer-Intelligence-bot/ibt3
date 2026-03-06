@@ -8,7 +8,7 @@ from dash import html, dcc, callback, Input, Output
 import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
 
-from shared import DF_MOTOR
+from shared import DF_MOTOR, DF_HOME, DF_QUESTIONS
 from analytics.channels import calc_channel_usage, calc_quote_buy_mismatch
 from analytics.demographics import apply_filters
 from analytics.suppression import check_suppression
@@ -45,16 +45,17 @@ def update_channel(insurer, age_band, region, payment_type, product, time_window
     product = product or "Motor"
     tw = int(time_window or 24)
     age_band, region, payment_type = _norm(age_band), _norm(region), _norm(payment_type)
-    df_ins = apply_filters(DF_MOTOR, insurer=insurer, product=product, time_window_months=tw, age_band=age_band, region=region, payment_type=payment_type)
-    df_mkt = apply_filters(DF_MOTOR, insurer=None, product=product, time_window_months=tw, age_band=age_band, region=region, payment_type=payment_type)
+    df_main = DF_MOTOR if product == "Motor" else (DF_HOME if DF_HOME is not None and len(DF_HOME) > 0 else DF_MOTOR)
+    df_ins = apply_filters(df_main, insurer=insurer, product=product, time_window_months=tw, age_band=age_band, region=region, payment_type=payment_type)
+    df_mkt = apply_filters(df_main, insurer=None, product=product, time_window_months=tw, age_band=age_band, region=region, payment_type=payment_type)
     sup = check_suppression(df_ins, df_mkt)
     filter_bar_el = filter_bar(age_band, region, payment_type)
 
-    mis_ins = calc_quote_buy_mismatch(df_ins) if insurer and sup.can_show_insurer else None
-    mis_mkt = calc_quote_buy_mismatch(df_mkt)
+    mis_ins = calc_quote_buy_mismatch(df_ins, DF_QUESTIONS) if insurer and sup.can_show_insurer else None
+    mis_mkt = calc_quote_buy_mismatch(df_mkt, DF_QUESTIONS)
     mismatch_div = kpi_card("Quote-to-Buy Mismatch", mis_ins, mis_mkt) if mis_mkt is not None else html.P("Data not available", className="text-muted")
 
-    ch = calc_channel_usage(df_ins if insurer and sup.can_show_insurer else df_mkt)
+    ch = calc_channel_usage(df_ins if insurer and sup.can_show_insurer else df_mkt, DF_QUESTIONS)
     if ch is not None and len(ch) > 0:
         fig = go.Figure(go.Bar(x=ch.values, y=ch.index, orientation="h"))
         fig = create_branded_figure(fig, title="Channel Usage")

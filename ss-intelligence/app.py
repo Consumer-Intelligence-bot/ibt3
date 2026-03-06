@@ -21,7 +21,7 @@ sys_path = Path(__file__).resolve().parent
 if str(sys_path) not in sys.path:
     sys.path.insert(0, str(sys_path))
 
-from shared import DF_MOTOR, DF_HOME, DIMENSIONS, DF_ALL
+from shared import DF_MOTOR, DF_HOME, DIMENSIONS
 from auth.access import get_authorized_insurers
 from components.global_filters import global_filter_bar
 from components.ci_navbar import ci_navbar
@@ -66,9 +66,17 @@ def toggle_global_filters(pathname):
     return "d-none" if pathname == "/admin" else "ci-filter-bar mb-3"
 
 
+@callback(
+    Output("navbar-container", "children"),
+    Input("url", "pathname"),
+)
+def update_navbar(pathname):
+    return ci_navbar(pathname or "/")
+
+
 app.layout = html.Div([
     dcc.Location(id="url", refresh=False),
-    ci_navbar("/"),
+    html.Div(ci_navbar("/"), id="navbar-container"),
     html.Div(_build_global_filter_bar(), id="global-filter-container", className="ci-filter-bar mb-3"),
     html.Div(id="page-content"),
 ])

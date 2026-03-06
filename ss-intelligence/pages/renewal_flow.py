@@ -15,7 +15,7 @@ from dash import Input, Output, callback, html
 from analytics.demographics import apply_filters
 from components.filter_bar import filter_bar
 from config import CI_GREEN, CI_GREY, CI_MAGENTA, CI_RED, CI_BLUE
-from shared import DF_MOTOR
+from shared import DF_MOTOR, DF_HOME
 
 dash.register_page(__name__, path="/renewal-flow", name="Renewal Flow")
 
@@ -434,12 +434,13 @@ def update_renewal_flow(insurer, age_band, region, payment_type, product, time_w
     tw = int(time_window or 24)
     age_band, region, payment_type = _norm(age_band), _norm(region), _norm(payment_type)
 
+    df_main = DF_MOTOR if product == "Motor" else (DF_HOME if DF_HOME is not None and len(DF_HOME) > 0 else DF_MOTOR)
     df_mkt = apply_filters(
-        DF_MOTOR, insurer=None, age_band=age_band, region=region,
+        df_main, insurer=None, age_band=age_band, region=region,
         payment_type=payment_type, product=product, time_window_months=tw,
     )
     df_ins = apply_filters(
-        DF_MOTOR, insurer=insurer, age_band=age_band, region=region,
+        df_main, insurer=insurer, age_band=age_band, region=region,
         payment_type=payment_type, product=product, time_window_months=tw,
     ) if insurer else df_mkt
 

@@ -19,7 +19,7 @@ def dual_table(
     Side-by-side reason tables. Highlight insurer differences in CI Magenta.
     """
     def _table_row(r, is_insurer, rank):
-        pct = r.get("pct", 0) * 100
+        pct = r.get("rank1_pct", r.get("mention_pct", 0)) * 100
         return {
             "Rank": rank + 1,
             "Reason": r.get("reason", ""),
