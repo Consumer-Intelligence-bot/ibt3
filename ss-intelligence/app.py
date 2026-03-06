@@ -21,7 +21,7 @@ sys_path = Path(__file__).resolve().parent
 if str(sys_path) not in sys.path:
     sys.path.insert(0, str(sys_path))
 
-from shared import DF_MOTOR, DF_HOME, DIMENSIONS
+from shared import DF_MOTOR, DF_HOME, DIMENSIONS, format_year_month
 from auth.access import get_authorized_insurers
 from components.global_filters import global_filter_bar
 from components.ci_navbar import ci_navbar
@@ -38,6 +38,19 @@ from views.market_overview import layout as market_overview_layout, register_cal
 register_market_overview(app, DF_MOTOR, DF_HOME)
 
 
+def _build_renewal_month_options():
+    """Extract unique RenewalYearMonth values from data and build dropdown options."""
+    import numpy as np
+    all_ym = set()
+    for df in (DF_MOTOR, DF_HOME):
+        if df is not None and "RenewalYearMonth" in df.columns:
+            all_ym.update(df["RenewalYearMonth"].dropna().unique())
+    sorted_ym = sorted(all_ym, reverse=True)  # newest first
+    options = [{"label": format_year_month(int(ym)), "value": int(ym)} for ym in sorted_ym]
+    defaults = [int(ym) for ym in sorted_ym[:12]]  # last 12 months
+    return options, defaults
+
+
 def _build_global_filter_bar():
     all_insurers = DIMENSIONS["DimInsurer"]["Insurer"].dropna().astype(str).tolist()
     authorized = get_authorized_insurers(all_insurers)
@@ -45,7 +58,9 @@ def _build_global_filter_bar():
     dim_age = DIMENSIONS["DimAgeBand"].to_dict("records")
     dim_region = DIMENSIONS["DimRegion"].to_dict("records")
     dim_payment = DIMENSIONS["DimPaymentType"].to_dict("records")
-    return global_filter_bar(dim_insurer, dim_age, dim_region, dim_payment)
+    month_options, month_defaults = _build_renewal_month_options()
+    return global_filter_bar(dim_insurer, dim_age, dim_region, dim_payment,
+                             month_options=month_options, month_defaults=month_defaults)
 
 
 @callback(

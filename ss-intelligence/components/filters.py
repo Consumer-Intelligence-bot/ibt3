@@ -93,7 +93,7 @@ def product_toggle(id: str, value: str = "Motor") -> dcc.RadioItems:
 
 
 def time_window_dropdown(id: str, value: str = "24 months") -> dcc.Dropdown:
-    """Time window dropdown."""
+    """Time window dropdown (legacy, kept for backwards compatibility)."""
     return dcc.Dropdown(
         id=id,
         options=[
@@ -102,5 +102,28 @@ def time_window_dropdown(id: str, value: str = "24 months") -> dcc.Dropdown:
             {"label": "24 months", "value": "24"},
         ],
         value=str(value) if value else "24",
+        className="mb-2",
+    )
+
+
+def renewal_month_dropdown(
+    id: str,
+    options: list[dict],
+    value: list | None = None,
+) -> dcc.Dropdown:
+    """Multi-select renewal month picker.
+
+    Parameters
+    ----------
+    options : list of {'label': 'Mon YY', 'value': YYYYMM}
+    value   : list of selected YYYYMM ints (default last 12 months)
+    """
+    return dcc.Dropdown(
+        id=id,
+        options=options,
+        value=value,
+        multi=True,
+        placeholder="Select months...",
+        clearable=True,
         className="mb-2",
     )

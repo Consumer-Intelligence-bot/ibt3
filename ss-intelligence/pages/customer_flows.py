@@ -31,11 +31,11 @@ def _norm(val):
 )
 def update_flows(insurer, age_band, region, payment_type, product, time_window):
     product = product or "Motor"
-    tw = int(time_window or 24)
+    selected = [int(v) for v in time_window] if time_window else None
     age_band, region, payment_type = _norm(age_band), _norm(region), _norm(payment_type)
     df_main = DF_MOTOR if product == "Motor" else (DF_HOME if DF_HOME is not None and len(DF_HOME) > 0 else DF_MOTOR)
-    df = apply_filters(df_main, insurer=insurer, product=product, time_window_months=tw, age_band=age_band, region=region, payment_type=payment_type)
-    df_mkt = apply_filters(df_main, insurer=None, product=product, time_window_months=tw, age_band=age_band, region=region, payment_type=payment_type)
+    df = apply_filters(df_main, insurer=insurer, product=product, selected_months=selected, age_band=age_band, region=region, payment_type=payment_type)
+    df_mkt = apply_filters(df_main, insurer=None, product=product, selected_months=selected, age_band=age_band, region=region, payment_type=payment_type)
     sup = check_suppression(df, df_mkt)
     filter_bar_el = filter_bar(age_band, region, payment_type)
     if not insurer:

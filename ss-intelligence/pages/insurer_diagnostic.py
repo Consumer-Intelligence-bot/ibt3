@@ -156,12 +156,12 @@ def _calc_leavers_rating(df_mkt: pd.DataFrame, insurer: str) -> html.Div | None:
 )
 def update_insurer_diagnostic(insurer, age_band, region, payment_type, product, time_window):
     product = product or "Motor"
-    tw = int(time_window or DEFAULT_TIME_WINDOW_INSURER)
+    selected = [int(v) for v in time_window] if time_window else None
     age_band, region, payment_type = _norm(age_band), _norm(region), _norm(payment_type)
 
     df_main = DF_MOTOR if product == "Motor" else (DF_HOME if DF_HOME is not None and len(DF_HOME) > 0 else DF_MOTOR)
-    df_ins = apply_filters(df_main, insurer=insurer, age_band=age_band, region=region, payment_type=payment_type, product=product, time_window_months=tw)
-    df_mkt = apply_filters(df_main, insurer=None, age_band=age_band, region=region, payment_type=payment_type, product=product, time_window_months=tw)
+    df_ins = apply_filters(df_main, insurer=insurer, age_band=age_band, region=region, payment_type=payment_type, product=product, selected_months=selected)
+    df_mkt = apply_filters(df_main, insurer=None, age_band=age_band, region=region, payment_type=payment_type, product=product, selected_months=selected)
 
     market_ret = calc_retention_rate(df_mkt)
 
@@ -171,7 +171,7 @@ def update_insurer_diagnostic(insurer, age_band, region, payment_type, product, 
     bay = None
     posterior_ci_width = None
     if total > 0 and market_ret:
-        cached = get_cached_rate(insurer, product, tw) if not (age_band or region or payment_type) else None
+        cached = get_cached_rate(insurer, product, selected) if not (age_band or region or payment_type) else None
         bay = cached or bayesian_smooth_rate(int(retained), total, market_ret)
         posterior_ci_width = (bay["ci_upper"] - bay["ci_lower"]) * 100
 
@@ -184,7 +184,7 @@ def update_insurer_diagnostic(insurer, age_band, region, payment_type, product, 
     )
 
     filter_bar_el = filter_bar(age_band, region, payment_type)
-    tw_str = f"Last {tw} months"
+    tw_str = f"{len(selected or [])} months"
     conf_banner = confidence_banner(
         n=len(df_ins),
         time_window=tw_str,

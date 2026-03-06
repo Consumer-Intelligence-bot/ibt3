@@ -2,30 +2,38 @@ import { useState, useRef, useEffect } from 'react';
 import { useDashboard } from '../../context/DashboardContext';
 import { COLORS, FONT, THRESHOLDS } from '../../utils/brandConstants';
 
-const PERIOD_OPTIONS = [
-  { value: 'all', label: 'All data' },
-  { value: '12m', label: 'Last 12 months' },
-  { value: '24m', label: 'Last 24 months' },
-];
+const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function formatYearMonth(ym) {
+  if (!ym) return '';
+  const year = Math.floor(ym / 100);
+  const month = ym % 100;
+  return `${MONTH_NAMES[month - 1] || '???'} ${String(year).slice(-2)}`;
+}
 
 export default function Header() {
   const {
     mode, setMode,
     selectedInsurer, setSelectedInsurer,
     product, setProduct,
-    timeWindow, setTimeWindow,
+    availableMonths, selectedMonths, setSelectedMonths,
     insurerList,
   } = useDashboard();
 
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [searchText, setSearchText] = useState('');
   const dropdownRef = useRef(null);
+  const [monthDropdownOpen, setMonthDropdownOpen] = useState(false);
+  const monthDropdownRef = useRef(null);
 
-  // Close insurer dropdown when clicking outside
+  // Close dropdowns when clicking outside
   useEffect(() => {
     function handleOutside(e) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
         setDropdownOpen(false);
+      }
+      if (monthDropdownRef.current && !monthDropdownRef.current.contains(e.target)) {
+        setMonthDropdownOpen(false);
       }
     }
     document.addEventListener('mousedown', handleOutside);
@@ -181,13 +189,15 @@ export default function Header() {
           </ToggleBtn>
         </ToggleGroup>
 
-        {/* Period selector */}
-        <div style={{ position: 'relative' }}>
-          <select
-            value={timeWindow}
-            onChange={e => setTimeWindow(e.target.value)}
+        {/* Month multi-select */}
+        <div ref={monthDropdownRef} style={{ position: 'relative' }}>
+          <button
+            onClick={() => setMonthDropdownOpen(prev => !prev)}
             style={{
-              padding: '6px 32px 6px 12px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '6px 12px',
               backgroundColor: 'rgba(255,255,255,0.15)',
               border: '1px solid rgba(255,255,255,0.45)',
               borderRadius: '4px',
@@ -195,28 +205,114 @@ export default function Header() {
               fontSize: '13px',
               fontFamily: FONT.family,
               cursor: 'pointer',
-              appearance: 'none',
-              WebkitAppearance: 'none',
+              minWidth: '160px',
             }}
           >
-            {PERIOD_OPTIONS.map(opt => (
-              <option key={opt.value} value={opt.value} style={{ backgroundColor: '#fff', color: '#333' }}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-          {/* Custom chevron */}
-          <span style={{
-            position: 'absolute',
-            right: '10px',
-            top: '50%',
-            transform: 'translateY(-50%)',
-            fontSize: '10px',
-            color: '#fff',
-            pointerEvents: 'none',
-          }}>
-            ▾
-          </span>
+            <span style={{ flex: 1, textAlign: 'left' }}>
+              {selectedMonths.length === 0
+                ? 'Select months...'
+                : selectedMonths.length === availableMonths.length
+                  ? 'All months'
+                  : `${selectedMonths.length} month${selectedMonths.length === 1 ? '' : 's'}`}
+            </span>
+            <span style={{ fontSize: '10px' }}>▾</span>
+          </button>
+
+          {monthDropdownOpen && (
+            <div style={{
+              position: 'absolute',
+              top: 'calc(100% + 4px)',
+              right: 0,
+              backgroundColor: '#fff',
+              border: '1px solid #ddd',
+              borderRadius: '4px',
+              boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
+              zIndex: 200,
+              minWidth: '200px',
+              maxHeight: '340px',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+            }}>
+              {/* Select All / Clear All */}
+              <div style={{
+                display: 'flex',
+                gap: '8px',
+                padding: '8px',
+                borderBottom: '1px solid #eee',
+              }}>
+                <button
+                  onClick={() => setSelectedMonths([...availableMonths])}
+                  style={{
+                    flex: 1,
+                    padding: '4px 8px',
+                    fontSize: '12px',
+                    fontFamily: FONT.family,
+                    border: '1px solid #ddd',
+                    borderRadius: '3px',
+                    backgroundColor: '#f5f5f5',
+                    cursor: 'pointer',
+                    color: '#333',
+                  }}
+                >
+                  Select All
+                </button>
+                <button
+                  onClick={() => setSelectedMonths([])}
+                  style={{
+                    flex: 1,
+                    padding: '4px 8px',
+                    fontSize: '12px',
+                    fontFamily: FONT.family,
+                    border: '1px solid #ddd',
+                    borderRadius: '3px',
+                    backgroundColor: '#f5f5f5',
+                    cursor: 'pointer',
+                    color: '#333',
+                  }}
+                >
+                  Clear All
+                </button>
+              </div>
+
+              {/* Month checklist */}
+              <div style={{ overflowY: 'auto', flex: 1 }}>
+                {availableMonths.map(ym => {
+                  const checked = selectedMonths.includes(ym);
+                  return (
+                    <label
+                      key={ym}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        padding: '6px 12px',
+                        fontSize: '13px',
+                        fontFamily: FONT.family,
+                        cursor: 'pointer',
+                        color: '#333',
+                        backgroundColor: checked ? '#F3E8F3' : 'transparent',
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => {
+                          setSelectedMonths(prev =>
+                            checked
+                              ? prev.filter(m => m !== ym)
+                              : [...prev, ym].sort((a, b) => b - a)
+                          );
+                        }}
+                        style={{ accentColor: COLORS.magenta }}
+                      />
+                      {formatYearMonth(ym)}
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
       </div>

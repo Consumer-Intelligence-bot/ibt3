@@ -98,7 +98,7 @@ def _norm(val):
 )
 def update_awareness_market(level, product, time_window):
     product = product or "Motor"
-    tw = int(time_window or DEFAULT_TIME_WINDOW_INSURER)
+    selected = [int(v) for v in time_window] if time_window else None
 
     # Show gating message for spontaneous
     gating_style = {"display": "block"} if level == "spontaneous" else {"display": "none"}
@@ -108,7 +108,7 @@ def update_awareness_market(level, product, time_window):
 
     df_main = DF_MOTOR if product == "Motor" else (DF_HOME if DF_HOME is not None and len(DF_HOME) > 0 else DF_MOTOR)
     df_questions = DF_QUESTIONS if product == "Motor" else (DF_QUESTIONS_HOME if DF_QUESTIONS_HOME is not None and len(DF_QUESTIONS_HOME) > 0 else DF_QUESTIONS)
-    df_main = apply_filters(df_main, product=product, time_window_months=tw)
+    df_main = apply_filters(df_main, product=product, selected_months=selected)
 
     # KPI summary (Spec 9.3)
     summary = calc_awareness_summary(df_main, df_questions, level)

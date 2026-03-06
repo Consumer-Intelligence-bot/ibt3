@@ -41,9 +41,9 @@ def register_callbacks(app, DF_MOTOR, DF_HOME):
     )
     def update_market_overview(product, time_window):
         product = product or "Motor"
-        tw = int(time_window or DEFAULT_TIME_WINDOW_SHOPPING)
+        selected = [int(v) for v in time_window] if time_window else None
         df = DF_MOTOR if product == "Motor" else (DF_HOME if DF_HOME is not None and len(DF_HOME) > 0 else DF_MOTOR)
-        df_market = apply_filters(df, product=product, time_window_months=tw)
+        df_market = apply_filters(df, product=product, selected_months=selected)
         n = len(df_market)
 
         shop = calc_shopping_rate(df_market)
