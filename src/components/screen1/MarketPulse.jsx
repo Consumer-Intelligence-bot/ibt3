@@ -13,6 +13,7 @@ import { useDashboard } from '../../context/DashboardContext';
 import { COLORS, FONT } from '../../utils/brandConstants';
 import { formatPct } from '../../utils/formatters';
 import { checkSuppression } from '../../utils/governance';
+import { cardStyle, labelStyle } from '../shared/KPICard';
 import {
   shoppingRate,
   switchingRate,
@@ -83,22 +84,6 @@ function MarketPulseKPICard({ label, value, sparklineValues, trend, trendValue, 
   );
 }
 
-const cardStyle = {
-  backgroundColor: COLORS.white,
-  borderRadius: '8px',
-  boxShadow: '0 1px 4px rgba(0,0,0,0.10)',
-  padding: '16px',
-  minWidth: '160px',
-  fontFamily: FONT.family,
-};
-
-const labelStyle = {
-  fontSize: FONT.cardLabel,
-  color: '#444',
-  textTransform: 'uppercase',
-  letterSpacing: '0.5px',
-  lineHeight: 1.3,
-};
 
 function TrendTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null;
@@ -140,9 +125,7 @@ export default function MarketPulse() {
   const pcw = useMemo(() => pcwUsageRate(data, insurer), [data, insurer]);
 
   const n = data.length;
-  const shopSupp = useMemo(() => checkSuppression(n), [n]);
-  const switchSupp = useMemo(() => checkSuppression(n), [n]);
-  const shopStaySupp = useMemo(() => checkSuppression(n), [n]);
+  const mainSupp = useMemo(() => checkSuppression(n), [n]);
   const pcwSupp = useMemo(() => {
     const shoppers = data.filter((r) => r.Shoppers === 'Shoppers').length;
     return checkSuppression(shoppers);
@@ -188,7 +171,7 @@ export default function MarketPulse() {
           sparklineValues={last12.map((m) => m.shoppingRate)}
           trend={shoppingTrend}
           n={n}
-          suppressed={!shopSupp.show}
+          suppressed={!mainSupp.show}
         />
         <MarketPulseKPICard
           label="Switching Rate"
@@ -196,7 +179,7 @@ export default function MarketPulse() {
           sparklineValues={last12.map((m) => m.switchingRate)}
           trend={switchingTrend}
           n={n}
-          suppressed={!switchSupp.show}
+          suppressed={!mainSupp.show}
         />
         <MarketPulseKPICard
           label="Shop & Stay Rate"
@@ -204,7 +187,7 @@ export default function MarketPulse() {
           sparklineValues={last12.map((m) => m.shopAndStayRate)}
           trend={shopStayTrend}
           n={n}
-          suppressed={!shopStaySupp.show}
+          suppressed={!mainSupp.show}
         />
         <MarketPulseKPICard
           label="PCW Usage"

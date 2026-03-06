@@ -25,7 +25,7 @@ export default function Placeholder({ title, dataNeeded }) {
         {title}
       </p>
       <p style={{ fontSize: '12px', color: '#999', margin: 0 }}>
-        Requires: {dataNeeded}
+        {dataNeeded}
       </p>
     </div>
   );

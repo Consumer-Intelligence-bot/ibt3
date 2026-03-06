@@ -564,7 +564,6 @@ export default function RenewalFunnel({ data, insurer, channels }) {
           zoomOnScroll={true}
           zoomOnPinch={true}
           preventScrolling={true}
-          proOptions={{ hideAttribution: true }}
         >
           <Background variant="dots" gap={16} size={1} color="#E5E7EB" style={{ opacity: 0.5 }} />
         </ReactFlow>

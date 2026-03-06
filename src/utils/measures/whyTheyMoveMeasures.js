@@ -10,7 +10,7 @@ function priceDirectionSplit(data) {
   const counts = { Up: 0, Down: 0, Unchanged: 0, New: 0 };
   data.forEach((r) => {
     const d = r.price_direction;
-    if (d && counts.hasOwnProperty(d)) counts[d]++;
+    if (d && Object.hasOwn(counts, d)) counts[d]++;
   });
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
   if (total === 0) return [];

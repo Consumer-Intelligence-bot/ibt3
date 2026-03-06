@@ -1,19 +1,4 @@
-/**
- * Filter data to a specific insurer (by CurrentCompany) if provided.
- */
-function filterByInsurer(data, insurer) {
-  if (!insurer) return data;
-  return data.filter(row => row.CurrentCompany === insurer);
-}
-
-/**
- * Exclude new-to-market respondents from price change analysis.
- */
-function excludeNewToMarket(data) {
-  return data.filter(row =>
-    row['Renewal premium change'] !== "I didn't have a motor insurance policy before my recent renewal/purchase"
-  );
-}
+import { filterByInsurer, excludeNewToMarket } from './shared';
 
 /**
  * Total renewals count.

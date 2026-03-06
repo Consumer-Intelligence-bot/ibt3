@@ -128,8 +128,8 @@ function BrandList({ title, brands, color, style }) {
       }}>
         {title} <span style={{ fontWeight: 400, color: FLOW_COLORS.grey }}>(top 3)</span>
       </div>
-      {brands.map((b, i) => (
-        <div key={i} style={{
+      {brands.map((b) => (
+        <div key={b.brand} style={{
           display: 'flex',
           justifyContent: 'space-between',
           fontSize: 9,

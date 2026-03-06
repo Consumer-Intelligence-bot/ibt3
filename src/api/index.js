@@ -6,14 +6,20 @@
 
 const useMocks = import.meta.env.VITE_USE_MOCKS === 'true';
 
-const api = useMocks
-  ? await import('./mockApi.js').then(m => m.mockApi)
-  : await import('./realApi.js');
+let _api = null;
 
-export const getKpis = api.getKpis;
-export const getReasons = api.getReasons;
-export const getTrends = api.getTrends;
-export const getFlows = api.getFlows;
-export const getChannels = api.getChannels;
-export const getComparison = api.getComparison;
-export const requestExport = api.requestExport;
+async function getApi() {
+  if (_api) return _api;
+  _api = useMocks
+    ? await import('./mockApi.js').then(m => m.mockApi)
+    : await import('./realApi.js');
+  return _api;
+}
+
+export const getKpis = (...args) => getApi().then(api => api.getKpis(...args));
+export const getReasons = (...args) => getApi().then(api => api.getReasons(...args));
+export const getTrends = (...args) => getApi().then(api => api.getTrends(...args));
+export const getFlows = (...args) => getApi().then(api => api.getFlows(...args));
+export const getChannels = (...args) => getApi().then(api => api.getChannels(...args));
+export const getComparison = (...args) => getApi().then(api => api.getComparison(...args));
+export const requestExport = (...args) => getApi().then(api => api.requestExport(...args));

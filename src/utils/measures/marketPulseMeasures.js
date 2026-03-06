@@ -2,15 +2,7 @@
  * Market Pulse measures (Screen 1 per spec).
  * Shopping Rate, Switching Rate, Shop & Stay Rate, PCW Usage.
  */
-
-function filterByInsurer(data, insurer) {
-  if (!insurer) return data;
-  return data.filter((row) => row.CurrentCompany === insurer);
-}
-
-function excludeNewToMarket(data) {
-  return data.filter((row) => row.Switchers !== 'New-to-market');
-}
+import { filterByInsurer, excludeNewToMarket } from './shared';
 
 /**
  * Shopping Rate: % where Shoppers = "Shoppers"

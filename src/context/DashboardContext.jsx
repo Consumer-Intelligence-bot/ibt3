@@ -72,20 +72,6 @@ export function DashboardProvider({ children }) {
       .sort();
   }, [filteredData]);
 
-  // TODO: REMOVE BEFORE DELIVERY — dev override for testing with demo data
-  const devInsurerList = useMemo(() => {
-    const counts = {};
-    filteredData.forEach(row => {
-      const name = row.CurrentCompany;
-      if (name) counts[name] = (counts[name] || 0) + 1;
-    });
-
-    return Object.entries(counts)
-      .filter(([_, count]) => count >= THRESHOLDS.devOverride)
-      .map(([name]) => name)
-      .sort();
-  }, [filteredData]);
-
   const value = {
     rawData,
     filteredData,
@@ -100,7 +86,6 @@ export function DashboardProvider({ children }) {
     timeWindow,
     setTimeWindow,
     insurerList,
-    devInsurerList,
     loading,
     error,
   };

@@ -15,7 +15,6 @@ export default function Header() {
     product, setProduct,
     timeWindow, setTimeWindow,
     insurerList,
-    devInsurerList,
   } = useDashboard();
 
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -48,12 +47,9 @@ export default function Header() {
     setSearchText('');
   }
 
-  // Filtered lists for the searchable dropdown
+  // Filtered list for the searchable dropdown
   const lowerSearch = searchText.toLowerCase();
   const filteredPublished = insurerList.filter(n => n.toLowerCase().includes(lowerSearch));
-  // TODO: REMOVE BEFORE DELIVERY — dev-only insurers (n >= devOverride)
-  const devOnly = devInsurerList.filter(n => !insurerList.includes(n));
-  const filteredDevOnly = devOnly.filter(n => n.toLowerCase().includes(lowerSearch));
 
   return (
     <div style={{
@@ -148,8 +144,6 @@ export default function Header() {
 
                 {/* List body */}
                 <div style={{ overflowY: 'auto', flex: 1 }}>
-
-                  {/* Published insurers */}
                   {filteredPublished.length > 0
                     ? filteredPublished.map(name => (
                         <DropdownItem
@@ -171,35 +165,6 @@ export default function Header() {
                         </div>
                       )
                   }
-
-                  {/* TODO: REMOVE BEFORE DELIVERY — dev-override section */}
-                  {filteredDevOnly.length > 0 && (
-                    <>
-                      <div style={{
-                        padding: '5px 16px',
-                        fontSize: '11px',
-                        fontFamily: FONT.family,
-                        fontWeight: 'bold',
-                        color: '#B8860B',
-                        backgroundColor: '#FFFBF0',
-                        borderTop: '1px solid #eee',
-                        borderBottom: '1px solid #eee',
-                        letterSpacing: '0.3px',
-                      }}>
-                        DEV: All insurers (n ≥ {THRESHOLDS.devOverride})
-                      </div>
-                      {filteredDevOnly.map(name => (
-                        <DropdownItem
-                          key={`dev-${name}`}
-                          name={name}
-                          selected={name === selectedInsurer}
-                          onSelect={handleInsurerSelect}
-                          muted
-                        />
-                      ))}
-                    </>
-                  )}
-
                 </div>
               </div>
             )}
@@ -297,7 +262,7 @@ function ToggleBtn({ active, onClick, children }) {
   );
 }
 
-function DropdownItem({ name, selected, onSelect, muted = false }) {
+function DropdownItem({ name, selected, onSelect }) {
   const [hovered, setHovered] = useState(false);
   return (
     <button
@@ -311,7 +276,7 @@ function DropdownItem({ name, selected, onSelect, muted = false }) {
         padding: '8px 16px',
         border: 'none',
         backgroundColor: selected ? '#F3E8F3' : hovered ? '#f5f5f5' : 'transparent',
-        color: selected ? COLORS.magenta : muted ? '#888' : '#333',
+        color: selected ? COLORS.magenta : '#333',
         fontSize: '13px',
         fontFamily: FONT.family,
         cursor: 'pointer',

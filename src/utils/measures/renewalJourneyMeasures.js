@@ -326,9 +326,9 @@ export function buildShoppingJourneyData(data, insurer, channels = null) {
 
   const composition = total > 0
     ? {
-        nonShoppers: { label: 'Non Shoppers', pct: nonShoppers.length / total, marketPct: 0.168 },
-        retained: { label: 'Retained', pct: retainedCount / total, marketPct: 0.42 },
-        switchedInto: { label: 'Switched Into', pct: switchedIntoCount / total, marketPct: 0.412 },
+        nonShoppers: { label: 'Non Shoppers', pct: nonShoppers.length / total, marketPct: nonShoppers.length / total },
+        retained: { label: 'Retained', pct: retainedCount / total, marketPct: retainedCount / total },
+        switchedInto: { label: 'Switched Into', pct: switchedIntoCount / total, marketPct: switchedIntoCount / total },
       }
     : null;
 
