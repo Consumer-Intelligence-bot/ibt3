@@ -10,6 +10,7 @@ absent or any error occurs.
 import json
 import logging
 import os
+import re
 from collections import OrderedDict
 
 from config import NARRATIVE_ENABLED, NARRATIVE_MODEL, NEUTRAL_GAP_THRESHOLD
@@ -226,7 +227,17 @@ def generate_narrative(metrics: dict) -> dict | None:
             system=_SYSTEM_PROMPT,
             messages=[{"role": "user", "content": user_content}],
         )
-        text = response.content[0].text.strip()
+        raw = response.content[0].text.strip()
+
+        # Strip markdown code fences if present (```json ... ```)
+        fence = re.search(r"```(?:json)?\s*\n?(.*?)```", raw, re.DOTALL)
+        text = fence.group(1).strip() if fence else raw
+
+        # Find the first JSON object in case of preamble text
+        brace = text.find("{")
+        if brace > 0:
+            text = text[brace:]
+
         result = json.loads(text)
 
         # Validate expected keys
