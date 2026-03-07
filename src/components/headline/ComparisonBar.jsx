@@ -1,4 +1,5 @@
 import { COLORS, FONT } from '../../utils/brandConstants';
+import { formatPct } from '../../utils/formatters';
 
 const TAG_COLOURS = {
   Ahead: COLORS.green,
@@ -10,8 +11,6 @@ export default function ComparisonBar({ label, insValue, mktValue, tag, insurerN
   const insPctWidth = maxVal > 0 ? (insValue / maxVal) * 100 : 0;
   const mktPctWidth = maxVal > 0 ? (mktValue / maxVal) * 100 : 0;
   const tagCol = TAG_COLOURS[tag] || COLORS.grey;
-
-  const fmtPct = (v) => `${(v * 100).toFixed(1)}%`;
 
   return (
     <div style={{ fontFamily: FONT.family }}>
@@ -55,10 +54,10 @@ export default function ComparisonBar({ label, insValue, mktValue, tag, insurerN
       {/* Value labels */}
       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
         <span style={{ fontSize: 11, fontWeight: 'bold', color: COLORS.magenta }}>
-          {insurerName} {fmtPct(insValue)}
+          {insurerName} {formatPct(insValue)}
         </span>
         <span style={{ fontSize: 11, color: COLORS.grey }}>
-          Market {fmtPct(mktValue)}
+          Market {formatPct(mktValue)}
         </span>
       </div>
     </div>

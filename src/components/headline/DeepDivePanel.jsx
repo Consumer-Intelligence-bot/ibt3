@@ -1,16 +1,17 @@
 import { COLORS, FONT } from '../../utils/brandConstants';
+import { formatPct } from '../../utils/formatters';
 
-const fmtPct = (v) => v != null ? `${(v * 100).toFixed(1)}%` : 'n<30';
+const fmtPctOrSuppressed = (v) => v != null ? formatPct(v) : 'n<30';
 
 function BreakdownRow({ label, insValue, mktValue }) {
   return (
     <div style={{ marginBottom: 4 }}>
       <span style={{ fontSize: 12, color: '#4D5153', minWidth: 120, display: 'inline-block' }}>{label}</span>
       <span style={{ fontSize: 12, fontWeight: 'bold', color: COLORS.magenta, minWidth: 60, display: 'inline-block' }}>
-        {fmtPct(insValue)}
+        {fmtPctOrSuppressed(insValue)}
       </span>
       <span style={{ fontSize: 11, color: COLORS.grey }}>
-        Mkt {fmtPct(mktValue)}
+        Mkt {fmtPctOrSuppressed(mktValue)}
       </span>
     </div>
   );
@@ -23,7 +24,7 @@ function SourceRow({ rank, brand, pct }) {
         {rank}. {brand}
       </span>
       <span style={{ fontSize: 12, fontWeight: 'bold', color: COLORS.magenta }}>
-        {fmtPct(pct)}
+        {fmtPctOrSuppressed(pct)}
       </span>
     </div>
   );

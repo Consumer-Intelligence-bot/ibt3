@@ -3,9 +3,13 @@
  * headline story: pre/post share, shopping rate, retention, competitive exchange,
  * premium change comparison, channel comparison, net movement rank, and deep-dive breakdowns.
  */
-import { priceUpPct, priceDownPct, priceUnchangedPct } from './screen1Measures';
+import { THRESHOLDS } from '../brandConstants';
 
 const NEUTRAL_GAP_THRESHOLD = 1.0; // percentage points
+const MIN_N = THRESHOLDS.indicative; // 30 — minimum sample for deep-dive breakdowns
+
+const PRICE_DIRECTIONS = ['Up', 'Unchanged', 'Down'];
+const PRICE_LABELS = { Up: 'Higher', Unchanged: 'Unchanged', Down: 'Lower' };
 
 function _pct(n, d) {
   return d > 0 ? n / d : 0;
@@ -147,24 +151,24 @@ export function calcChannelComparison(data, insurer) {
 
 /**
  * Rank insurer by net movement among all brands.
+ * Uses single-pass counting instead of per-brand filtering.
  */
 export function calcNetMovementRank(data, insurer) {
   if (!data?.length || !insurer) return null;
   const total = data.length;
 
-  const allBrands = new Set();
+  // Single pass: count pre and post occurrences per brand
+  const preCount = {};
+  const postCount = {};
   data.forEach(r => {
-    if (r.PreRenewalCompany) allBrands.add(r.PreRenewalCompany);
-    if (r.CurrentCompany) allBrands.add(r.CurrentCompany);
+    if (r.PreRenewalCompany) preCount[r.PreRenewalCompany] = (preCount[r.PreRenewalCompany] || 0) + 1;
+    if (r.CurrentCompany) postCount[r.CurrentCompany] = (postCount[r.CurrentCompany] || 0) + 1;
   });
 
-  const movements = [];
-  allBrands.forEach(brand => {
-    const pre = data.filter(r => r.PreRenewalCompany === brand).length;
-    const post = data.filter(r => r.CurrentCompany === brand).length;
-    movements.push({ brand, delta: (post - pre) / total });
-  });
-  movements.sort((a, b) => b.delta - a.delta);
+  const allBrands = new Set([...Object.keys(preCount), ...Object.keys(postCount)]);
+  const movements = [...allBrands]
+    .map(brand => ({ brand, delta: ((postCount[brand] || 0) - (preCount[brand] || 0)) / total }))
+    .sort((a, b) => b.delta - a.delta);
 
   const idx = movements.findIndex(m => m.brand === insurer);
   if (idx === -1) return null;
@@ -177,93 +181,88 @@ export function calcNetMovementRank(data, insurer) {
 }
 
 // ---------------------------------------------------------------------------
-// Deep-dive helpers
+// Deep-dive helpers — consolidated to avoid redundant filtering
 // ---------------------------------------------------------------------------
 
-function _rateByPremiumChange(base, insurer, conditionFn) {
-  const existing = base.filter(r => r.Switchers !== 'New-to-market');
+/**
+ * Pre-filter data into reusable segments for all deep-dive functions.
+ */
+function _prepareSegments(data, insurer) {
+  const existing = data.filter(r => r.Switchers !== 'New-to-market');
   const insExisting = existing.filter(r => r.PreRenewalCompany === insurer);
-  const result = [];
-  for (const dir of ['Up', 'Unchanged', 'Down']) {
-    const label = dir === 'Up' ? 'Higher' : dir === 'Down' ? 'Lower' : 'Unchanged';
-    const insGrp = insExisting.filter(r => r.price_direction === dir);
-    const mktGrp = existing.filter(r => r.price_direction === dir);
-    result.push({
-      label,
-      insurer: insGrp.length >= 30 ? _pct(insGrp.filter(conditionFn).length, insGrp.length) : null,
-      market: mktGrp.length >= 30 ? _pct(mktGrp.filter(conditionFn).length, mktGrp.length) : null,
+  const shoppers = existing.filter(r => r.Shoppers === 'Shoppers');
+  const insShopStay = shoppers.filter(r => r.PreRenewalCompany === insurer && r.Switchers === 'Non-switcher');
+  const mktShopStay = shoppers.filter(r => r.Switchers === 'Non-switcher');
+  return { existing, insExisting, shoppers, insShopStay, mktShopStay };
+}
+
+/**
+ * Generic rate-by-group: for each group value, compute rate of conditionFn.
+ */
+function _rateByGroup(insSubset, mktSubset, groupField, conditionFn) {
+  const groups = [...new Set(mktSubset.map(r => r[groupField]).filter(Boolean))].sort();
+  return groups.map(g => {
+    const insGrp = insSubset.filter(r => r[groupField] === g);
+    const mktGrp = mktSubset.filter(r => r[groupField] === g);
+    return {
+      label: g,
+      insurer: insGrp.length >= MIN_N ? _pct(insGrp.filter(conditionFn).length, insGrp.length) : null,
+      market: mktGrp.length >= MIN_N ? _pct(mktGrp.filter(conditionFn).length, mktGrp.length) : null,
       insN: insGrp.length,
       mktN: mktGrp.length,
-    });
-  }
-  return result;
+    };
+  });
+}
+
+/**
+ * Rate by premium change direction, with display labels.
+ */
+function _rateByPremiumChange(insSubset, mktSubset, conditionFn) {
+  return PRICE_DIRECTIONS.map(dir => {
+    const insGrp = insSubset.filter(r => r.price_direction === dir);
+    const mktGrp = mktSubset.filter(r => r.price_direction === dir);
+    return {
+      label: PRICE_LABELS[dir],
+      insurer: insGrp.length >= MIN_N ? _pct(insGrp.filter(conditionFn).length, insGrp.length) : null,
+      market: mktGrp.length >= MIN_N ? _pct(mktGrp.filter(conditionFn).length, mktGrp.length) : null,
+      insN: insGrp.length,
+      mktN: mktGrp.length,
+    };
+  });
 }
 
 export function shoppingRateByPremiumChange(data, insurer) {
-  return _rateByPremiumChange(data, insurer, r => r.Shoppers === 'Shoppers');
+  const { existing, insExisting } = _prepareSegments(data, insurer);
+  return _rateByPremiumChange(insExisting, existing, r => r.Shoppers === 'Shoppers');
 }
 
 export function retentionByPremiumChange(data, insurer) {
-  return _rateByPremiumChange(data, insurer, r => r.Switchers === 'Non-switcher');
+  const { existing, insExisting } = _prepareSegments(data, insurer);
+  return _rateByPremiumChange(insExisting, existing, r => r.Switchers === 'Non-switcher');
 }
 
 export function shoppingRateByAge(data, insurer) {
-  const existing = data.filter(r => r.Switchers !== 'New-to-market');
-  const insExisting = existing.filter(r => r.PreRenewalCompany === insurer);
-  const ages = [...new Set(existing.map(r => r['Age Group']).filter(Boolean))].sort();
-  return ages.map(age => {
-    const insGrp = insExisting.filter(r => r['Age Group'] === age);
-    const mktGrp = existing.filter(r => r['Age Group'] === age);
-    return {
-      label: age,
-      insurer: insGrp.length >= 30 ? _pct(insGrp.filter(r => r.Shoppers === 'Shoppers').length, insGrp.length) : null,
-      market: mktGrp.length >= 30 ? _pct(mktGrp.filter(r => r.Shoppers === 'Shoppers').length, mktGrp.length) : null,
-      insN: insGrp.length,
-      mktN: mktGrp.length,
-    };
-  });
+  const { existing, insExisting } = _prepareSegments(data, insurer);
+  return _rateByGroup(insExisting, existing, 'Age Group', r => r.Shoppers === 'Shoppers');
 }
 
 export function retentionByRegion(data, insurer) {
-  const existing = data.filter(r => r.Switchers !== 'New-to-market');
-  const insExisting = existing.filter(r => r.PreRenewalCompany === insurer);
-  const regions = [...new Set(existing.map(r => r.Region).filter(Boolean))].sort();
-  return regions.map(region => {
-    const insGrp = insExisting.filter(r => r.Region === region);
-    const mktGrp = existing.filter(r => r.Region === region);
-    return {
-      label: region,
-      insurer: insGrp.length >= 30 ? _pct(insGrp.filter(r => r.Switchers === 'Non-switcher').length, insGrp.length) : null,
-      market: mktGrp.length >= 30 ? _pct(mktGrp.filter(r => r.Switchers === 'Non-switcher').length, mktGrp.length) : null,
-      insN: insGrp.length,
-      mktN: mktGrp.length,
-    };
-  });
+  const { existing, insExisting } = _prepareSegments(data, insurer);
+  return _rateByGroup(insExisting, existing, 'Region', r => r.Switchers === 'Non-switcher');
 }
 
 export function shopStayByPremiumChange(data, insurer) {
-  const existing = data.filter(r => r.Switchers !== 'New-to-market');
-  const shoppers = existing.filter(r => r.Shoppers === 'Shoppers');
-  const insShopStay = shoppers.filter(r => r.PreRenewalCompany === insurer && r.Switchers === 'Non-switcher');
-  const mktShopStay = shoppers.filter(r => r.Switchers === 'Non-switcher');
-  const result = [];
-  for (const dir of ['Up', 'Unchanged', 'Down']) {
-    const label = dir === 'Up' ? 'Higher' : dir === 'Down' ? 'Lower' : 'Unchanged';
-    result.push({
-      label,
-      insurer: insShopStay.length > 0 ? _pct(insShopStay.filter(r => r.price_direction === dir).length, insShopStay.length) : 0,
-      market: mktShopStay.length > 0 ? _pct(mktShopStay.filter(r => r.price_direction === dir).length, mktShopStay.length) : 0,
-    });
-  }
-  return result;
+  const { insShopStay, mktShopStay } = _prepareSegments(data, insurer);
+  return PRICE_DIRECTIONS.map(dir => ({
+    label: PRICE_LABELS[dir],
+    insurer: insShopStay.length > 0 ? _pct(insShopStay.filter(r => r.price_direction === dir).length, insShopStay.length) : 0,
+    market: mktShopStay.length > 0 ? _pct(mktShopStay.filter(r => r.price_direction === dir).length, mktShopStay.length) : 0,
+  }));
 }
 
 export function shopStayPCWUsage(data, insurer) {
-  const existing = data.filter(r => r.Switchers !== 'New-to-market');
-  const shoppers = existing.filter(r => r.Shoppers === 'Shoppers');
-  const insShopStay = shoppers.filter(r => r.PreRenewalCompany === insurer && r.Switchers === 'Non-switcher');
-  const mktShopStay = shoppers.filter(r => r.Switchers === 'Non-switcher');
-  if (insShopStay.length < 30) return null;
+  const { insShopStay, mktShopStay } = _prepareSegments(data, insurer);
+  if (insShopStay.length < MIN_N) return null;
   return {
     insurer: _pct(insShopStay.filter(r => r.is_pcw_user).length, insShopStay.length),
     market: mktShopStay.length > 0 ? _pct(mktShopStay.filter(r => r.is_pcw_user).length, mktShopStay.length) : 0,
@@ -293,7 +292,7 @@ export function newBizChannelBreakdown(data, insurer) {
     r => r.Switchers === 'Switcher' && r.CurrentCompany === insurer && r.PreRenewalCompany !== insurer
   );
   const allSwitchers = data.filter(r => r.Switchers === 'Switcher');
-  if (switchersTo.length < 30) return null;
+  if (switchersTo.length < MIN_N) return null;
   return {
     insurer: _pct(switchersTo.filter(r => r.is_pcw_user).length, switchersTo.length),
     market: allSwitchers.length > 0 ? _pct(allSwitchers.filter(r => r.is_pcw_user).length, allSwitchers.length) : 0,

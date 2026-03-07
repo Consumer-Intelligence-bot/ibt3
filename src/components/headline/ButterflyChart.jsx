@@ -1,6 +1,5 @@
 import { COLORS, FONT } from '../../utils/brandConstants';
-
-const fmtPct = (v) => `${(v * 100).toFixed(1)}%`;
+import { formatPct } from '../../utils/formatters';
 
 export default function ButterflyChart({ wonFrom, lostTo, callout }) {
   const allVals = [...wonFrom.map(w => w.pct), ...lostTo.map(l => l.pct)];
@@ -36,7 +35,7 @@ export default function ButterflyChart({ wonFrom, lostTo, callout }) {
             <div style={{ flex: 5, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
               {won && (
                 <>
-                  <span style={{ fontSize: 11, color: '#4D5153', whiteSpace: 'nowrap' }}>{fmtPct(won.pct)}</span>
+                  <span style={{ fontSize: 11, color: '#4D5153', whiteSpace: 'nowrap' }}>{formatPct(won.pct)}</span>
                   <div style={{
                     height: 20, width: `${(won.pct / maxVal) * 100}%`, minWidth: 4,
                     backgroundColor: COLORS.green, borderRadius: 3,
@@ -61,7 +60,7 @@ export default function ButterflyChart({ wonFrom, lostTo, callout }) {
                     height: 20, width: `${(lost.pct / maxVal) * 100}%`, minWidth: 4,
                     backgroundColor: COLORS.red, borderRadius: 3,
                   }} />
-                  <span style={{ fontSize: 11, color: '#4D5153', whiteSpace: 'nowrap' }}>{fmtPct(lost.pct)}</span>
+                  <span style={{ fontSize: 11, color: '#4D5153', whiteSpace: 'nowrap' }}>{formatPct(lost.pct)}</span>
                 </>
               )}
             </div>

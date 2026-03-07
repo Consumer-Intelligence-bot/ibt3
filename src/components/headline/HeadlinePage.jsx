@@ -22,8 +22,6 @@ import DeepDivePanel from './DeepDivePanel';
 import PremiumChangeVsMarket from './PremiumChangeVsMarket';
 import SourceOfBusiness from './SourceOfBusiness';
 
-const fmtPct = (v) => `${(v * 100).toFixed(1)}%`;
-
 function ShareCard({ label, valueStr, colour, borderTop }) {
   const style = {
     backgroundColor: '#FFF', borderRadius: 8,
