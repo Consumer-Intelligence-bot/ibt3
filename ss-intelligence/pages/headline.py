@@ -16,9 +16,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import dash
 import dash_bootstrap_components as dbc
-from dash import Input, Output, State, callback, ctx, html
+from dash import Input, Output, callback, dcc, html
 
 from analytics.demographics import apply_filters
+from analytics.narrative import generate_narrative
 from components.filter_bar import filter_bar
 from config import CI_GREEN, CI_GREY, CI_MAGENTA, CI_RED, CI_LIGHT_GREY, NEUTRAL_GAP_THRESHOLD
 from shared import DF_MOTOR, DF_HOME
@@ -756,7 +757,7 @@ def _butterfly_chart(won_from, lost_to, callout=None):
 # Page builder
 # ---------------------------------------------------------------------------
 
-def _build_headline_page(d, pc_data, ch_data, rank_data, dd):
+def _build_headline_page(d, narrative=None):
     """Build the full headline story layout from metrics dict."""
     ins = d["insurer"]
     pre_pp = d["pre_share"] * 100
@@ -771,11 +772,22 @@ def _build_headline_page(d, pc_data, ch_data, rank_data, dd):
     stay_tag = _derive_tag(d["shop_stay_pct"], d["mkt_shop_stay_pct"])
     biz_tag = _derive_tag(d["new_biz_pct"], d["mkt_new_biz_pct"])
 
-    # Auto-narrative for support line
+    # Narrative text: use AI-generated if available, else hardcoded fallback
     direction = "lifting" if delta_pp > 0 else ("dropping" if delta_pp < 0 else "holding")
+    headline_text = (
+        narrative["headline"] if narrative
+        else f"Customers shop at the market rate, but {ins} keeps more of them"
+    )
     support = (
-        f"Retention and acquisition both beat market, {direction} share "
-        f"from {pre_pp:.1f}% to {post_pp:.1f}% through renewal."
+        narrative["subtitle"] if narrative
+        else (
+            f"Retention and acquisition both beat market, {direction} share "
+            f"from {pre_pp:.1f}% to {post_pp:.1f}% through renewal."
+        )
+    )
+    why_text = (
+        narrative["paragraph"] if narrative
+        else f"Customers are just as likely to shop around. {ins} performs better when they do."
     )
 
     # Dynamic callout for butterfly
@@ -797,7 +809,7 @@ def _build_headline_page(d, pc_data, ch_data, rank_data, dd):
     return html.Div([
         # ── HEADLINE ──────────────────────────────────────────
         html.H1(
-            f"Customers shop at the market rate, but {ins} keeps more of them",
+            headline_text,
             style={
                 "fontSize": 22, "fontWeight": "bold", "color": "#4D5153",
                 "margin": "0 0 6px", "lineHeight": "1.3", "fontFamily": FONT,
@@ -841,7 +853,7 @@ def _build_headline_page(d, pc_data, ch_data, rank_data, dd):
                 "fontSize": 15, "fontWeight": "bold", "color": "#4D5153", "marginBottom": 4,
             }),
             html.P(
-                f"Customers are just as likely to shop around. {ins} performs better when they do.",
+                why_text,
                 style={"fontSize": 13, "color": CI_GREY, "margin": "0 0 20px", "lineHeight": "1.5"},
             ),
             _comparison_bar_with_deepdive(
@@ -895,7 +907,12 @@ def layout():
     return dbc.Container([
         html.Div(className="ci-page-header", children=[html.H1("Headline")]),
         html.Div(id="filter-bar-hl"),
-        html.Div(id="headline-content"),
+        dcc.Loading(
+            id="headline-loading",
+            type="dot",
+            color=CI_MAGENTA,
+            children=html.Div(id="headline-content"),
+        ),
     ], fluid=True)
 
 
@@ -987,3 +1004,5 @@ _toggle_shopping = _make_toggle_callback("shopping")
 _toggle_retention = _make_toggle_callback("retention")
 _toggle_shopped_stayed = _make_toggle_callback("shopped_stayed")
 _toggle_new_biz = _make_toggle_callback("new_biz")
+    narrative = generate_narrative(d)
+    return filter_bar_el, _build_headline_page(d, narrative=narrative)
