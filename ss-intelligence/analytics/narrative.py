@@ -22,8 +22,9 @@ _SYSTEM_PROMPT = """\
 You write concise market intelligence summaries for a UK motor insurance dashboard.
 Your audience is senior leaders at insurance companies.
 
-You will receive brand metrics compared to market benchmarks, each tagged
-AHEAD, BELOW, or IN LINE.
+You will receive brand metrics compared to market benchmarks. Each metric is
+tagged AHEAD, BELOW, or IN LINE. The net share movement is tagged FELL, FLAT,
+or GREW.
 
 Return ONLY valid JSON with exactly three keys:
 
@@ -33,24 +34,36 @@ Return ONLY valid JSON with exactly three keys:
   "paragraph": "<3-4 sentences>"
 }
 
-Rules for the headline (one sentence):
-- If shopping rate is BELOW market: start with "Fewer {brand} customers shop around than average..."
-- If shopping rate is IN LINE:      start with "Customers shop at the market rate..."
-- If shopping rate is AHEAD:        start with "More {brand} customers shop around than average..."
-Then complete the headline based on what drives the share outcome:
-- If share GAINS and retention is AHEAD: "...and {brand} keeps more of them, growing share."
-- If share FLAT  and retention is AHEAD: "...and {brand} retains them well, holding share steady."
-- If share FALLS and retention is AHEAD: "...and {brand} retains well, but weak new business trims share."
-- If retention is IN LINE and share gains: "...converting at the market rate, with new business lifting share."
-- Adapt logically for other combinations.
+CRITICAL — the headline must lead with the net share outcome. Net share change
+is the outcome metric; shopping rate, retention, and conversion are process
+metrics. The outcome takes precedence.
 
-Subtitle (one sentence): Summarise what retention and new business did to share overall.
+Headline rules (one sentence):
+- If share FELL:  "{brand} lost share at renewal despite [best positive factor]."
+  Tone: cautionary. Do not use positive framing words (keeps more, beats market,
+  ahead) as the primary message when the net outcome is negative.
+- If share FLAT:  "{brand} held share steady at renewal, [brief driver]."
+  Tone: neutral.
+- If share GREW:  "{brand} grew share at renewal, driven by [primary driver]."
+  Tone: positive.
+
+After stating the outcome, name the primary driver (retention or new business)
+and, if relevant, the offsetting factor. Be specific — use the actual metric
+values rather than vague language.
+
+Subtitle (one sentence): Reinforce and expand on the headline. It must not
+contradict the headline tone. If the headline reports a loss, the subtitle
+must acknowledge the loss — do not quietly mention share loss in a subtitle
+that otherwise sounds positive.
 
 Paragraph (3-4 sentences of plain English explanation):
-- What the shopping rate tells us
-- Whether retention helped or hurt
-- What new business contributed
-- The net share outcome
+1. The net share outcome and its magnitude
+2. Whether retention helped or hurt (with numbers)
+3. What new business contributed (with numbers)
+4. What the shopping rate tells us
+
+Be direct and specific. Avoid euphemism. A good headline names both the
+outcome and the primary driver.
 
 Do not use bullet points. Do not use jargon. Write in British English.
 Do not mention sample sizes or survey methodology.
@@ -65,12 +78,23 @@ def _derive_tag(ins_val: float, mkt_val: float) -> str:
     return "AHEAD" if gap_pp > 0 else "BELOW"
 
 
+def _share_movement_tag(delta: float) -> str:
+    """Return FELL / FLAT / GREW based on net share change (as proportion)."""
+    delta_pp = delta * 100
+    if delta_pp < -NEUTRAL_GAP_THRESHOLD:
+        return "FELL"
+    if delta_pp > NEUTRAL_GAP_THRESHOLD:
+        return "GREW"
+    return "FLAT"
+
+
 def _format_metrics_for_prompt(d: dict) -> str:
     """Convert the headline metrics dict into the user-message for the API."""
     pre_pp = d["pre_share"] * 100
     post_pp = d["after_share"] * 100
     delta_pp = d["share_delta"] * 100
 
+    share_tag = _share_movement_tag(d["share_delta"])
     shop_tag = _derive_tag(d["shop_pct"], d["mkt_shop_pct"])
     ret_tag = _derive_tag(d["retained_pct"], d["mkt_retained_pct"])
     stay_tag = _derive_tag(d["shop_stay_pct"], d["mkt_shop_stay_pct"])
@@ -81,7 +105,7 @@ def _format_metrics_for_prompt(d: dict) -> str:
         f"Share:\n"
         f"  Pre-renewal: {pre_pp:.1f}%\n"
         f"  Post-renewal: {post_pp:.1f}%\n"
-        f"  Net movement: {delta_pp:+.1f} pts\n"
+        f"  Net movement: {delta_pp:+.1f} pts — {share_tag}\n"
         f"Shopping rate: {d['shop_pct'] * 100:.1f}% vs market "
         f"{d['mkt_shop_pct'] * 100:.1f}% — {shop_tag}\n"
         f"Retention: {d['retained_pct'] * 100:.1f}% vs market "
