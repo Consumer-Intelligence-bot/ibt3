@@ -142,7 +142,7 @@ export function buildSankeyData(data, insurer, topN = 8) {
  * @param {string|null} insurer - selected insurer
  * @param {Array|null} apiChannels - channel_usage from getChannels API { label, market_pct, insurer_pct }
  */
-function buildChannelBreakdown(rows, type, insurer, apiChannels) {
+export function buildChannelBreakdown(rows, type, insurer, apiChannels) {
   if (apiChannels?.length) {
     return apiChannels.map((c) => ({
       brand: c.label,
