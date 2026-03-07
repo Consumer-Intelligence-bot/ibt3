@@ -12,8 +12,6 @@ import logging
 import os
 from collections import OrderedDict
 
-import anthropic
-
 from config import NARRATIVE_ENABLED, NARRATIVE_MODEL, NEUTRAL_GAP_THRESHOLD
 
 log = logging.getLogger(__name__)
@@ -141,6 +139,7 @@ def generate_narrative(metrics: dict) -> dict | None:
         return None
 
     try:
+        import anthropic
         client = anthropic.Anthropic()
         user_content = _format_metrics_for_prompt(metrics)
         response = client.messages.create(
