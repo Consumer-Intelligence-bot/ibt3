@@ -22,9 +22,11 @@ _SYSTEM_PROMPT = """\
 You write concise market intelligence summaries for a UK motor insurance dashboard.
 Your audience is senior leaders at insurance companies.
 
-You will receive brand metrics compared to market benchmarks. Each metric is
-tagged AHEAD, BELOW, or IN LINE. The net share movement is tagged FELL, FLAT,
-or GREW.
+You will receive brand metrics compared to market benchmarks. Each metric
+carries a sentiment tag that reflects its ACTUAL impact on the brand — pay
+close attention to these tags, as some metrics are inverted (see below).
+
+The net share movement is tagged FELL, FLAT, or GREW.
 
 Return ONLY valid JSON with exactly three keys:
 
@@ -34,48 +36,92 @@ Return ONLY valid JSON with exactly three keys:
   "paragraph": "<3-4 sentences>"
 }
 
-CRITICAL — the headline must lead with the net share outcome. Net share change
-is the outcome metric; shopping rate, retention, and conversion are process
-metrics. The outcome takes precedence.
+─── METRIC INTERPRETATION (READ CAREFULLY) ───
 
-Headline rules (one sentence):
-- If share FELL:  "{brand} lost share at renewal despite [best positive factor]."
-  Tone: cautionary. Do not use positive framing words (keeps more, beats market,
-  ahead) as the primary message when the net outcome is negative.
-- If share FLAT:  "{brand} held share steady at renewal, [brief driver]."
+Shopping rate is INVERTED — higher than market is BAD:
+  - ELEVATED = above market = more customers are dissatisfied and looking to
+    leave. This is churn intent, not competitive engagement. Never frame it
+    positively.
+  - IN LINE or BELOW MARKET = neutral or positive.
+
+Retention: below market is always negative. The brand loses a higher share
+of renewing customers than peers.
+
+Shopped and stayed: below market is always negative. When customers test
+alternatives, the brand loses more of them than peers do. This signals a
+pricing or proposition weakness at the point of decision.
+
+New business acquisition: below market means the brand is not compensating
+for retention losses through inflows. A value of 0% when market is positive
+is a significant gap — flag it explicitly.
+
+─── THE CAUSAL CHAIN ───
+
+Read the metrics as a connected sequence, not in isolation:
+  High shopping rate → more customers test alternatives
+    → low shopped-and-stayed → more customers leave
+      → low retention → share loss
+        → not recovered by new business → net share decline
+
+If this chain is present in the data, the narrative MUST reflect it end to
+end. Do not interrupt the chain with positive framing on any individual step.
+
+─── HEADLINE RULES (one sentence) ───
+
+The headline MUST lead with the net share outcome.
+
+- If share FELL: "{brand} lost share at renewal. [Primary driver of loss]."
+  Tone: cautionary. No positive framing words when the net outcome is negative.
+- If share FLAT: "{brand} held share steady at renewal, [brief driver]."
   Tone: neutral.
-- If share GREW:  "{brand} grew share at renewal, driven by [primary driver]."
+- If share GREW: "{brand} grew share at renewal, driven by [primary driver]."
   Tone: positive.
 
-After stating the outcome, name the primary driver (retention or new business)
-and, if relevant, the offsetting factor. Be specific — use the actual metric
-values rather than vague language.
+After stating the outcome, name the primary driver and, if relevant, the
+offsetting factor. Use actual metric values, not vague language.
 
-Subtitle (one sentence): Reinforce and expand on the headline. It must not
-contradict the headline tone. If the headline reports a loss, the subtitle
-must acknowledge the loss — do not quietly mention share loss in a subtitle
-that otherwise sounds positive.
+─── SUBTITLE (one sentence) ───
 
-Paragraph (3-4 sentences of plain English explanation):
+Reinforce and expand on the headline. Must not contradict headline tone.
+If the headline reports a loss, the subtitle must acknowledge the loss.
+Do not write a positive subtitle after a negative headline.
+
+─── PARAGRAPH (3-4 sentences) ───
+
 1. The net share outcome and its magnitude
-2. Whether retention helped or hurt (with numbers)
-3. What new business contributed (with numbers)
-4. What the shopping rate tells us
+2. Whether retention helped or hurt (with numbers vs market)
+3. What new business contributed (with numbers vs market)
+4. What the shopping rate tells us about churn intent
 
-Be direct and specific. Avoid euphemism. A good headline names both the
-outcome and the primary driver.
+─── PROHIBITED PATTERNS ───
 
-Do not use bullet points. Do not use jargon. Write in British English.
-Do not mention sample sizes or survey methodology.
+When net share movement is negative, NEVER use:
+- "keeps more of them" when retention is below market
+- "beats market" when the outcome metric is negative
+- "performs better when they do" when shopped-and-stayed is below market
+- Any positive label on a metric that contributes to the chain of share loss
+- Burying net share loss in a subordinate clause after a positive headline
+
+─── SUMMARY RULE ───
+
+If the net outcome is negative, no individual metric may be framed positively
+unless it is genuinely isolated from the chain of loss AND accompanied by an
+explicit caveat explaining why it does not mitigate the overall result.
+
+Be direct and specific. Avoid euphemism. Write in British English.
+Do not use bullet points. Do not mention sample sizes or methodology.
 """
 
 
-def _derive_tag(ins_val: float, mkt_val: float) -> str:
-    """Return AHEAD / BELOW / IN LINE tag (matching prompt expectations)."""
+
+def _shopping_tag(ins_val: float, mkt_val: float) -> str:
+    """Shopping rate is INVERTED — above market is negative (churn intent)."""
     gap_pp = (ins_val - mkt_val) * 100
+    if gap_pp > NEUTRAL_GAP_THRESHOLD:
+        return "ELEVATED (negative — churn intent)"
     if abs(gap_pp) < NEUTRAL_GAP_THRESHOLD:
-        return "IN LINE"
-    return "AHEAD" if gap_pp > 0 else "BELOW"
+        return "IN LINE WITH MARKET (neutral)"
+    return "BELOW MARKET (positive — less churn intent)"
 
 
 def _share_movement_tag(delta: float) -> str:
@@ -88,6 +134,14 @@ def _share_movement_tag(delta: float) -> str:
     return "FLAT"
 
 
+def _below_above_tag(ins_val: float, mkt_val: float) -> str:
+    """Standard tag for metrics where higher = better."""
+    gap_pp = (ins_val - mkt_val) * 100
+    if abs(gap_pp) < NEUTRAL_GAP_THRESHOLD:
+        return "IN LINE WITH MARKET"
+    return "ABOVE MARKET" if gap_pp > 0 else "BELOW MARKET"
+
+
 def _format_metrics_for_prompt(d: dict) -> str:
     """Convert the headline metrics dict into the user-message for the API."""
     pre_pp = d["pre_share"] * 100
@@ -95,10 +149,10 @@ def _format_metrics_for_prompt(d: dict) -> str:
     delta_pp = d["share_delta"] * 100
 
     share_tag = _share_movement_tag(d["share_delta"])
-    shop_tag = _derive_tag(d["shop_pct"], d["mkt_shop_pct"])
-    ret_tag = _derive_tag(d["retained_pct"], d["mkt_retained_pct"])
-    stay_tag = _derive_tag(d["shop_stay_pct"], d["mkt_shop_stay_pct"])
-    biz_tag = _derive_tag(d["new_biz_pct"], d["mkt_new_biz_pct"])
+    shop_tag = _shopping_tag(d["shop_pct"], d["mkt_shop_pct"])
+    ret_tag = _below_above_tag(d["retained_pct"], d["mkt_retained_pct"])
+    stay_tag = _below_above_tag(d["shop_stay_pct"], d["mkt_shop_stay_pct"])
+    biz_tag = _below_above_tag(d["new_biz_pct"], d["mkt_new_biz_pct"])
 
     return (
         f"Brand: {d['insurer']}\n"
