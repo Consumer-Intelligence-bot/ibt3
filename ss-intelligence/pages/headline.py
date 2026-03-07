@@ -16,10 +16,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import dash
 import dash_bootstrap_components as dbc
-from dash import Input, Output, callback, dcc, html
+from dash import Input, Output, State, callback, dcc, html
 
 from analytics.demographics import apply_filters
-from analytics.narrative import generate_narrative
 from components.filter_bar import filter_bar
 from config import CI_GREEN, CI_GREY, CI_MAGENTA, CI_RED, CI_LIGHT_GREY, NEUTRAL_GAP_THRESHOLD
 from shared import DF_MOTOR, DF_HOME
@@ -757,7 +756,7 @@ def _butterfly_chart(won_from, lost_to, callout=None):
 # Page builder
 # ---------------------------------------------------------------------------
 
-def _build_headline_page(d, narrative=None):
+def _build_headline_page(d, pc_data, ch_data, rank_data, dd, narrative=None):
     """Build the full headline story layout from metrics dict."""
     ins = d["insurer"]
     pre_pp = d["pre_share"] * 100
@@ -1004,5 +1003,3 @@ _toggle_shopping = _make_toggle_callback("shopping")
 _toggle_retention = _make_toggle_callback("retention")
 _toggle_shopped_stayed = _make_toggle_callback("shopped_stayed")
 _toggle_new_biz = _make_toggle_callback("new_biz")
-    narrative = generate_narrative(d)
-    return filter_bar_el, _build_headline_page(d, narrative=narrative)
