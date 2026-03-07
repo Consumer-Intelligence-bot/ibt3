@@ -223,20 +223,25 @@ def generate_narrative(metrics: dict) -> dict | None:
         user_content = _format_metrics_for_prompt(metrics)
         response = client.messages.create(
             model=NARRATIVE_MODEL,
-            max_tokens=400,
+            max_tokens=600,
             system=_SYSTEM_PROMPT,
             messages=[{"role": "user", "content": user_content}],
         )
         raw = response.content[0].text.strip()
+        log.debug("Raw API response: %s", raw)
 
         # Strip markdown code fences if present (```json ... ```)
         fence = re.search(r"```(?:json)?\s*\n?(.*?)```", raw, re.DOTALL)
         text = fence.group(1).strip() if fence else raw
 
-        # Find the first JSON object in case of preamble text
-        brace = text.find("{")
-        if brace > 0:
-            text = text[brace:]
+        # Isolate the JSON object: find first '{' and last '}'
+        brace_open = text.find("{")
+        if brace_open == -1:
+            raise ValueError(f"No JSON object in API response: {text[:200]}")
+        brace_close = text.rfind("}")
+        if brace_close == -1:
+            raise ValueError(f"Unterminated JSON in API response: {text[:200]}")
+        text = text[brace_open:brace_close + 1]
 
         result = json.loads(text)
 
