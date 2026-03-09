@@ -103,7 +103,7 @@ def get_token():
 # ---------------------------------------------------------------------------
 
 
-def run_dax(token: str, dax: str) -> pd.DataFrame:
+def run_dax(token: str, dax: str, *, silent: bool = False) -> pd.DataFrame:
     url = (
         f"https://api.powerbi.com/v1.0/myorg/groups/{WORKSPACE_ID}"
         f"/datasets/{DATASET_ID}/executeQueries"
@@ -120,7 +120,8 @@ def run_dax(token: str, dax: str) -> pd.DataFrame:
         },
     )
     if r.status_code != 200:
-        st.error(f"Query failed: {r.text}")
+        if not silent:
+            st.error(f"Query failed: {r.text}")
         return pd.DataFrame()
     rows = r.json()["results"][0]["tables"][0].get("rows", [])
     if not rows:
@@ -142,8 +143,33 @@ _MAIN_TABLE_CANDIDATES = ["MainData_Motor", "MainData_Home", "MainData"]
 _OTHER_TABLE_CANDIDATES = ["AllOtherData_Motor", "AllOtherData_Home", "AllOtherData"]
 
 
+def _check_dataset_accessible(token: str) -> bool:
+    """Verify the dataset exists and is accessible with the current token."""
+    url = (
+        f"https://api.powerbi.com/v1.0/myorg/groups/{WORKSPACE_ID}"
+        f"/datasets/{DATASET_ID}"
+    )
+    r = requests.get(url, headers={"Authorization": f"Bearer {token}"})
+    return r.status_code == 200
+
+
+def _discover_tables_rest_api(token: str) -> list[str]:
+    """Attempt table discovery via the Power BI REST API /tables endpoint."""
+    url = (
+        f"https://api.powerbi.com/v1.0/myorg/groups/{WORKSPACE_ID}"
+        f"/datasets/{DATASET_ID}/tables"
+    )
+    r = requests.get(url, headers={"Authorization": f"Bearer {token}"})
+    if r.status_code != 200:
+        return []
+    try:
+        return [t["name"] for t in r.json().get("value", [])]
+    except (KeyError, TypeError):
+        return []
+
+
 def _probe_table_exists(token: str, table_name: str) -> bool:
-    """Check if a table exists — returns True if a zero-row query succeeds."""
+    """Check if a table exists by running a zero-row DAX query against it."""
     dax = f"EVALUATE TOPN(0, '{table_name}')"
     url = (
         f"https://api.powerbi.com/v1.0/myorg/groups/{WORKSPACE_ID}"
@@ -166,22 +192,37 @@ def _probe_table_exists(token: str, table_name: str) -> bool:
 
 
 def _discover_tables(token: str) -> list[str]:
-    """Return all table names in the Power BI semantic model.
+    """Return table names from the Power BI semantic model.
 
-    Strategy:
-    1. Try INFO.TABLES() DMV (requires admin/build permissions).
-    2. If that fails, probe known table name variants with zero-row queries.
+    Three-tier strategy (each tier is silent on failure):
+    1. REST API /tables endpoint — fast, no DAX needed.
+    2. INFO.TABLES() DMV via DAX — requires admin/Build permissions.
+    3. Probe known candidate table names with TOPN(0, ...) zero-row queries.
     """
-    # --- Attempt 1: INFO.TABLES() ---
-    dax = "EVALUATE INFO.TABLES()"
-    df = run_dax(token, dax)
+    if not _check_dataset_accessible(token):
+        st.error(
+            f"Cannot access Power BI dataset.\n\n"
+            f"**Workspace ID:** `{WORKSPACE_ID}`\n\n"
+            f"**Dataset ID:** `{DATASET_ID}`\n\n"
+            f"Verify these IDs are correct and that your account has "
+            f"Dataset.Read.All permission."
+        )
+        return []
+
+    # Tier 1: REST API /tables
+    tables = _discover_tables_rest_api(token)
+    if tables:
+        return tables
+
+    # Tier 2: INFO.TABLES() DMV (silent — suppresses permission errors)
+    df = run_dax(token, "EVALUATE INFO.TABLES()", silent=True)
     if not df.empty:
         name_col = [c for c in df.columns if c.lower() == "name"]
         if not name_col:
             return df.iloc[:, 0].tolist()
         return df[name_col[0]].tolist()
 
-    # --- Attempt 2: Probe known table name candidates ---
+    # Tier 3: Probe known candidate table names
     found: list[str] = []
     all_candidates = list(dict.fromkeys(
         _MAIN_TABLE_CANDIDATES + _OTHER_TABLE_CANDIDATES
@@ -204,7 +245,12 @@ def _get_main_table(_token: str) -> str:
     for name in _MAIN_TABLE_CANDIDATES:
         if _probe_table_exists(_token, name):
             return name
-    st.warning(f"Could not find MainData* table. Using fallback '{MAIN_TABLE_FALLBACK}'.")
+    st.warning(
+        f"Could not auto-discover table names (REST API, INFO.TABLES(), and "
+        f"probe queries all failed). Using fallback name '{MAIN_TABLE_FALLBACK}'.\n\n"
+        f"If queries fail, verify the actual table name in Power BI Desktop "
+        f"and update MAIN_TABLE_FALLBACK in this file."
+    )
     return MAIN_TABLE_FALLBACK
 
 
@@ -217,7 +263,12 @@ def _get_other_table(_token: str) -> str:
     for name in _OTHER_TABLE_CANDIDATES:
         if _probe_table_exists(_token, name):
             return name
-    st.warning(f"Could not find AllOtherData* table. Using fallback '{OTHER_TABLE_FALLBACK}'.")
+    st.warning(
+        f"Could not auto-discover table names (REST API, INFO.TABLES(), and "
+        f"probe queries all failed). Using fallback name '{OTHER_TABLE_FALLBACK}'.\n\n"
+        f"If queries fail, verify the actual table name in Power BI Desktop "
+        f"and update OTHER_TABLE_FALLBACK in this file."
+    )
     return OTHER_TABLE_FALLBACK
 
 
