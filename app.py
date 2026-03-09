@@ -7,6 +7,7 @@ in a single multipage app. All data from Power BI via DAX queries.
 
 import signal
 import sys
+import threading
 
 import streamlit as st
 
@@ -15,11 +16,12 @@ import streamlit as st
 # Prevents "RuntimeError: Event loop is closed" during threading shutdown
 # by catching the signal before Streamlit's default handler races with
 # the asyncio event loop teardown.
+# NOTE: signal.signal() only works from the main thread.
 def _graceful_shutdown(signum, frame):
     sys.exit(0)
 
 
-if not hasattr(st, "_graceful_shutdown_registered"):
+if threading.current_thread() is threading.main_thread() and not hasattr(st, "_graceful_shutdown_registered"):
     signal.signal(signal.SIGTERM, _graceful_shutdown)
     signal.signal(signal.SIGINT, _graceful_shutdown)
     st._graceful_shutdown_registered = True
