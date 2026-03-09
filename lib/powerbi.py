@@ -147,7 +147,7 @@ def load_ss_maindata(_token, start_month: int, end_month: int):
     """Fetch MainData profile columns for Shopping & Switching analysis."""
     dax = f"""
         EVALUATE
-        CALCULATETABLE(
+        FILTER(
             SELECTCOLUMNS(
                 MainData,
                 "UniqueID", MainData[UniqueID],
@@ -168,8 +168,7 @@ def load_ss_maindata(_token, start_month: int, end_month: int):
                 "Claimants", MainData[Claimants],
                 "Employment status", MainData[Employment status]
             ),
-            MainData[RenewalYearMonth] >= {start_month},
-            MainData[RenewalYearMonth] <= {end_month}
+            [RenewalYearMonth] >= {start_month} && [RenewalYearMonth] <= {end_month}
         )
     """
     return run_dax(_token, dax)
@@ -181,11 +180,10 @@ def load_ss_questions(_token, start_month: int, end_month: int):
     dax = f"""
         EVALUATE
         CALCULATETABLE(
-            SELECTCOLUMNS(
-                AllOtherData,
-                "UniqueID", AllOtherData[UniqueID],
-                "QuestionNumber", AllOtherData[QuestionNumber],
-                "Answer", AllOtherData[Answer]
+            SUMMARIZECOLUMNS(
+                AllOtherData[UniqueID],
+                AllOtherData[QuestionNumber],
+                AllOtherData[Answer]
             ),
             MainData[RenewalYearMonth] >= {start_month},
             MainData[RenewalYearMonth] <= {end_month}
