@@ -41,7 +41,7 @@ MIN_BASE_INDICATIVE = 30
 Z_95 = 1.96
 
 # App version — displayed in sidebar for deployment verification
-APP_VERSION = "1.2.1"
+APP_VERSION = "1.2.2"
 
 # ---------------------------------------------------------------------------
 # CSS
@@ -634,7 +634,7 @@ def main():
         paper_bgcolor=CI_WHITE,
         showlegend=False,
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
     # ---- Section 7: Q53 Diagnostic Statements ----
     if not q53_df.empty:
@@ -664,7 +664,8 @@ def main():
                         / g["Q53_n"].sum(),
                         "Ranking": g["Ranking"].iloc[0],
                     }
-                )
+                ),
+                include_groups=False,
             )
             .reset_index()
         )
