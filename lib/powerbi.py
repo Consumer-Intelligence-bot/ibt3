@@ -241,77 +241,23 @@ def load_q53(_token, start_month: int, end_month: int,
 # Shopping & Switching DAX queries
 # ---------------------------------------------------------------------------
 
-@st.cache_data(ttl=3600, show_spinner="Discovering columns...")
-def _discover_columns(_token, table_name: str) -> list[str]:
-    """Return column names for a table using INFO.COLUMNS() or a 1-row probe."""
-    dax = f"EVALUATE SELECTCOLUMNS(INFO.COLUMNS(), \"Name\", [ExplicitName], \"Table\", [TableID])"
-    df = run_dax(_token, dax)
-    if not df.empty and "Name" in df.columns:
-        # INFO.COLUMNS() returns TableID as an int; match by table name via INFO.TABLES()
-        tables_df = run_dax(_token, "EVALUATE INFO.TABLES()")
-        if not tables_df.empty:
-            name_col = [c for c in tables_df.columns if c.lower() == "name"][0] if any(c.lower() == "name" for c in tables_df.columns) else tables_df.columns[0]
-            id_col = [c for c in tables_df.columns if c.lower() == "id"][0] if any(c.lower() == "id" for c in tables_df.columns) else None
-            if id_col:
-                tid = tables_df.loc[tables_df[name_col] == table_name, id_col]
-                if not tid.empty:
-                    return df.loc[df["Table"] == tid.iloc[0], "Name"].tolist()
-
-    # Fallback: fetch 1 row and read column headers
-    probe = run_dax(_token, f"EVALUATE TOPN(1, '{table_name}')")
-    if not probe.empty:
-        return list(probe.columns)
-    return []
-
-
-# Desired columns for S&S analysis, in priority order.
-_SS_DESIRED_COLUMNS = [
-    "UniqueID", "RenewalYearMonth", "SurveyYearMonth",
-    "CurrentCompany", "PreRenewalCompany",
-    "Region", "Age Group", "Gender",
-    "Shoppers", "Switchers", "Retained",
-    "Renewal premium change", "How much higher", "How much lower",
-    "Did you use a PCW for shopping", "Claimants", "Employment status",
-]
-
-
 @st.cache_data(ttl=3600, show_spinner="Loading S&S main data...")
 def load_ss_maindata(_token, start_month: int, end_month: int,
                      main_table: str = MAIN_TABLE):
-    """Fetch MainData profile columns for Shopping & Switching analysis.
+    """Fetch all MainData columns for Shopping & Switching analysis.
 
-    Discovers available columns first so the query doesn't fail if the
-    Power BI model has been updated and some columns have been renamed
-    or removed.
+    Uses CALCULATETABLE to fetch every column in the table (no
+    SELECTCOLUMNS) so the query works regardless of which columns
+    exist.  The downstream transforms.py handles missing columns
+    gracefully.
     """
     mt = main_table
-    available = _discover_columns(_token, mt)
-
-    if available:
-        cols = [c for c in _SS_DESIRED_COLUMNS if c in available]
-    else:
-        # Discovery failed — try all columns and let DAX report any errors
-        cols = list(_SS_DESIRED_COLUMNS)
-
-    if not cols:
-        st.warning(f"No recognised columns found in '{mt}'.")
-        return pd.DataFrame()
-
-    # Ensure we always have RenewalYearMonth for the filter
-    if "RenewalYearMonth" not in cols:
-        cols.insert(0, "RenewalYearMonth")
-
-    select_parts = ",\n                ".join(
-        f'"{c}", \'{mt}\'[{c}]' for c in cols
-    )
     dax = f"""
         EVALUATE
-        FILTER(
-            SELECTCOLUMNS(
-                '{mt}',
-                {select_parts}
-            ),
-            [RenewalYearMonth] >= {start_month} && [RenewalYearMonth] <= {end_month}
+        CALCULATETABLE(
+            '{mt}',
+            '{mt}'[RenewalYearMonth] >= {start_month},
+            '{mt}'[RenewalYearMonth] <= {end_month}
         )
     """
     return run_dax(_token, dax)
