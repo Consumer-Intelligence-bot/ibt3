@@ -4,6 +4,11 @@ Merges S&S and Claims settings into a single source of truth.
 """
 
 # ---------------------------------------------------------------------------
+# App version — displayed on the login screen to verify deployed code
+# ---------------------------------------------------------------------------
+APP_VERSION = "1.3.0"
+
+# ---------------------------------------------------------------------------
 # Azure / Power BI credentials
 # ---------------------------------------------------------------------------
 TENANT_ID = "21c877f6-eb38-45b3-82dd-a27ccad676ce"

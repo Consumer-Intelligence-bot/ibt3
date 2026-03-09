@@ -13,6 +13,11 @@ import requests
 import streamlit as st
 
 # ---------------------------------------------------------------------------
+# App version — displayed on login screen to verify deployed code
+# ---------------------------------------------------------------------------
+APP_VERSION = "1.3.0"
+
+# ---------------------------------------------------------------------------
 # Constants — Azure / Power BI credentials
 # ---------------------------------------------------------------------------
 TENANT_ID = "21c877f6-eb38-45b3-82dd-a27ccad676ce"
@@ -81,15 +86,31 @@ div[data-testid="stMetricValue"] {{
 
 
 @st.cache_resource(show_spinner=False)
-def get_token():
-    app = msal.PublicClientApplication(
+def _get_msal_app():
+    """Create and cache the MSAL app so the token cache persists for refresh."""
+    return msal.PublicClientApplication(
         CLIENT_ID,
         authority=f"https://login.microsoftonline.com/{TENANT_ID}",
     )
+
+
+def get_token():
+    """Authenticate via MSAL device flow, with silent refresh for expired tokens."""
+    app = _get_msal_app()
+
+    # Try silent renewal first (uses MSAL's in-memory token cache)
+    accounts = app.get_accounts()
+    if accounts:
+        result = app.acquire_token_silent(SCOPE, account=accounts[0])
+        if result and "access_token" in result:
+            return result["access_token"]
+
+    # Fall back to interactive device flow
     flow = app.initiate_device_flow(scopes=SCOPE)
     st.info(
         f"Sign in at **https://microsoft.com/devicelogin** "
-        f"with code: **{flow['user_code']}**"
+        f"with code: **{flow['user_code']}**\n\n"
+        f"App version: **{APP_VERSION}**"
     )
     token = app.acquire_token_by_device_flow(flow)
     if "access_token" not in token:
@@ -101,6 +122,37 @@ def get_token():
 # ---------------------------------------------------------------------------
 # DAX query helper
 # ---------------------------------------------------------------------------
+
+
+# Known Analysis Services error codes → user-friendly messages
+_KNOWN_AS_ERRORS = {
+    "3239575574": (
+        "Permission denied — your account needs **Build permission** on this "
+        "dataset in Power BI. Ask your workspace admin to grant Build access."
+    ),
+    "3241803779": "Table not found in the semantic model.",
+}
+
+
+def _parse_dax_error(text: str) -> str:
+    """Extract a user-friendly message from a Power BI error response."""
+    try:
+        import json
+        body = json.loads(text)
+        details = (
+            body.get("error", {})
+            .get("pbi.error", {})
+            .get("details", [])
+        )
+        for d in details:
+            code = d.get("detail", {}).get("value", "")
+            if code in _KNOWN_AS_ERRORS:
+                return _KNOWN_AS_ERRORS[code]
+            if d.get("code") == "DetailsMessage":
+                return d["detail"]["value"]
+    except Exception:
+        pass
+    return text
 
 
 def run_dax(token: str, dax: str, *, silent: bool = False) -> pd.DataFrame:
@@ -121,7 +173,7 @@ def run_dax(token: str, dax: str, *, silent: bool = False) -> pd.DataFrame:
     )
     if r.status_code != 200:
         if not silent:
-            st.error(f"Query failed: {r.text}")
+            st.error(f"Query failed: {_parse_dax_error(r.text)}")
         return pd.DataFrame()
     rows = r.json()["results"][0]["tables"][0].get("rows", [])
     if not rows:
@@ -137,6 +189,9 @@ def run_dax(token: str, dax: str, *, silent: bool = False) -> pd.DataFrame:
 
 MAIN_TABLE_FALLBACK = "MainData"
 OTHER_TABLE_FALLBACK = "AllOtherData"
+
+# Bump this to invalidate Streamlit's cached discovery results after code changes.
+_DISCOVERY_VERSION = 3
 
 # Known table name variants to probe when metadata queries fail.
 _MAIN_TABLE_CANDIDATES = ["MainData_Motor", "MainData_Home", "MainData"]
@@ -237,7 +292,7 @@ def _discover_tables(token: str) -> list[str]:
 
 
 @st.cache_data(ttl=3600, show_spinner="Discovering tables...")
-def _get_main_table(_token: str) -> str:
+def _get_main_table(_token: str, _version: int = _DISCOVERY_VERSION) -> str:
     tables = _discover_tables(_token)
     for t in tables:
         if t.startswith("MainData"):
@@ -255,7 +310,7 @@ def _get_main_table(_token: str) -> str:
 
 
 @st.cache_data(ttl=3600, show_spinner="Discovering tables...")
-def _get_other_table(_token: str) -> str:
+def _get_other_table(_token: str, _version: int = _DISCOVERY_VERSION) -> str:
     tables = _discover_tables(_token)
     for t in tables:
         if t.startswith("AllOtherData"):
