@@ -609,8 +609,7 @@ def main():
         margin=dict(l=10, r=60, t=30, b=30),
         xaxis=dict(
             range=[1, 5.3],
-            title="Mean satisfaction (1-5)",
-            titlefont=dict(family="Verdana", size=12),
+            title=dict(text="Mean satisfaction (1-5)", font=dict(family="Verdana", size=12)),
             tickfont=dict(family="Verdana"),
         ),
         yaxis=dict(tickfont=dict(family="Verdana", size=11)),

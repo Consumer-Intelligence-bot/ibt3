@@ -275,7 +275,7 @@ bar_height = max(400, len(chart_df) * 30)
 fig.update_layout(
     height=bar_height,
     margin=dict(l=10, r=60, t=30, b=30),
-    xaxis=dict(range=[1, 5.3], title="Mean satisfaction (1-5)", titlefont=dict(family="Verdana", size=12)),
+    xaxis=dict(range=[1, 5.3], title=dict(text="Mean satisfaction (1-5)", font=dict(family="Verdana", size=12))),
     yaxis=dict(tickfont=dict(family="Verdana", size=11)),
     font=dict(family="Verdana"),
     plot_bgcolor=CI_WHITE, paper_bgcolor=CI_WHITE,
