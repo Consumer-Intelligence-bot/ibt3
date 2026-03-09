@@ -74,16 +74,27 @@ def run_dax(token: str, dax: str) -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 
 def discover_tables(token: str) -> list[str]:
-    """Return all table names in the Power BI semantic model."""
-    dax = "EVALUATE INFO.TABLES()"
-    df = run_dax(token, dax)
-    if df.empty:
-        return []
-    # INFO.TABLES() returns a column named "Name" (after bracket stripping)
-    name_col = [c for c in df.columns if c.lower() == "name"]
-    if not name_col:
-        return df.iloc[:, 0].tolist()
-    return df[name_col[0]].tolist()
+    """Return all table names in the Power BI semantic model via REST API."""
+    url = (
+        f"https://api.powerbi.com/v1.0/myorg/groups/{WORKSPACE_ID}"
+        f"/datasets/{DATASET_ID}/tables"
+    )
+    r = requests.get(url, headers={"Authorization": f"Bearer {token}"})
+    if r.status_code != 200:
+        st.warning(f"Table discovery via REST API failed ({r.status_code}). Trying DAX fallback...")
+        # Fallback: try DAX INFO.TABLES()
+        dax = "EVALUATE INFO.TABLES()"
+        df = run_dax(token, dax)
+        if df.empty:
+            return []
+        name_col = [c for c in df.columns if c.lower() == "name"]
+        if not name_col:
+            return df.iloc[:, 0].tolist()
+        return df[name_col[0]].tolist()
+    data = r.json()
+    tables = [t["name"] for t in data.get("value", [])]
+    st.info(f"Discovered tables: {tables}")
+    return tables
 
 
 @st.cache_data(ttl=3600, show_spinner="Discovering tables...")
