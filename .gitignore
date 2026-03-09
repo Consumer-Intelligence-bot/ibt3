@@ -32,3 +32,5 @@ data-config.json
 *.njsproj
 *.sln
 *.sw?
+*.pyc
+__pycache__/
