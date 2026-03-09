@@ -73,17 +73,64 @@ def run_dax(token: str, dax: str) -> pd.DataFrame:
 # Table name discovery — auto-detect renamed tables in the semantic model
 # ---------------------------------------------------------------------------
 
+# Known table name variants to probe when metadata queries fail.
+_MAIN_TABLE_CANDIDATES = ["MainData_Motor", "MainData_Home", "MainData"]
+_OTHER_TABLE_CANDIDATES = ["AllOtherData_Motor", "AllOtherData_Home", "AllOtherData"]
+
+
+def _probe_table_exists_simple(token: str, table_name: str) -> bool:
+    """Check if a table exists — returns True if the query succeeds (HTTP 200, no error body)."""
+    dax = f"EVALUATE TOPN(0, '{table_name}')"
+    url = (
+        f"https://api.powerbi.com/v1.0/myorg/groups/{WORKSPACE_ID}"
+        f"/datasets/{DATASET_ID}/executeQueries"
+    )
+    r = requests.post(
+        url,
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "queries": [{"query": dax}],
+            "serializerSettings": {"includeNulls": True},
+        },
+    )
+    if r.status_code != 200:
+        return False
+    body = r.json()
+    # A successful query has no "error" key at the top level
+    return "error" not in body
+
+
 def discover_tables(token: str) -> list[str]:
-    """Return all table names in the Power BI semantic model."""
+    """Return all table names in the Power BI semantic model.
+
+    Strategy:
+    1. Try INFO.TABLES() DMV (requires admin/build permissions).
+    2. If that fails, probe known table name variants with zero-row queries.
+    """
+    # --- Attempt 1: INFO.TABLES() ---
     dax = "EVALUATE INFO.TABLES()"
     df = run_dax(token, dax)
-    if df.empty:
-        return []
-    # INFO.TABLES() returns a column named "Name" (after bracket stripping)
-    name_col = [c for c in df.columns if c.lower() == "name"]
-    if not name_col:
-        return df.iloc[:, 0].tolist()
-    return df[name_col[0]].tolist()
+    if not df.empty:
+        name_col = [c for c in df.columns if c.lower() == "name"]
+        if not name_col:
+            return df.iloc[:, 0].tolist()
+        return df[name_col[0]].tolist()
+
+    # --- Attempt 2: Probe known table name candidates ---
+    found: list[str] = []
+    all_candidates = list(dict.fromkeys(
+        _MAIN_TABLE_CANDIDATES + _OTHER_TABLE_CANDIDATES
+    ))
+    for name in all_candidates:
+        if _probe_table_exists_simple(token, name):
+            found.append(name)
+    if found:
+        return found
+
+    return []
 
 
 @st.cache_data(ttl=3600, show_spinner="Discovering tables...")
@@ -93,6 +140,10 @@ def get_main_table(_token: str) -> str:
     for t in tables:
         if t.startswith("MainData"):
             return t
+    # Last resort: probe candidates directly (tables list may be partial)
+    for name in _MAIN_TABLE_CANDIDATES:
+        if _probe_table_exists_simple(_token, name):
+            return name
     st.warning(f"Could not find MainData* table. Found: {tables}. Using fallback '{MAIN_TABLE}'.")
     return MAIN_TABLE
 
@@ -104,6 +155,10 @@ def get_other_table(_token: str) -> str:
     for t in tables:
         if t.startswith("AllOtherData"):
             return t
+    # Last resort: probe candidates directly
+    for name in _OTHER_TABLE_CANDIDATES:
+        if _probe_table_exists_simple(_token, name):
+            return name
     st.warning(f"Could not find AllOtherData* table. Found: {tables}. Using fallback '{OTHER_TABLE}'.")
     return OTHER_TABLE
 
