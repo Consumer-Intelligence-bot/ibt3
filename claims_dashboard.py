@@ -397,7 +397,8 @@ def main():
     st.markdown(
         f'<h1 style="color:{CI_VIOLET}; margin-top:0;">'
         "Claims Intelligence | Motor Insurance</h1>"
-        '<p style="color:{CI_DARK}; margin-top:-12px;">Based on IBT survey data</p>',
+        f'<p style="color:{CI_DARK}; margin-top:-12px;">Based on IBT survey data'
+        f' &nbsp;|&nbsp; <span style="font-size:11px; color:#999;">v{APP_VERSION}</span></p>',
         unsafe_allow_html=True,
     )
 
