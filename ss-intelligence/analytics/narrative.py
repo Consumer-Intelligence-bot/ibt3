@@ -206,6 +206,7 @@ def generate_narrative(metrics: dict) -> dict | None:
     or ``None`` if disabled, unconfigured, or on error.
     """
     if not NARRATIVE_ENABLED:
+        log.warning("Narrative generation disabled (NARRATIVE_ENABLED=False in config)")
         return None
 
     key = _cache_key(metrics)
