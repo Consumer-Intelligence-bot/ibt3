@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from pages.admin import _run_data_validation
+from dash_pages.admin import _run_data_validation
 
 
 def test_no_duplicate_ids():

@@ -41,6 +41,7 @@ from components.ci_navbar import ci_navbar
 app = dash.Dash(
     __name__,
     use_pages=True,
+    pages_folder="dash_pages",
     external_stylesheets=[dbc.themes.BOOTSTRAP],
     suppress_callback_exceptions=True,
 )
