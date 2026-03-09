@@ -164,9 +164,9 @@ def _probe_table(token: str, table_name: str) -> tuple:
         return (False, 0, str(e)[:200])
 
 
-# Cache key includes _version to bust stale caches from prior code versions
+# Cache key includes version (no underscore!) to bust stale caches
 @st.cache_data(ttl=3600, show_spinner="Discovering model tables...")
-def discover_tables(_token, _version: int = 2):
+def discover_tables(_token, version: int = 3):
     """Probe candidate table names to find the actual MainData and AllOtherData tables."""
     main_table = None
     eav_table = None
