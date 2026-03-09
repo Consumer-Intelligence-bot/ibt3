@@ -41,7 +41,7 @@ MIN_BASE_INDICATIVE = 30
 Z_95 = 1.96
 
 # App version — displayed in sidebar for deployment verification
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.2.0"
 
 # ---------------------------------------------------------------------------
 # CSS
@@ -83,21 +83,38 @@ div[data-testid="stMetricValue"] {{
 # ---------------------------------------------------------------------------
 
 
-@st.cache_resource(show_spinner=False)
 def get_token():
+    """Authenticate via MSAL device flow. Token is stored in session_state."""
+    if "access_token" in st.session_state:
+        return st.session_state["access_token"]
+
     app = msal.PublicClientApplication(
         CLIENT_ID,
         authority=f"https://login.microsoftonline.com/{TENANT_ID}",
     )
-    flow = app.initiate_device_flow(scopes=SCOPE)
+
+    # Check if device flow is already in progress
+    if "device_flow" not in st.session_state:
+        flow = app.initiate_device_flow(scopes=SCOPE)
+        if "user_code" not in flow:
+            st.error("Failed to initiate device flow.")
+            st.stop()
+        st.session_state["device_flow"] = flow
+
+    flow = st.session_state["device_flow"]
     st.info(
         f"Sign in at **https://microsoft.com/devicelogin** "
         f"with code: **{flow['user_code']}**"
     )
+
     token = app.acquire_token_by_device_flow(flow)
     if "access_token" not in token:
-        st.error("Authentication failed.")
+        # Clear stale flow so user can retry
+        del st.session_state["device_flow"]
+        st.error("Authentication failed. Please refresh to try again.")
         st.stop()
+
+    st.session_state["access_token"] = token["access_token"]
     return token["access_token"]
 
 
