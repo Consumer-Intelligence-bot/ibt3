@@ -13,6 +13,7 @@ import streamlit as st
 from lib.analytics.demographics import apply_filters
 from lib.analytics.dimensions import get_all_dimensions
 from lib.analytics.transforms import transform
+from lib.config import MAIN_TABLE, OTHER_TABLE
 from lib.powerbi import load_months, load_ss_maindata, load_ss_questions
 
 
@@ -43,9 +44,10 @@ def format_year_month(ym) -> str:
     return str(ym)
 
 
-def init_ss_data(token: str, start_month: int, end_month: int):
+def init_ss_data(token: str, start_month: int, end_month: int,
+                 main_table: str = MAIN_TABLE, other_table: str = OTHER_TABLE):
     """Load S&S data from Power BI, transform, and store in session state."""
-    df_raw = load_ss_maindata(token, start_month, end_month)
+    df_raw = load_ss_maindata(token, start_month, end_month, main_table)
     if df_raw.empty:
         st.session_state["df_motor"] = pd.DataFrame()
         st.session_state["df_questions"] = pd.DataFrame()
@@ -55,7 +57,7 @@ def init_ss_data(token: str, start_month: int, end_month: int):
     df_motor = transform(df_raw, "Motor")
     st.session_state["df_motor"] = df_motor
 
-    df_questions = load_ss_questions(token, start_month, end_month)
+    df_questions = load_ss_questions(token, start_month, end_month, main_table, other_table)
     if not df_questions.empty:
         df_questions["UniqueID"] = df_questions["UniqueID"].astype(str)
         df_questions["Answer"] = df_questions["Answer"].astype(str).str.strip()

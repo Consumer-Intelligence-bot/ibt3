@@ -8,7 +8,10 @@ import pandas as pd
 import requests
 import streamlit as st
 
-from lib.config import TENANT_ID, CLIENT_ID, WORKSPACE_ID, DATASET_ID, SCOPE
+from lib.config import (
+    TENANT_ID, CLIENT_ID, WORKSPACE_ID, DATASET_ID, SCOPE,
+    MAIN_TABLE, OTHER_TABLE,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -67,18 +70,57 @@ def run_dax(token: str, dax: str) -> pd.DataFrame:
 
 
 # ---------------------------------------------------------------------------
+# Table name discovery — auto-detect renamed tables in the semantic model
+# ---------------------------------------------------------------------------
+
+def discover_tables(token: str) -> list[str]:
+    """Return all table names in the Power BI semantic model."""
+    dax = "EVALUATE INFO.TABLES()"
+    df = run_dax(token, dax)
+    if df.empty:
+        return []
+    # INFO.TABLES() returns a column named "Name" (after bracket stripping)
+    name_col = [c for c in df.columns if c.lower() == "name"]
+    if not name_col:
+        return df.iloc[:, 0].tolist()
+    return df[name_col[0]].tolist()
+
+
+@st.cache_data(ttl=3600, show_spinner="Discovering tables...")
+def get_main_table(_token: str) -> str:
+    """Find the MainData table name (may be MainData, MainData_Motor, etc.)."""
+    tables = discover_tables(_token)
+    for t in tables:
+        if t.startswith("MainData"):
+            return t
+    st.warning(f"Could not find MainData* table. Found: {tables}. Using fallback '{MAIN_TABLE}'.")
+    return MAIN_TABLE
+
+
+@st.cache_data(ttl=3600, show_spinner="Discovering tables...")
+def get_other_table(_token: str) -> str:
+    """Find the AllOtherData table name."""
+    tables = discover_tables(_token)
+    for t in tables:
+        if t.startswith("AllOtherData"):
+            return t
+    st.warning(f"Could not find AllOtherData* table. Found: {tables}. Using fallback '{OTHER_TABLE}'.")
+    return OTHER_TABLE
+
+
+# ---------------------------------------------------------------------------
 # Claims DAX queries
 # ---------------------------------------------------------------------------
 
 @st.cache_data(ttl=3600, show_spinner="Loading months...")
-def load_months(_token):
-    dax = """
+def load_months(_token, main_table: str = MAIN_TABLE):
+    dax = f"""
         EVALUATE
         SUMMARIZE(
-            MainData,
-            MainData[RenewalYearMonth]
+            '{main_table}',
+            '{main_table}'[RenewalYearMonth]
         )
-        ORDER BY MainData[RenewalYearMonth] ASC
+        ORDER BY '{main_table}'[RenewalYearMonth] ASC
     """
     df = run_dax(_token, dax)
     if df.empty:
@@ -87,28 +129,29 @@ def load_months(_token):
 
 
 @st.cache_data(ttl=3600, show_spinner="Loading Q52 data...")
-def load_q52(_token, start_month: int, end_month: int):
+def load_q52(_token, start_month: int, end_month: int,
+             main_table: str = MAIN_TABLE, other_table: str = OTHER_TABLE):
     dax = f"""
         EVALUATE
         CALCULATETABLE(
             SUMMARIZECOLUMNS(
-                MainData[CurrentCompany],
+                '{main_table}'[CurrentCompany],
                 "Q52_n", CALCULATE(
-                    COUNTROWS(AllOtherData),
-                    AllOtherData[QuestionNumber] = "Q52"
+                    COUNTROWS('{other_table}'),
+                    '{other_table}'[QuestionNumber] = "Q52"
                 ),
                 "Q52_mean", CALCULATE(
-                    AVERAGEX(AllOtherData, VALUE(AllOtherData[Scale])),
-                    AllOtherData[QuestionNumber] = "Q52"
+                    AVERAGEX('{other_table}', VALUE('{other_table}'[Scale])),
+                    '{other_table}'[QuestionNumber] = "Q52"
                 ),
                 "Q52_std", CALCULATE(
-                    STDEVX.P(AllOtherData, VALUE(AllOtherData[Scale])),
-                    AllOtherData[QuestionNumber] = "Q52"
+                    STDEVX.P('{other_table}', VALUE('{other_table}'[Scale])),
+                    '{other_table}'[QuestionNumber] = "Q52"
                 )
             ),
-            MainData[Claimants] = "Claimant",
-            MainData[RenewalYearMonth] >= {start_month},
-            MainData[RenewalYearMonth] <= {end_month}
+            '{main_table}'[Claimants] = "Claimant",
+            '{main_table}'[RenewalYearMonth] >= {start_month},
+            '{main_table}'[RenewalYearMonth] <= {end_month}
         )
         ORDER BY [Q52_n] DESC
     """
@@ -116,24 +159,25 @@ def load_q52(_token, start_month: int, end_month: int):
 
 
 @st.cache_data(ttl=3600, show_spinner="Loading Q53 data...")
-def load_q53(_token, start_month: int, end_month: int):
+def load_q53(_token, start_month: int, end_month: int,
+             main_table: str = MAIN_TABLE, other_table: str = OTHER_TABLE):
     dax = f"""
         EVALUATE
         CALCULATETABLE(
             SUMMARIZECOLUMNS(
-                MainData[CurrentCompany],
-                AllOtherData[Subject],
-                AllOtherData[Ranking],
-                "Q53_n", COUNTROWS(AllOtherData),
-                "Q53_mean", AVERAGEX(AllOtherData, VALUE(AllOtherData[Scale])),
-                "Q53_std", STDEVX.P(AllOtherData, VALUE(AllOtherData[Scale]))
+                '{main_table}'[CurrentCompany],
+                '{other_table}'[Subject],
+                '{other_table}'[Ranking],
+                "Q53_n", COUNTROWS('{other_table}'),
+                "Q53_mean", AVERAGEX('{other_table}', VALUE('{other_table}'[Scale])),
+                "Q53_std", STDEVX.P('{other_table}', VALUE('{other_table}'[Scale]))
             ),
-            AllOtherData[QuestionNumber] = "Q53",
-            MainData[Claimants] = "Claimant",
-            MainData[RenewalYearMonth] >= {start_month},
-            MainData[RenewalYearMonth] <= {end_month}
+            '{other_table}'[QuestionNumber] = "Q53",
+            '{main_table}'[Claimants] = "Claimant",
+            '{main_table}'[RenewalYearMonth] >= {start_month},
+            '{main_table}'[RenewalYearMonth] <= {end_month}
         )
-        ORDER BY MainData[CurrentCompany] ASC, AllOtherData[Ranking] ASC
+        ORDER BY '{main_table}'[CurrentCompany] ASC, '{other_table}'[Ranking] ASC
     """
     return run_dax(_token, dax)
 
@@ -143,30 +187,32 @@ def load_q53(_token, start_month: int, end_month: int):
 # ---------------------------------------------------------------------------
 
 @st.cache_data(ttl=3600, show_spinner="Loading S&S main data...")
-def load_ss_maindata(_token, start_month: int, end_month: int):
+def load_ss_maindata(_token, start_month: int, end_month: int,
+                     main_table: str = MAIN_TABLE):
     """Fetch MainData profile columns for Shopping & Switching analysis."""
+    mt = main_table
     dax = f"""
         EVALUATE
         FILTER(
             SELECTCOLUMNS(
-                MainData,
-                "UniqueID", MainData[UniqueID],
-                "RenewalYearMonth", MainData[RenewalYearMonth],
-                "SurveyYearMonth", MainData[SurveyYearMonth],
-                "CurrentCompany", MainData[CurrentCompany],
-                "PreRenewalCompany", MainData[PreRenewalCompany],
-                "Region", MainData[Region],
-                "Age Group", MainData[Age Group],
-                "Gender", MainData[Gender],
-                "Shoppers", MainData[Shoppers],
-                "Switchers", MainData[Switchers],
-                "Retained", MainData[Retained],
-                "Renewal premium change", MainData[Renewal premium change],
-                "How much higher", MainData[How much higher],
-                "How much lower", MainData[How much lower],
-                "Did you use a PCW for shopping", MainData[Did you use a PCW for shopping],
-                "Claimants", MainData[Claimants],
-                "Employment status", MainData[Employment status]
+                '{mt}',
+                "UniqueID", '{mt}'[UniqueID],
+                "RenewalYearMonth", '{mt}'[RenewalYearMonth],
+                "SurveyYearMonth", '{mt}'[SurveyYearMonth],
+                "CurrentCompany", '{mt}'[CurrentCompany],
+                "PreRenewalCompany", '{mt}'[PreRenewalCompany],
+                "Region", '{mt}'[Region],
+                "Age Group", '{mt}'[Age Group],
+                "Gender", '{mt}'[Gender],
+                "Shoppers", '{mt}'[Shoppers],
+                "Switchers", '{mt}'[Switchers],
+                "Retained", '{mt}'[Retained],
+                "Renewal premium change", '{mt}'[Renewal premium change],
+                "How much higher", '{mt}'[How much higher],
+                "How much lower", '{mt}'[How much lower],
+                "Did you use a PCW for shopping", '{mt}'[Did you use a PCW for shopping],
+                "Claimants", '{mt}'[Claimants],
+                "Employment status", '{mt}'[Employment status]
             ),
             [RenewalYearMonth] >= {start_month} && [RenewalYearMonth] <= {end_month}
         )
@@ -175,18 +221,19 @@ def load_ss_maindata(_token, start_month: int, end_month: int):
 
 
 @st.cache_data(ttl=3600, show_spinner="Loading S&S question data...")
-def load_ss_questions(_token, start_month: int, end_month: int):
+def load_ss_questions(_token, start_month: int, end_month: int,
+                      main_table: str = MAIN_TABLE, other_table: str = OTHER_TABLE):
     """Fetch AllOtherData EAV table for Shopping & Switching analysis."""
     dax = f"""
         EVALUATE
         CALCULATETABLE(
             SUMMARIZECOLUMNS(
-                AllOtherData[UniqueID],
-                AllOtherData[QuestionNumber],
-                AllOtherData[Answer]
+                '{other_table}'[UniqueID],
+                '{other_table}'[QuestionNumber],
+                '{other_table}'[Answer]
             ),
-            MainData[RenewalYearMonth] >= {start_month},
-            MainData[RenewalYearMonth] <= {end_month}
+            '{main_table}'[RenewalYearMonth] >= {start_month},
+            '{main_table}'[RenewalYearMonth] <= {end_month}
         )
     """
     return run_dax(_token, dax)

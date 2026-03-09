@@ -8,7 +8,7 @@ in a single multipage app. All data from Power BI via DAX queries.
 import streamlit as st
 
 from lib.config import CSS
-from lib.powerbi import get_token, load_months
+from lib.powerbi import get_token, get_main_table, get_other_table, load_months
 from lib.state import format_month, init_ss_data
 
 st.set_page_config(
@@ -29,8 +29,12 @@ st.markdown(
 # ---- Authentication ----
 token = get_token()
 
+# ---- Discover table names (auto-adapts when model is updated) ----
+main_table = get_main_table(token)
+other_table = get_other_table(token)
+
 # ---- Load available months ----
-months = load_months(token)
+months = load_months(token, main_table)
 if len(months) < 2:
     st.warning("Fewer than 2 data months available.")
     st.stop()
@@ -47,13 +51,15 @@ with st.sidebar:
         format_func=lambda x: month_labels.get(x, str(x)),
     )
 
-# ---- Store token and time window in session state ----
+# ---- Store token, table names, and time window in session state ----
 st.session_state["token"] = token
+st.session_state["main_table"] = main_table
+st.session_state["other_table"] = other_table
 st.session_state["start_month"] = start_month
 st.session_state["end_month"] = end_month
 
 # ---- Load S&S data (cached, only refreshes when time window changes) ----
-init_ss_data(token, start_month, end_month)
+init_ss_data(token, start_month, end_month, main_table, other_table)
 
 # ---- Landing page content ----
 st.markdown("## Welcome")

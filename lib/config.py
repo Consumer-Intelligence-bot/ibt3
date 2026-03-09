@@ -12,6 +12,10 @@ WORKSPACE_ID = "db6f5221-fa36-48f7-8c14-259a1f570bc5"
 DATASET_ID = "646c070f-5b4f-4ded-b0f9-4ae8a8b8a7ad"
 SCOPE = ["https://analysis.windows.net/powerbi/api/Dataset.Read.All"]
 
+# Fallback table names (auto-discovered at runtime via INFO.TABLES())
+MAIN_TABLE = "MainData"
+OTHER_TABLE = "AllOtherData"
+
 # ---------------------------------------------------------------------------
 # CI Brand colours (Spec Section 11.1)
 # ---------------------------------------------------------------------------

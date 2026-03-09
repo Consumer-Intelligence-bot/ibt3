@@ -26,14 +26,16 @@ st.markdown(
 token = st.session_state.get("token")
 start_month = st.session_state.get("start_month")
 end_month = st.session_state.get("end_month")
+main_table = st.session_state.get("main_table", "MainData")
+other_table = st.session_state.get("other_table", "AllOtherData")
 
 if not token or not start_month or not end_month:
     st.warning("Please authenticate on the main page first.")
     st.stop()
 
 # ---- Load Claims data ----
-q52_df = load_q52(token, start_month, end_month)
-q53_df = load_q53(token, start_month, end_month)
+q52_df = load_q52(token, start_month, end_month, main_table, other_table)
+q53_df = load_q53(token, start_month, end_month, main_table, other_table)
 
 if q52_df.empty:
     st.warning("No claims data returned for this period.")
