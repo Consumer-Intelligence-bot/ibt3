@@ -131,19 +131,59 @@ def run_dax(token: str, dax: str) -> pd.DataFrame:
 
 
 # ---------------------------------------------------------------------------
+# Table name discovery — auto-detect renamed tables in the semantic model
+# ---------------------------------------------------------------------------
+
+MAIN_TABLE_FALLBACK = "MainData"
+OTHER_TABLE_FALLBACK = "AllOtherData"
+
+
+def _discover_tables(token: str) -> list[str]:
+    """Return all table names in the Power BI semantic model."""
+    dax = "EVALUATE INFO.TABLES()"
+    df = run_dax(token, dax)
+    if df.empty:
+        return []
+    name_col = [c for c in df.columns if c.lower() == "name"]
+    if not name_col:
+        return df.iloc[:, 0].tolist()
+    return df[name_col[0]].tolist()
+
+
+@st.cache_data(ttl=3600, show_spinner="Discovering tables...")
+def _get_main_table(_token: str) -> str:
+    tables = _discover_tables(_token)
+    for t in tables:
+        if t.startswith("MainData"):
+            return t
+    st.warning(f"Could not find MainData* table. Using fallback '{MAIN_TABLE_FALLBACK}'.")
+    return MAIN_TABLE_FALLBACK
+
+
+@st.cache_data(ttl=3600, show_spinner="Discovering tables...")
+def _get_other_table(_token: str) -> str:
+    tables = _discover_tables(_token)
+    for t in tables:
+        if t.startswith("AllOtherData"):
+            return t
+    st.warning(f"Could not find AllOtherData* table. Using fallback '{OTHER_TABLE_FALLBACK}'.")
+    return OTHER_TABLE_FALLBACK
+
+
+# ---------------------------------------------------------------------------
 # Data loading functions
 # ---------------------------------------------------------------------------
 
 
 @st.cache_data(ttl=3600, show_spinner="Loading months...")
-def load_months(_token):
-    dax = """
+def load_months(_token, main_table: str = MAIN_TABLE_FALLBACK):
+    dax = f"""
         EVALUATE
         SUMMARIZE(
-            MainData,
-            MainData[RenewalYearMonth]
+            '{main_table}',
+            '{main_table}'[RenewalYearMonth]
         )
-        ORDER BY MainData[RenewalYearMonth] ASC
+        ORDER BY '{main_table}'[RenewalYearMonth] ASC
     """
     df = run_dax(_token, dax)
     if df.empty:
@@ -152,28 +192,29 @@ def load_months(_token):
 
 
 @st.cache_data(ttl=3600, show_spinner="Loading Q52 data...")
-def load_q52(_token, start_month: int, end_month: int):
+def load_q52(_token, start_month: int, end_month: int,
+             main_table: str = MAIN_TABLE_FALLBACK, other_table: str = OTHER_TABLE_FALLBACK):
     dax = f"""
         EVALUATE
         CALCULATETABLE(
             SUMMARIZECOLUMNS(
-                MainData[CurrentCompany],
+                '{main_table}'[CurrentCompany],
                 "Q52_n", CALCULATE(
-                    COUNTROWS(AllOtherData),
-                    AllOtherData[QuestionNumber] = "Q52"
+                    COUNTROWS('{other_table}'),
+                    '{other_table}'[QuestionNumber] = "Q52"
                 ),
                 "Q52_mean", CALCULATE(
-                    AVERAGEX(AllOtherData, VALUE(AllOtherData[Scale])),
-                    AllOtherData[QuestionNumber] = "Q52"
+                    AVERAGEX('{other_table}', VALUE('{other_table}'[Scale])),
+                    '{other_table}'[QuestionNumber] = "Q52"
                 ),
                 "Q52_std", CALCULATE(
-                    STDEVX.P(AllOtherData, VALUE(AllOtherData[Scale])),
-                    AllOtherData[QuestionNumber] = "Q52"
+                    STDEVX.P('{other_table}', VALUE('{other_table}'[Scale])),
+                    '{other_table}'[QuestionNumber] = "Q52"
                 )
             ),
-            MainData[Claimants] = "Claimant",
-            MainData[RenewalYearMonth] >= {start_month},
-            MainData[RenewalYearMonth] <= {end_month}
+            '{main_table}'[Claimants] = "Claimant",
+            '{main_table}'[RenewalYearMonth] >= {start_month},
+            '{main_table}'[RenewalYearMonth] <= {end_month}
         )
         ORDER BY [Q52_n] DESC
     """
@@ -181,24 +222,25 @@ def load_q52(_token, start_month: int, end_month: int):
 
 
 @st.cache_data(ttl=3600, show_spinner="Loading Q53 data...")
-def load_q53(_token, start_month: int, end_month: int):
+def load_q53(_token, start_month: int, end_month: int,
+             main_table: str = MAIN_TABLE_FALLBACK, other_table: str = OTHER_TABLE_FALLBACK):
     dax = f"""
         EVALUATE
         CALCULATETABLE(
             SUMMARIZECOLUMNS(
-                MainData[CurrentCompany],
-                AllOtherData[Subject],
-                AllOtherData[Ranking],
-                "Q53_n", COUNTROWS(AllOtherData),
-                "Q53_mean", AVERAGEX(AllOtherData, VALUE(AllOtherData[Scale])),
-                "Q53_std", STDEVX.P(AllOtherData, VALUE(AllOtherData[Scale]))
+                '{main_table}'[CurrentCompany],
+                '{other_table}'[Subject],
+                '{other_table}'[Ranking],
+                "Q53_n", COUNTROWS('{other_table}'),
+                "Q53_mean", AVERAGEX('{other_table}', VALUE('{other_table}'[Scale])),
+                "Q53_std", STDEVX.P('{other_table}', VALUE('{other_table}'[Scale]))
             ),
-            AllOtherData[QuestionNumber] = "Q53",
-            MainData[Claimants] = "Claimant",
-            MainData[RenewalYearMonth] >= {start_month},
-            MainData[RenewalYearMonth] <= {end_month}
+            '{other_table}'[QuestionNumber] = "Q53",
+            '{main_table}'[Claimants] = "Claimant",
+            '{main_table}'[RenewalYearMonth] >= {start_month},
+            '{main_table}'[RenewalYearMonth] <= {end_month}
         )
-        ORDER BY MainData[CurrentCompany] ASC, AllOtherData[Ranking] ASC
+        ORDER BY '{main_table}'[CurrentCompany] ASC, '{other_table}'[Ranking] ASC
     """
     return run_dax(_token, dax)
 
@@ -321,8 +363,12 @@ def main():
     # ---- Authentication ----
     token = get_token()
 
+    # ---- Discover table names ----
+    main_table = _get_main_table(token)
+    other_table = _get_other_table(token)
+
     # ---- Load months ----
-    months = load_months(token)
+    months = load_months(token, main_table)
     if len(months) < 2:
         st.warning("Fewer than 2 data months available. Cannot display dashboard.")
         st.stop()
@@ -345,8 +391,8 @@ def main():
         )
 
     # ---- Load data for selected time window ----
-    q52_df = load_q52(token, start_month, end_month)
-    q53_df = load_q53(token, start_month, end_month)
+    q52_df = load_q52(token, start_month, end_month, main_table, other_table)
+    q53_df = load_q53(token, start_month, end_month, main_table, other_table)
 
     if q52_df.empty:
         st.warning("No data returned for this query.")
