@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-import-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Check all imports resolve
+        run: |
+          python -c "
+          from lib.config import TENANT_ID, CSS, NARRATIVE_MODEL
+          from lib.powerbi import get_token, run_dax, load_months
+          from lib.state import init_ss_data, get_ss_data
+          from lib.narrative import generate_narrative
+          import lib.analytics.awareness
+          import lib.analytics.bayesian
+          import lib.analytics.channels
+          import lib.analytics.confidence
+          import lib.analytics.demographics
+          import lib.analytics.dimensions
+          import lib.analytics.flows
+          import lib.analytics.price
+          import lib.analytics.rates
+          import lib.analytics.reasons
+          import lib.analytics.suppression
+          import lib.analytics.transforms
+          import lib.analytics.trends
+          print('All imports OK')
+          "
