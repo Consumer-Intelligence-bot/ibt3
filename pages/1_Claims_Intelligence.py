@@ -149,7 +149,8 @@ if not q53_df.empty:
         .apply(
             lambda g: pd.Series({
                 "market_mean": (g["Q53_mean"] * g["Q53_n"]).sum() / g["Q53_n"].sum(),
-            })
+            }),
+            include_groups=False,
         )
         .reset_index()
     )
@@ -281,7 +282,7 @@ fig.update_layout(
     plot_bgcolor=CI_WHITE, paper_bgcolor=CI_WHITE,
     showlegend=False,
 )
-st.plotly_chart(fig, use_container_width=True)
+st.plotly_chart(fig, width="stretch")
 
 # ---- Q53 Diagnostic Statements ----
 if not q53_df.empty and diagnostics_for_ai:

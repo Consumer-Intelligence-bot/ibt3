@@ -102,7 +102,7 @@ if sup.can_show_insurer:
             fig = go.Figure(go.Bar(x=src.values, y=src.index, orientation="h", marker_color=CI_GREEN))
             fig.update_layout(height=250, margin=dict(l=150, t=10), font=dict(family="Verdana"),
                               plot_bgcolor="white", paper_bgcolor="white")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
         else:
             st.info("No source data.")
 
@@ -114,7 +114,7 @@ if sup.can_show_insurer:
             fig = go.Figure(go.Bar(x=dst.values, y=dst.index, orientation="h", marker_color=CI_RED))
             fig.update_layout(height=250, margin=dict(l=150, t=10), font=dict(family="Verdana"),
                               plot_bgcolor="white", paper_bgcolor="white")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
         else:
             st.info("No destination data.")
 
@@ -135,7 +135,7 @@ if sup.can_show_insurer and not df_questions.empty:
                     for i, r in enumerate(ins_reasons):
                         mkt_val = mkt_reasons[i]["pct"] if i < len(mkt_reasons) else 0
                         data.append({"Reason": r["reason"], f"{insurer}": f"{r['pct']:.0%}", "Market": f"{mkt_val:.0%}"})
-                    st.dataframe(pd.DataFrame(data), use_container_width=True, hide_index=True)
+                    st.dataframe(pd.DataFrame(data), width="stretch", hide_index=True)
             else:
                 st.info("No Q18 data available.")
         else:
@@ -154,7 +154,7 @@ if sup.can_show_insurer and not df_questions.empty:
                     for i, r in enumerate(ins_reasons):
                         mkt_val = mkt_reasons[i]["pct"] if i < len(mkt_reasons) else 0
                         data.append({"Reason": r["reason"], f"{insurer}": f"{r['pct']:.0%}", "Market": f"{mkt_val:.0%}"})
-                    st.dataframe(pd.DataFrame(data), use_container_width=True, hide_index=True)
+                    st.dataframe(pd.DataFrame(data), width="stretch", hide_index=True)
             else:
                 st.info("No Q31 data available.")
         else:

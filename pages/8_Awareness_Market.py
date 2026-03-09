@@ -87,7 +87,7 @@ else:
         plot_bgcolor="white", paper_bgcolor="white",
         legend=dict(orientation="h", yanchor="top", y=-0.15),
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 # ---- Ranked bar chart ----
 st.subheader("Awareness Rate \u2014 Latest Month")
@@ -116,4 +116,4 @@ else:
         margin=dict(l=150), font=dict(family="Verdana"),
         plot_bgcolor="white", paper_bgcolor="white",
     )
-    st.plotly_chart(fig_bar, use_container_width=True)
+    st.plotly_chart(fig_bar, width="stretch")

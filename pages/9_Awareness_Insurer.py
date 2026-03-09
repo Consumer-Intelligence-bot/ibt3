@@ -124,4 +124,4 @@ fig.update_layout(
     height=400, font=dict(family="Verdana"),
     plot_bgcolor="white", paper_bgcolor="white",
 )
-st.plotly_chart(fig, use_container_width=True)
+st.plotly_chart(fig, width="stretch")

@@ -118,7 +118,7 @@ fig.update_layout(
     font=dict(family="Verdana"), plot_bgcolor="white", paper_bgcolor="white",
     showlegend=False,
 )
-st.plotly_chart(fig, use_container_width=True)
+st.plotly_chart(fig, width="stretch")
 
 # ---- Metrics table ----
 st.subheader("Metrics Summary")
@@ -133,4 +133,4 @@ display["Confidence"] = display["confidence"]
 display["Renewals"] = display["n"].apply(lambda x: f"{x:,}")
 display = display[["Insurer", "Renewals", "Retention", "Shopping Rate", "Net Flow", "Trend", "Confidence"]]
 
-st.dataframe(display, use_container_width=True, hide_index=True)
+st.dataframe(display, width="stretch", hide_index=True)

@@ -180,7 +180,7 @@ for label, ins_val, mkt_val in comparison_metrics:
             xaxis_tickformat=".0%", showlegend=False,
             font=dict(family="Verdana"), plot_bgcolor="white", paper_bgcolor="white",
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
 # ---- Competitive Exchange (Butterfly) ----
 st.markdown("### Competitive exchange")

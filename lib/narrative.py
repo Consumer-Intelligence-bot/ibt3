@@ -205,6 +205,9 @@ def _call_api(system_prompt: str, user_content: str) -> dict | None:
             messages=[{"role": "user", "content": user_content}],
         )
         text = response.content[0].text.strip()
+        if not text:
+            log.warning("API returned empty text; skipping narrative")
+            return None
         result = json.loads(text)
         for k in ("headline", "subtitle", "paragraph"):
             if k not in result:

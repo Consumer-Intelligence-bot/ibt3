@@ -76,7 +76,7 @@ thresholds = pd.DataFrame([
     {"Metric Type": "All metrics", "Threshold": "Absolute n floor", "Value": float(SYSTEM_FLOOR_N), "Description": "Floor below which no result shown (hardcoded)"},
 ])
 
-edited = st.data_editor(thresholds, use_container_width=True, num_rows="fixed", key="threshold_editor")
+edited = st.data_editor(thresholds, width="stretch", num_rows="fixed", key="threshold_editor")
 
 # ---- Governance Parameters ----
 st.subheader("Governance Parameters")
@@ -91,7 +91,7 @@ params = pd.DataFrame([
     {"Parameter": "Confidence interval", "Value": f"{CONFIDENCE_LEVEL:.0%}", "Description": "Credible interval level"},
     {"Parameter": "Trend noise threshold", "Value": f"{TREND_NOISE_THRESHOLD:.1f}pp", "Description": "Change must exceed avg CI width"},
 ])
-st.dataframe(params, use_container_width=True, hide_index=True)
+st.dataframe(params, width="stretch", hide_index=True)
 
 # ---- Market-Level CI ----
 st.subheader("Market-Level Confidence")
@@ -136,7 +136,7 @@ if not df_questions.empty and "RenewalYearMonth" in df_motor.columns:
             height=250, margin=dict(t=30), yaxis_tickformat=".1%",
             font=dict(family="Verdana"), plot_bgcolor="white", paper_bgcolor="white",
         )
-        st.plotly_chart(fig_qc, use_container_width=True)
+        st.plotly_chart(fig_qc, width="stretch")
     else:
         st.info("No switcher data for QC flags.")
 else:
@@ -151,7 +151,7 @@ fig_dist.update_layout(
     height=250, margin=dict(t=10), font=dict(family="Verdana"),
     plot_bgcolor="white", paper_bgcolor="white",
 )
-st.plotly_chart(fig_dist, use_container_width=True)
+st.plotly_chart(fig_dist, width="stretch")
 
 # ---- Data Validation ----
 st.subheader("Data Validation")
@@ -171,7 +171,7 @@ if len(flow_mat) > 0:
     val_results.append({"Check": "Flow balance", "Status": "PASS" if balanced else "FAIL", "Detail": "OK" if balanced else f"Out={total_out:.0f} In={total_in:.0f}"})
 
 if val_results:
-    st.dataframe(pd.DataFrame(val_results), use_container_width=True, hide_index=True)
+    st.dataframe(pd.DataFrame(val_results), width="stretch", hide_index=True)
 
 # ---- Insurer Data Quality ----
 st.subheader("Insurer Data Quality")
@@ -193,6 +193,6 @@ for ins in sorted(insurer_list):
     })
 
 if quality_rows:
-    st.dataframe(pd.DataFrame(quality_rows), use_container_width=True, hide_index=True)
+    st.dataframe(pd.DataFrame(quality_rows), width="stretch", hide_index=True)
 else:
     st.info("No insurer quality data.")
