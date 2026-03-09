@@ -139,54 +139,59 @@ _MAIN_CANDIDATES = ["MainData_Motor", "MainData", "MainData_Home", "FactClaims"]
 _EAV_CANDIDATES = ["AllOtherData_Motor", "AllOtherData", "AllOtherData_Home"]
 
 
-def _table_exists(token: str, table_name: str) -> bool:
-    """Probe whether a table exists by running a minimal DAX query."""
+def _probe_table(token: str, table_name: str) -> tuple:
+    """Probe whether a table exists. Returns (exists: bool, status: int, detail: str)."""
     url = (
         f"https://api.powerbi.com/v1.0/myorg/groups/{WORKSPACE_ID}"
         f"/datasets/{DATASET_ID}/executeQueries"
     )
     dax = f"EVALUATE TOPN(1, '{table_name}')"
-    r = requests.post(
-        url,
-        headers={
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json",
-        },
-        json={
-            "queries": [{"query": dax}],
-            "serializerSettings": {"includeNulls": True},
-        },
-    )
-    return r.status_code == 200
+    try:
+        r = requests.post(
+            url,
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "queries": [{"query": dax}],
+                "serializerSettings": {"includeNulls": True},
+            },
+            timeout=30,
+        )
+        return (r.status_code == 200, r.status_code, r.text[:200])
+    except requests.RequestException as e:
+        return (False, 0, str(e)[:200])
 
 
+# Cache key includes _version to bust stale caches from prior code versions
 @st.cache_data(ttl=3600, show_spinner="Discovering model tables...")
-def discover_tables(_token):
+def discover_tables(_token, _version: int = 2):
     """Probe candidate table names to find the actual MainData and AllOtherData tables."""
     main_table = None
     eav_table = None
-    probed = []
+    results = {}
 
     for candidate in _MAIN_CANDIDATES:
-        probed.append(candidate)
-        if _table_exists(_token, candidate):
+        ok, status, detail = _probe_table(_token, candidate)
+        results[candidate] = f"{'OK' if ok else 'FAIL'} (HTTP {status})"
+        if ok and main_table is None:
             main_table = candidate
-            break
 
     for candidate in _EAV_CANDIDATES:
-        probed.append(candidate)
-        if _table_exists(_token, candidate):
+        ok, status, detail = _probe_table(_token, candidate)
+        results[candidate] = f"{'OK' if ok else 'FAIL'} (HTTP {status})"
+        if ok and eav_table is None:
             eav_table = candidate
-            break
 
     if main_table is None:
         st.error(
-            f"Could not find a MainData table. "
-            f"Probed: {probed}"
+            f"Could not find a MainData table in the Power BI model.\n\n"
+            f"Probe results: {results}"
         )
         st.stop()
 
-    return main_table, eav_table
+    return main_table, eav_table, results
 
 
 # ---------------------------------------------------------------------------
@@ -381,8 +386,10 @@ def main():
     token = get_token()
 
     # ---- Discover model tables ----
-    main_table, eav_table = discover_tables(token)
-    st.sidebar.caption(f"Model: {main_table} / {eav_table or '?'}")
+    main_table, eav_table, probe_results = discover_tables(token)
+    with st.sidebar.expander("Model diagnostics", expanded=False):
+        st.json(probe_results)
+        st.caption(f"Main: **{main_table}** | EAV: **{eav_table or 'not found'}**")
     if eav_table is None:
         st.warning(
             "No AllOtherData table found. Q52/Q53 queries will fail."
