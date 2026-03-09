@@ -40,6 +40,9 @@ MIN_BASE_PUBLISHABLE = 50
 MIN_BASE_INDICATIVE = 30
 Z_95 = 1.96
 
+# App version — displayed in sidebar for deployment verification
+APP_VERSION = "1.1.0"
+
 # ---------------------------------------------------------------------------
 # CSS
 # ---------------------------------------------------------------------------
@@ -120,9 +123,14 @@ def run_dax(token: str, dax: str) -> pd.DataFrame:
         },
     )
     if r.status_code != 200:
-        st.error(f"Query failed: {r.text}")
+        st.error(f"Query failed (HTTP {r.status_code}): {r.text}")
         return pd.DataFrame()
-    rows = r.json()["results"][0]["tables"][0].get("rows", [])
+    body = r.json()
+    # Power BI may return HTTP 200 with a DAX error in the body
+    if "error" in body:
+        st.error(f"Query failed: {body['error']}")
+        return pd.DataFrame()
+    rows = body["results"][0]["tables"][0].get("rows", [])
     if not rows:
         return pd.DataFrame()
     df = pd.DataFrame(rows)
@@ -159,14 +167,25 @@ def _probe_table(token: str, table_name: str) -> tuple:
             },
             timeout=30,
         )
-        return (r.status_code == 200, r.status_code, r.text[:200])
+        if r.status_code != 200:
+            return (False, r.status_code, r.text[:200])
+        # Power BI returns HTTP 200 even for DAX errors — must check body
+        try:
+            body = r.json()
+            if "error" in body:
+                return (False, r.status_code, str(body["error"])[:200])
+            # Verify the response has actual result structure
+            body["results"][0]["tables"][0]
+            return (True, r.status_code, "OK")
+        except (KeyError, IndexError, ValueError):
+            return (False, r.status_code, r.text[:200])
     except requests.RequestException as e:
         return (False, 0, str(e)[:200])
 
 
 # Cache key includes version (no underscore!) to bust stale caches
 @st.cache_data(ttl=3600, show_spinner="Discovering model tables...")
-def discover_tables(_token, version: int = 3):
+def discover_tables(_token, version: int = 4):
     """Probe candidate table names to find the actual MainData and AllOtherData tables."""
     main_table = None
     eav_table = None
@@ -174,13 +193,13 @@ def discover_tables(_token, version: int = 3):
 
     for candidate in _MAIN_CANDIDATES:
         ok, status, detail = _probe_table(_token, candidate)
-        results[candidate] = f"{'OK' if ok else 'FAIL'} (HTTP {status})"
+        results[candidate] = f"{'OK' if ok else 'FAIL'} (HTTP {status}) {detail[:80]}"
         if ok and main_table is None:
             main_table = candidate
 
     for candidate in _EAV_CANDIDATES:
         ok, status, detail = _probe_table(_token, candidate)
-        results[candidate] = f"{'OK' if ok else 'FAIL'} (HTTP {status})"
+        results[candidate] = f"{'OK' if ok else 'FAIL'} (HTTP {status}) {detail[:80]}"
         if ok and eav_table is None:
             eav_table = candidate
 
@@ -390,6 +409,7 @@ def main():
     with st.sidebar.expander("Model diagnostics", expanded=False):
         st.json(probe_results)
         st.caption(f"Main: **{main_table}** | EAV: **{eav_table or 'not found'}**")
+    st.sidebar.caption(f"Dashboard v{APP_VERSION}")
     if eav_table is None:
         st.warning(
             "No AllOtherData table found. Q52/Q53 queries will fail."
