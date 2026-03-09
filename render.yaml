@@ -1,9 +1,9 @@
 services:
   - type: web
-    name: ss-intelligence
-    runtime: docker
-    dockerfilePath: ./ss-intelligence/Dockerfile
-    dockerContext: ./ss-intelligence
+    name: consumer-intelligence
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: streamlit run app.py --server.port $PORT --server.address 0.0.0.0
     envVars:
       - key: ANTHROPIC_API_KEY
         sync: false  # must be set manually in Render dashboard (secret)
