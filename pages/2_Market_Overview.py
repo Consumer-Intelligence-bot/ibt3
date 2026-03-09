@@ -80,7 +80,7 @@ fig_trend.update_layout(
 )
 col_left, col_right = st.columns(2)
 with col_left:
-    st.plotly_chart(fig_trend, use_container_width=True)
+    st.plotly_chart(fig_trend, width="stretch")
 
 # ---- Why Customers Shop (Q8) ----
 with col_right:
@@ -103,7 +103,7 @@ with col_right:
                 margin=dict(l=200, t=10), font=dict(family="Verdana"),
                 plot_bgcolor="white", paper_bgcolor="white",
             )
-            st.plotly_chart(fig_why, use_container_width=True)
+            st.plotly_chart(fig_why, width="stretch")
         else:
             st.info("No Q8 data available.")
     else:
@@ -128,7 +128,7 @@ with col_ch:
             margin=dict(l=150, t=10), font=dict(family="Verdana"),
             plot_bgcolor="white", paper_bgcolor="white",
         )
-        st.plotly_chart(fig_ch, use_container_width=True)
+        st.plotly_chart(fig_ch, width="stretch")
     else:
         st.info("Channel data not available.")
 
@@ -142,7 +142,7 @@ with col_pcw:
             marker=dict(line=dict(color="white", width=2)),
         ))
         fig_pcw.update_layout(height=250, margin=dict(t=10), font=dict(family="Verdana"))
-        st.plotly_chart(fig_pcw, use_container_width=True)
+        st.plotly_chart(fig_pcw, width="stretch")
     else:
         st.info("PCW data not available.")
 

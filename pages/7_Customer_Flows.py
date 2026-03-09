@@ -63,7 +63,7 @@ with col_src:
         fig = go.Figure(go.Bar(x=src.values, y=src.index, orientation="h", marker_color=CI_GREEN))
         fig.update_layout(height=max(250, len(src) * 25), margin=dict(l=150, t=10),
                           font=dict(family="Verdana"), plot_bgcolor="white", paper_bgcolor="white")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
     else:
         st.info("No source data.")
 
@@ -75,6 +75,6 @@ with col_dst:
         fig = go.Figure(go.Bar(x=dst.values, y=dst.index, orientation="h", marker_color=CI_RED))
         fig.update_layout(height=max(250, len(dst) * 25), margin=dict(l=150, t=10),
                           font=dict(family="Verdana"), plot_bgcolor="white", paper_bgcolor="white")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
     else:
         st.info("No destination data.")

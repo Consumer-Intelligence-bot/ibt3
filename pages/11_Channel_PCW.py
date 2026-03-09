@@ -59,6 +59,6 @@ with col2:
             height=max(250, len(ch) * 25), margin=dict(l=150, t=10),
             font=dict(family="Verdana"), plot_bgcolor="white", paper_bgcolor="white",
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
     else:
         st.info("Channel data not available.")
