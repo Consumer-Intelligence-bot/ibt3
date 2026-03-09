@@ -1,11 +1,23 @@
 """
-Shopping & Switching Intelligence — Dash application.
+Shopping & Switching Intelligence — Dash application (LEGACY).
 
 CI-branded dashboard with confidence-first governance.
+
+NOTE: This is the legacy Dash version. The active dashboard is the
+Streamlit app in the repository root (../app.py).  Do NOT run this
+file with ``streamlit run`` — use ``python app.py`` or gunicorn.
 """
 import os
 import sys
 from pathlib import Path
+
+# Guard: prevent accidental execution inside Streamlit's script runner.
+if "streamlit.runtime.scriptrunner" in sys.modules:
+    raise SystemExit(
+        "ERROR: ss-intelligence/app.py is a Dash app and cannot be run "
+        "with 'streamlit run'.  Use the root app.py instead:\n"
+        "  streamlit run ../app.py"
+    )
 
 try:
     from dotenv import load_dotenv
@@ -29,6 +41,7 @@ from components.ci_navbar import ci_navbar
 app = dash.Dash(
     __name__,
     use_pages=True,
+    pages_folder="dash_pages",
     external_stylesheets=[dbc.themes.BOOTSTRAP],
     suppress_callback_exceptions=True,
 )

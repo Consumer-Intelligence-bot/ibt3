@@ -5,7 +5,24 @@ Combines Claims Intelligence and Shopping & Switching Intelligence
 in a single multipage app. All data from Power BI via DAX queries.
 """
 
+import signal
+import sys
+
 import streamlit as st
+
+
+# ---- Graceful shutdown handler ----
+# Prevents "RuntimeError: Event loop is closed" during threading shutdown
+# by catching the signal before Streamlit's default handler races with
+# the asyncio event loop teardown.
+def _graceful_shutdown(signum, frame):
+    sys.exit(0)
+
+
+if not hasattr(st, "_graceful_shutdown_registered"):
+    signal.signal(signal.SIGTERM, _graceful_shutdown)
+    signal.signal(signal.SIGINT, _graceful_shutdown)
+    st._graceful_shutdown_registered = True
 
 from lib.config import CSS
 from lib.powerbi import get_token, get_main_table, get_other_table, load_months

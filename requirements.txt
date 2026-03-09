@@ -1,5 +1,5 @@
 # Streamlit app
-streamlit>=1.32.0
+streamlit>=1.45.0
 
 # Data & analytics
 pandas>=2.2.0
