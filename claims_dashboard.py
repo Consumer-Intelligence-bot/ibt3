@@ -131,50 +131,62 @@ def run_dax(token: str, dax: str) -> pd.DataFrame:
 
 
 # ---------------------------------------------------------------------------
-# Table discovery — find actual Power BI table names
+# Table discovery — probe actual Power BI table names
 # ---------------------------------------------------------------------------
 
 # Known candidate names (Power BI models may use product-suffixed names)
-_MAIN_CANDIDATES = ["MainData", "MainData_Motor", "MainData_Home", "FactClaims"]
-_EAV_CANDIDATES = ["AllOtherData", "AllOtherData_Motor", "AllOtherData_Home"]
+_MAIN_CANDIDATES = ["MainData_Motor", "MainData", "MainData_Home", "FactClaims"]
+_EAV_CANDIDATES = ["AllOtherData_Motor", "AllOtherData", "AllOtherData_Home"]
+
+
+def _table_exists(token: str, table_name: str) -> bool:
+    """Probe whether a table exists by running a minimal DAX query."""
+    url = (
+        f"https://api.powerbi.com/v1.0/myorg/groups/{WORKSPACE_ID}"
+        f"/datasets/{DATASET_ID}/executeQueries"
+    )
+    dax = f"EVALUATE TOPN(1, '{table_name}')"
+    r = requests.post(
+        url,
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "queries": [{"query": dax}],
+            "serializerSettings": {"includeNulls": True},
+        },
+    )
+    return r.status_code == 200
 
 
 @st.cache_data(ttl=3600, show_spinner="Discovering model tables...")
 def discover_tables(_token):
-    """Query the semantic model to find the actual MainData and AllOtherData table names."""
-    dax = """
-        EVALUATE
-        FILTER(
-            INFO.TABLES(),
-            NOT(LEFT([Name], 1) = "$")
-        )
-    """
-    df = run_dax(_token, dax)
-    if df.empty:
-        st.error("Could not discover model tables. Check dataset permissions.")
-        st.stop()
-
-    model_tables = set(df["Name"].tolist()) if "Name" in df.columns else set()
-
+    """Probe candidate table names to find the actual MainData and AllOtherData tables."""
     main_table = None
     eav_table = None
+    probed = []
+
     for candidate in _MAIN_CANDIDATES:
-        if candidate in model_tables:
+        probed.append(candidate)
+        if _table_exists(_token, candidate):
             main_table = candidate
             break
+
     for candidate in _EAV_CANDIDATES:
-        if candidate in model_tables:
+        probed.append(candidate)
+        if _table_exists(_token, candidate):
             eav_table = candidate
             break
 
     if main_table is None:
         st.error(
             f"Could not find a MainData table. "
-            f"Available tables: {sorted(model_tables)}"
+            f"Probed: {probed}"
         )
         st.stop()
 
-    return main_table, eav_table, model_tables
+    return main_table, eav_table
 
 
 # ---------------------------------------------------------------------------
@@ -369,11 +381,11 @@ def main():
     token = get_token()
 
     # ---- Discover model tables ----
-    main_table, eav_table, all_tables = discover_tables(token)
+    main_table, eav_table = discover_tables(token)
+    st.sidebar.caption(f"Model: {main_table} / {eav_table or '?'}")
     if eav_table is None:
         st.warning(
-            f"No AllOtherData table found. Available tables: {sorted(all_tables)}. "
-            "Q52/Q53 queries will fail."
+            "No AllOtherData table found. Q52/Q53 queries will fail."
         )
 
     # ---- Load months ----
