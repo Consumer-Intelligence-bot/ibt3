@@ -41,7 +41,7 @@ MIN_BASE_INDICATIVE = 30
 Z_95 = 1.96
 
 # App version — displayed in sidebar for deployment verification
-APP_VERSION = "1.2.0"
+APP_VERSION = "1.2.1"
 
 # ---------------------------------------------------------------------------
 # CSS
@@ -625,7 +625,7 @@ def main():
         xaxis=dict(
             range=[1, 5.3],
             title="Mean satisfaction (1-5)",
-            titlefont=dict(family="Verdana", size=12),
+            title_font=dict(family="Verdana", size=12),
             tickfont=dict(family="Verdana"),
         ),
         yaxis=dict(tickfont=dict(family="Verdana", size=11)),
