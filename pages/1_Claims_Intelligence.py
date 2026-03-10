@@ -50,10 +50,14 @@ end_month = st.session_state.get("end_month")
 
 _fabric = _PRODUCT_FABRIC[product]
 main_table = st.session_state.get(_fabric["main_table_key"], "MainData")
-other_table = st.session_state.get(_fabric["other_table_key"], "AllOtherData")
+other_table = st.session_state.get(_fabric["other_table_key"])
 
 if not token or not start_month or not end_month:
     st.warning("Please authenticate on the main page first.")
+    st.stop()
+
+if not other_table:
+    st.info(f"No question data table available for {product}. Claims analysis requires an AllOtherData table.")
     st.stop()
 
 # ---- Load Claims data ----

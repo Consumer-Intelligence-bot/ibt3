@@ -184,8 +184,8 @@ def get_main_table(_token: str, *,
 @st.cache_data(ttl=3600, show_spinner="Discovering tables...")
 def get_other_table(_token: str, *,
                     workspace_id: str = WORKSPACE_ID,
-                    dataset_id: str = DATASET_ID) -> str:
-    """Find the AllOtherData table name."""
+                    dataset_id: str = DATASET_ID) -> str | None:
+    """Find the AllOtherData table name, or None if it doesn't exist."""
     tables = discover_tables(_token, workspace_id=workspace_id, dataset_id=dataset_id)
     for t in tables:
         if t.startswith("AllOtherData"):
@@ -196,8 +196,7 @@ def get_other_table(_token: str, *,
                                       workspace_id=workspace_id,
                                       dataset_id=dataset_id):
             return name
-    st.warning(f"Could not find AllOtherData* table. Found: {tables}. Using fallback '{OTHER_TABLE}'.")
-    return OTHER_TABLE
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -256,17 +255,11 @@ def _check_required_columns(
     token: str, table_name: str, required: set[str], context: str, *,
     workspace_id: str = WORKSPACE_ID, dataset_id: str = DATASET_ID,
 ) -> set[str] | None:
-    """Return available columns if all *required* are present, else warn and return None.
-
-    When column discovery fails entirely (e.g. permissions prevent
-    INFO.TABLES / TOPN probes), we assume the required columns exist
-    and let the actual DAX query surface any real errors.
-    """
+    """Return available columns if all *required* are present, else warn and return None."""
     available = discover_columns(token, table_name,
                                  workspace_id=workspace_id, dataset_id=dataset_id)
     if not available:
-        # Discovery failed — assume columns exist rather than blocking the query.
-        return required
+        return None
     missing = required - available
     if missing:
         st.warning(f"{context}: missing columns in '{table_name}': {missing}")
