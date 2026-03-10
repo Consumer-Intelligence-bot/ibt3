@@ -188,8 +188,8 @@ def get_main_table(_token: str, *,
 @st.cache_data(ttl=3600, show_spinner="Discovering tables...")
 def get_other_table(_token: str, *,
                     workspace_id: str = WORKSPACE_ID,
-                    dataset_id: str = DATASET_ID) -> str:
-    """Find the AllOtherData table name."""
+                    dataset_id: str = DATASET_ID) -> str | None:
+    """Find the AllOtherData table name, or None if it doesn't exist."""
     tables = discover_tables(_token, workspace_id=workspace_id, dataset_id=dataset_id)
     for t in tables:
         if t.startswith("AllOtherData"):
@@ -200,12 +200,8 @@ def get_other_table(_token: str, *,
                                       workspace_id=workspace_id,
                                       dataset_id=dataset_id):
             return name
-    st.warning(
-        f"Could not find AllOtherData* table in workspace {workspace_id[:8]}... "
-        f"Probed: {_OTHER_TABLE_CANDIDATES}. Tables found: {tables}. "
-        f"Using fallback '{OTHER_TABLE}'."
-    )
-    return OTHER_TABLE
+    st.info(f"No AllOtherData table in workspace {workspace_id[:8]}… — question data unavailable.")
+    return None
 
 
 # ---------------------------------------------------------------------------

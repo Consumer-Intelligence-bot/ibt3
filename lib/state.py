@@ -50,7 +50,7 @@ def format_year_month(ym) -> str:
 
 
 def _load_product_data(token: str, product: str, start_month: int, end_month: int,
-                       main_table: str, other_table: str,
+                       main_table: str, other_table: str | None,
                        workspace_id: str, dataset_id: str):
     """Load and transform data for a single product from its fabric instance."""
     df_raw = load_ss_maindata(
@@ -62,10 +62,12 @@ def _load_product_data(token: str, product: str, start_month: int, end_month: in
 
     df = transform(df_raw, product)
 
-    df_q = load_ss_questions(
-        token, start_month, end_month, main_table, other_table,
-        workspace_id=workspace_id, dataset_id=dataset_id,
-    )
+    df_q = pd.DataFrame()
+    if other_table:
+        df_q = load_ss_questions(
+            token, start_month, end_month, main_table, other_table,
+            workspace_id=workspace_id, dataset_id=dataset_id,
+        )
     if not df_q.empty:
         df_q["UniqueID"] = df_q["UniqueID"].astype(str)
         df_q["Answer"] = df_q["Answer"].astype(str).str.strip()

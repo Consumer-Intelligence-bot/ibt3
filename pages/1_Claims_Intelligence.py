@@ -50,19 +50,24 @@ end_month = st.session_state.get("end_month")
 
 _fabric = _PRODUCT_FABRIC[product]
 main_table = st.session_state.get(_fabric["main_table_key"], "MainData")
-other_table = st.session_state.get(_fabric["other_table_key"], "AllOtherData")
+other_table = st.session_state.get(_fabric["other_table_key"])
 
 if not token or not start_month or not end_month:
     st.warning("Please authenticate on the main page first.")
     st.stop()
 
 # ---- Load Claims data ----
-q52_df = load_q52(token, start_month, end_month, main_table, other_table,
-                  workspace_id=_fabric["workspace_id"],
-                  dataset_id=_fabric["dataset_id"])
-q53_df = load_q53(token, start_month, end_month, main_table, other_table,
-                  workspace_id=_fabric["workspace_id"],
-                  dataset_id=_fabric["dataset_id"])
+if other_table:
+    q52_df = load_q52(token, start_month, end_month, main_table, other_table,
+                      workspace_id=_fabric["workspace_id"],
+                      dataset_id=_fabric["dataset_id"])
+    q53_df = load_q53(token, start_month, end_month, main_table, other_table,
+                      workspace_id=_fabric["workspace_id"],
+                      dataset_id=_fabric["dataset_id"])
+else:
+    st.warning(f"No claims question data available for {product} — AllOtherData table not found.")
+    q52_df = pd.DataFrame()
+    q53_df = pd.DataFrame()
 
 if q52_df.empty:
     st.warning("No claims data returned for this period.")
