@@ -80,7 +80,7 @@ Add four features to the Headline page (`pages/3_Headline.py`) in the Streamlit 
 
 #### Step 1.1: Create `lib/formatting.py`
 
-Extract duplicated helpers from `pages/3_Headline.py` and `pages/4_Renewal_Flow.py`:
+Extract duplicated helpers from `pages/3_Headline.py`:
 - `pct(n, d)` — safe percentage calculation
 - `fmt_pct(val, dp=1)` — format as percentage string
 - `derive_tag(ins_val, mkt_val)` — "Ahead" / "Below" / "In line"
@@ -157,7 +157,6 @@ All deep dive sub-breakdowns respect sample size governance (n >= 30 to display,
 | File | Change |
 |------|--------|
 | `pages/3_Headline.py` | Add deep dives, premium change card, source of business card, rank badge |
-| `pages/4_Renewal_Flow.py` | Import shared utilities from `lib/formatting.py` instead of defining locally |
 
 ---
 

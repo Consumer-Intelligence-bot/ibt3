@@ -51,15 +51,12 @@ pages/                      # Streamlit multipage navigation
   1_Claims_Intelligence.py
   2_Market_Overview.py
   3_Headline.py
-  4_Renewal_Flow.py
-  5_Insurer_Diagnostic.py
-  6_Insurer_Comparison.py
-  7_Customer_Flows.py
-  8_Awareness_Market.py
-  9_Awareness_Insurer.py
-  10_Price_Sensitivity.py
-  11_Channel_PCW.py
-  12_Admin.py
+  4_Customer_Flows.py
+  5_Awareness_Market.py
+  6_Awareness_Insurer.py
+  7_Price_Sensitivity.py
+  8_Channel_PCW.py
+  9_Admin.py
 lib/                        # Core library
   config.py                 # Branding, thresholds, CSS
   powerbi.py                # Power BI auth (MSAL) & DAX queries

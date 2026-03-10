@@ -68,7 +68,7 @@ No validation of response structure. A malformed Power BI response will crash wi
 
 ### 4. Duplicated utility functions across pages
 
-**Files:** `pages/3_Headline.py`, `pages/4_Renewal_Flow.py`, and others
+**Files:** `pages/3_Headline.py` and others
 
 `_pct()`, `_fmt_pct()`, `_derive_tag()`, `_tag_colour()` are defined independently in multiple pages.
 
@@ -150,7 +150,7 @@ Recent commits include messages like `"wefyguywefgyu"`, `"jiedjieijji"`. Conside
 ## Architecture Strengths
 
 1. **Confidence-first governance** — Three-layer suppression model (system floor, CI-width, user preference) consistently applied
-2. **Clean multipage structure** — 12 well-scoped Streamlit pages with shared state via `st.session_state`
+2. **Clean multipage structure** — 9 well-scoped Streamlit pages with shared state via `st.session_state`
 3. **Bayesian smoothing** — Proper Beta-Binomial implementation for rate stabilisation
 4. **Graceful degradation** — Falls back to demo data when Power BI is unavailable
 5. **AI narratives** — Claude-powered headline generation with fallback text
