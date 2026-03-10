@@ -396,3 +396,27 @@ def load_ss_questions(_token, start_month: int, end_month: int,
         )
     """
     return run_dax(_token, dax)
+
+
+# ---------------------------------------------------------------------------
+# Unfiltered loaders — used by disk cache to fetch ALL data at once
+# ---------------------------------------------------------------------------
+
+def load_all_maindata(token: str, main_table: str = MAIN_TABLE) -> pd.DataFrame:
+    """Fetch ALL MainData rows (no date filter) for disk caching."""
+    dax = f"EVALUATE '{main_table}'"
+    return run_dax(token, dax)
+
+
+def load_all_questions(token: str, main_table: str = MAIN_TABLE,
+                       other_table: str = OTHER_TABLE) -> pd.DataFrame:
+    """Fetch ALL question data (no date filter) for disk caching."""
+    dax = f"""
+        EVALUATE
+        SUMMARIZECOLUMNS(
+            '{other_table}'[UniqueID],
+            '{other_table}'[QuestionNumber],
+            '{other_table}'[Answer]
+        )
+    """
+    return run_dax(token, dax)

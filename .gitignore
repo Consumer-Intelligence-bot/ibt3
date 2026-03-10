@@ -24,3 +24,6 @@ build/
 
 # Data files (user uploads)
 /data/
+
+# Disk cache (Power BI data persisted across restarts)
+.data_cache/

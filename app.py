@@ -27,8 +27,8 @@ if threading.current_thread() is threading.main_thread() and not hasattr(st, "_g
     st._graceful_shutdown_registered = True
 
 from lib.config import CSS
-from lib.powerbi import get_token, get_main_table, get_other_table, load_months
-from lib.state import format_month, init_ss_data
+from lib.powerbi import get_token
+from lib.state import format_month, init_ss_data, load_startup_data
 
 st.set_page_config(
     page_title="Consumer Intelligence",
@@ -48,12 +48,9 @@ st.markdown(
 # ---- Authentication ----
 token = get_token()
 
-# ---- Discover table names (auto-adapts when model is updated) ----
-main_table = get_main_table(token)
-other_table = get_other_table(token)
+# ---- Load table names and months (disk cache → Power BI fallback) ----
+main_table, other_table, months = load_startup_data(token)
 
-# ---- Load available months ----
-months = load_months(token, main_table)
 if len(months) < 2:
     st.warning("Fewer than 2 data months available.")
     st.stop()
@@ -77,7 +74,7 @@ st.session_state["other_table"] = other_table
 st.session_state["start_month"] = start_month
 st.session_state["end_month"] = end_month
 
-# ---- Load S&S data (cached, only refreshes when time window changes) ----
+# ---- Load S&S data (disk cache → Power BI fallback, filtered by time window) ----
 init_ss_data(token, start_month, end_month, main_table, other_table)
 
 # ---- Landing page content ----

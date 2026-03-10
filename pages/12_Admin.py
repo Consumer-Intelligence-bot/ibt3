@@ -1,6 +1,6 @@
 """
 Admin / Governance — Internal page.
-Data quality monitoring, confidence threshold management.
+Data quality monitoring, confidence threshold management, data reload.
 """
 
 import json
@@ -15,6 +15,7 @@ from lib.analytics.bayesian import bayesian_smooth_rate
 from lib.analytics.confidence import MetricType, assess_confidence, calc_ci_width
 from lib.analytics.flows import calc_flow_matrix
 from lib.analytics.rates import calc_retention_rate, calc_shopping_rate, calc_switching_rate
+from lib.cache import cache_info, clear_cache
 from lib.config import (
     CI_GREEN, CI_GREY, CI_RED, CI_YELLOW,
     CI_WIDTH_INDICATIVE_AWARENESS, CI_WIDTH_INDICATIVE_RATE, CI_WIDTH_INDICATIVE_REASON,
@@ -27,6 +28,44 @@ from lib.state import format_year_month, get_ss_data
 
 st.header("Admin / Governance")
 st.caption("Internal page \u2014 not visible to clients")
+
+# ---- Data Management ----
+st.subheader("Data Management")
+
+info = cache_info()
+if info:
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.metric("Cached Main Rows", f"{info.get('main_rows', 0):,}")
+    with c2:
+        st.metric("Cached Question Rows", f"{info.get('question_rows', 0):,}")
+    with c3:
+        cached_at = info.get("cached_at", "")
+        if cached_at:
+            try:
+                dt = datetime.fromisoformat(cached_at)
+                label = dt.strftime("%Y-%m-%d %H:%M UTC")
+            except ValueError:
+                label = cached_at
+        else:
+            label = "Unknown"
+        st.metric("Last Loaded", label)
+
+    st.info(
+        f"Data is loaded from **disk cache**. "
+        f"Tables: `{info.get('main_table')}`, `{info.get('other_table')}`. "
+        f"Months: {len(info.get('months', []))}."
+    )
+else:
+    st.warning("No disk cache found. Data is being loaded directly from Power BI on each restart.")
+
+if st.button("Reload Data from Power BI", type="primary"):
+    clear_cache()
+    st.cache_data.clear()
+    st.success("Cache cleared. Reloading from Power BI...")
+    st.rerun()
+
+st.divider()
 
 df_motor, df_questions, dimensions = get_ss_data()
 
