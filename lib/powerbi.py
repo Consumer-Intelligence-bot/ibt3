@@ -45,8 +45,16 @@ def get_token():
 
 def run_dax(token: str, dax: str, *,
             workspace_id: str = WORKSPACE_ID,
-            dataset_id: str = DATASET_ID) -> pd.DataFrame:
-    """Execute a DAX query against the Power BI semantic model."""
+            dataset_id: str = DATASET_ID,
+            silent: bool = False) -> pd.DataFrame:
+    """Execute a DAX query against the Power BI semantic model.
+
+    Parameters
+    ----------
+    silent : bool
+        If True, suppress error messages (useful for discovery queries that
+        have fallback logic).
+    """
     url = (
         f"https://api.powerbi.com/v1.0/myorg/groups/{workspace_id}"
         f"/datasets/{dataset_id}/executeQueries"
@@ -63,12 +71,14 @@ def run_dax(token: str, dax: str, *,
         },
     )
     if r.status_code != 200:
-        st.error(f"Query failed: {r.text}")
+        if not silent:
+            st.error(f"Query failed: {r.text}")
         return pd.DataFrame()
     body = r.json()
     # Power BI may return HTTP 200 with an error payload (e.g. missing columns)
     if "error" in body:
-        st.error(f"Query failed: {body['error']}")
+        if not silent:
+            st.error(f"Query failed: {body['error']}")
         return pd.DataFrame()
     rows = body["results"][0]["tables"][0].get("rows", [])
     if not rows:
@@ -123,9 +133,9 @@ def discover_tables(token: str, *,
     1. Try INFO.TABLES() DMV (requires admin/build permissions).
     2. If that fails, probe known table name variants with zero-row queries.
     """
-    # --- Attempt 1: INFO.TABLES() ---
+    # --- Attempt 1: INFO.TABLES() (needs admin perms; may fail silently) ---
     dax = "EVALUATE INFO.TABLES()"
-    df = run_dax(token, dax, workspace_id=workspace_id, dataset_id=dataset_id)
+    df = run_dax(token, dax, workspace_id=workspace_id, dataset_id=dataset_id, silent=True)
     if not df.empty:
         name_col = [c for c in df.columns if c.lower() == "name"]
         if not name_col:
@@ -224,9 +234,9 @@ def discover_columns(_token: str, table_name: str, *,
             if rows:
                 return {k.split("[")[-1].rstrip("]") for k in rows[0].keys()}
 
-    # --- Attempt 2: INFO.COLUMNS() DMV ---
+    # --- Attempt 2: INFO.COLUMNS() DMV (needs admin perms; may fail silently) ---
     dax_info = "EVALUATE INFO.COLUMNS()"
-    df = run_dax(_token, dax_info, workspace_id=workspace_id, dataset_id=dataset_id)
+    df = run_dax(_token, dax_info, workspace_id=workspace_id, dataset_id=dataset_id, silent=True)
     if not df.empty:
         name_col = [c for c in df.columns if c.lower() == "explicitname"]
         table_col = [c for c in df.columns if c.lower() == "tablename"]
