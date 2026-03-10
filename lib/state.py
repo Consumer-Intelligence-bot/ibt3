@@ -184,11 +184,21 @@ def render_global_filters():
     dimensions = st.session_state.get("dimensions", {})
     df_motor = st.session_state.get("df_motor", pd.DataFrame())
 
-    # Insurer
+    # Insurer — persisted across all tabs via session_state
     insurer_list = []
     if "DimInsurer" in dimensions:
         insurer_list = sorted(dimensions["DimInsurer"]["Insurer"].dropna().astype(str).tolist())
-    insurer = st.sidebar.selectbox("Insurer", [""] + insurer_list, format_func=lambda x: x or "All / Market")
+    all_options = [""] + insurer_list
+    default_idx = 0
+    if "selected_insurer" in st.session_state:
+        saved = st.session_state["selected_insurer"]
+        if saved in all_options:
+            default_idx = all_options.index(saved)
+    insurer = st.sidebar.selectbox(
+        "Insurer", all_options, index=default_idx,
+        format_func=lambda x: x or "All / Market",
+        key="selected_insurer",
+    )
 
     # Product
     product = st.sidebar.selectbox("Product", ["Motor"], disabled=True)

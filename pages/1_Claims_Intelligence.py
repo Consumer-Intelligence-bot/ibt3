@@ -55,11 +55,25 @@ total_n = eligible["Q52_n"].sum()
 market_mean = (eligible["Q52_mean"] * eligible["Q52_n"]).sum() / total_n
 all_eligible_means = eligible["Q52_mean"].tolist()
 
-# ---- Insurer selector ----
+# ---- Insurer selector (shared across all tabs via session_state) ----
 insurer_list = sorted(eligible["CurrentCompany"].dropna().unique().tolist())
-selected_insurer = st.sidebar.selectbox("Insurer (Claims)", insurer_list)
+all_options = [""] + insurer_list
+default_idx = 0
+if "selected_insurer" in st.session_state:
+    saved = st.session_state["selected_insurer"]
+    if saved in all_options:
+        default_idx = all_options.index(saved)
+selected_insurer = st.sidebar.selectbox(
+    "Insurer", all_options, index=default_idx,
+    format_func=lambda x: x or "All / Market",
+    key="selected_insurer",
+)
 
 # ---- Insurer data ----
+if not selected_insurer:
+    st.info("Select an insurer in the sidebar to see detailed claims analysis.")
+    st.stop()
+
 ins_row = q52_df[q52_df["CurrentCompany"] == selected_insurer]
 if ins_row.empty:
     st.warning(f"No data for {selected_insurer} in the selected period.")
