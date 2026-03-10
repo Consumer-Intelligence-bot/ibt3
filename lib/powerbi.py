@@ -43,7 +43,9 @@ def get_token():
 # DAX query helper
 # ---------------------------------------------------------------------------
 
-def run_dax(token: str, dax: str, *, silent: bool = False) -> pd.DataFrame:
+def run_dax(token: str, dax: str, *, silent: bool = False,
+            workspace_id: str = WORKSPACE_ID,
+            dataset_id: str = DATASET_ID) -> pd.DataFrame:
     """Execute a DAX query against the Power BI semantic model.
 
     Parameters
@@ -51,6 +53,10 @@ def run_dax(token: str, dax: str, *, silent: bool = False) -> pd.DataFrame:
     silent : bool
         If True, suppress error messages (useful for discovery queries that
         have fallback logic).
+    workspace_id : str
+        Power BI workspace (group) ID.
+    dataset_id : str
+        Power BI dataset (semantic model) ID.
     """
     url = (
         f"https://api.powerbi.com/v1.0/myorg/groups/{workspace_id}"
@@ -132,7 +138,8 @@ def discover_tables(token: str, *,
     """
     # --- Attempt 1: INFO.TABLES() (needs admin perms; may fail silently) ---
     dax = "EVALUATE INFO.TABLES()"
-    df = run_dax(token, dax, silent=True)
+    df = run_dax(token, dax, silent=True,
+                 workspace_id=workspace_id, dataset_id=dataset_id)
     if not df.empty:
         name_col = [c for c in df.columns if c.lower() == "name"]
         if not name_col:
@@ -233,7 +240,8 @@ def discover_columns(_token: str, table_name: str, *,
 
     # --- Attempt 2: INFO.COLUMNS() DMV (needs admin perms; may fail silently) ---
     dax_info = "EVALUATE INFO.COLUMNS()"
-    df = run_dax(_token, dax_info, silent=True)
+    df = run_dax(_token, dax_info, silent=True,
+                 workspace_id=workspace_id, dataset_id=dataset_id)
     if not df.empty:
         name_col = [c for c in df.columns if c.lower() == "explicitname"]
         table_col = [c for c in df.columns if c.lower() == "tablename"]
