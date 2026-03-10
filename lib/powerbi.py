@@ -256,12 +256,17 @@ def _check_required_columns(
     token: str, table_name: str, required: set[str], context: str, *,
     workspace_id: str = WORKSPACE_ID, dataset_id: str = DATASET_ID,
 ) -> set[str] | None:
-    """Return available columns if all *required* are present, else warn and return None."""
+    """Return available columns if all *required* are present, else warn and return None.
+
+    When column discovery fails entirely (e.g. permissions prevent
+    INFO.TABLES / TOPN probes), we assume the required columns exist
+    and let the actual DAX query surface any real errors.
+    """
     available = discover_columns(token, table_name,
                                  workspace_id=workspace_id, dataset_id=dataset_id)
     if not available:
-        st.warning(f"{context}: could not discover columns for '{table_name}'.")
-        return None
+        # Discovery failed — assume columns exist rather than blocking the query.
+        return required
     missing = required - available
     if missing:
         st.warning(f"{context}: missing columns in '{table_name}': {missing}")
