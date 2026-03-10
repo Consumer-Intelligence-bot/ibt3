@@ -55,16 +55,16 @@ total_n = eligible["Q52_n"].sum()
 market_mean = (eligible["Q52_mean"] * eligible["Q52_n"]).sum() / total_n
 all_eligible_means = eligible["Q52_mean"].tolist()
 
-# ---- Insurer selector (shared across all tabs via session_state) ----
+# ---- Insurer selector (shared across all tabs via session_state key) ----
 insurer_list = sorted(eligible["CurrentCompany"].dropna().unique().tolist())
 all_options = [""] + insurer_list
-default_idx = 0
-if "selected_insurer" in st.session_state:
-    saved = st.session_state["selected_insurer"]
-    if saved in all_options:
-        default_idx = all_options.index(saved)
+
+# Validate saved value still exists in options
+if "selected_insurer" in st.session_state and st.session_state["selected_insurer"] not in all_options:
+    st.session_state["selected_insurer"] = ""
+
 selected_insurer = st.sidebar.selectbox(
-    "Insurer", all_options, index=default_idx,
+    "Insurer", all_options,
     format_func=lambda x: x or "All / Market",
     key="selected_insurer",
 )
