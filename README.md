@@ -51,15 +51,12 @@ pages/                      # Streamlit multipage navigation
   1_Claims_Intelligence.py
   2_Market_Overview.py
   3_Headline.py
-  4_Renewal_Flow.py
-  5_Insurer_Diagnostic.py
-  6_Insurer_Comparison.py
-  7_Customer_Flows.py
-  8_Awareness_Market.py
-  9_Awareness_Insurer.py
-  10_Price_Sensitivity.py
-  11_Channel_PCW.py
-  12_Admin.py
+  4_Customer_Flows.py
+  5_Awareness_Market.py
+  6_Awareness_Insurer.py
+  7_Price_Sensitivity.py
+  8_Channel_PCW.py
+  9_Admin.py
 lib/                        # Core library
   config.py                 # Branding, thresholds, CSS
   powerbi.py                # Power BI auth (MSAL) & DAX queries
@@ -82,6 +79,8 @@ The app connects to Power BI and auto-discovers table names at startup. If Power
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `ANTHROPIC_API_KEY` | Yes | Claude API key for AI-generated narratives |
+| `NARRATIVE_ENABLED` | No | Toggle AI narratives on/off (default: `true`) |
+| `NARRATIVE_MODEL` | No | Claude model ID (default: `claude-opus-4-6`) |
 
 Copy `.env.example` to `.env` and fill in values.
 
