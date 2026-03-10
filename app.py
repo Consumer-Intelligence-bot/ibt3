@@ -19,10 +19,13 @@ def _graceful_shutdown(signum, frame):
     sys.exit(0)
 
 
-if not hasattr(st, "_graceful_shutdown_registered"):
-    signal.signal(signal.SIGTERM, _graceful_shutdown)
-    signal.signal(signal.SIGINT, _graceful_shutdown)
-    st._graceful_shutdown_registered = True
+try:
+    if not hasattr(st, "_graceful_shutdown_registered"):
+        signal.signal(signal.SIGTERM, _graceful_shutdown)
+        signal.signal(signal.SIGINT, _graceful_shutdown)
+        st._graceful_shutdown_registered = True
+except ValueError:
+    pass  # Not in main thread; Streamlit handles shutdown itself
 
 from lib.config import CSS
 from lib.powerbi import get_token, get_main_table, get_other_table, load_months
