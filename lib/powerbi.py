@@ -10,6 +10,8 @@ import streamlit as st
 
 from lib.config import (
     TENANT_ID, CLIENT_ID, WORKSPACE_ID, DATASET_ID, SCOPE,
+    MOTOR_WORKSPACE_ID, MOTOR_DATASET_ID,
+    HOME_WORKSPACE_ID, HOME_DATASET_ID,
     MAIN_TABLE, OTHER_TABLE,
 )
 
@@ -41,11 +43,13 @@ def get_token():
 # DAX query helper
 # ---------------------------------------------------------------------------
 
-def run_dax(token: str, dax: str) -> pd.DataFrame:
+def run_dax(token: str, dax: str, *,
+            workspace_id: str = WORKSPACE_ID,
+            dataset_id: str = DATASET_ID) -> pd.DataFrame:
     """Execute a DAX query against the Power BI semantic model."""
     url = (
-        f"https://api.powerbi.com/v1.0/myorg/groups/{WORKSPACE_ID}"
-        f"/datasets/{DATASET_ID}/executeQueries"
+        f"https://api.powerbi.com/v1.0/myorg/groups/{workspace_id}"
+        f"/datasets/{dataset_id}/executeQueries"
     )
     r = requests.post(
         url,
@@ -83,12 +87,14 @@ _MAIN_TABLE_CANDIDATES = ["MainData_Motor", "MainData_Home", "MainData"]
 _OTHER_TABLE_CANDIDATES = ["AllOtherData_Motor", "AllOtherData_Home", "AllOtherData"]
 
 
-def _probe_table_exists_simple(token: str, table_name: str) -> bool:
+def _probe_table_exists_simple(token: str, table_name: str, *,
+                               workspace_id: str = WORKSPACE_ID,
+                               dataset_id: str = DATASET_ID) -> bool:
     """Check if a table exists — returns True if the query succeeds (HTTP 200, no error body)."""
     dax = f"EVALUATE TOPN(0, '{table_name}')"
     url = (
-        f"https://api.powerbi.com/v1.0/myorg/groups/{WORKSPACE_ID}"
-        f"/datasets/{DATASET_ID}/executeQueries"
+        f"https://api.powerbi.com/v1.0/myorg/groups/{workspace_id}"
+        f"/datasets/{dataset_id}/executeQueries"
     )
     r = requests.post(
         url,
@@ -108,7 +114,9 @@ def _probe_table_exists_simple(token: str, table_name: str) -> bool:
     return "error" not in body
 
 
-def discover_tables(token: str) -> list[str]:
+def discover_tables(token: str, *,
+                    workspace_id: str = WORKSPACE_ID,
+                    dataset_id: str = DATASET_ID) -> list[str]:
     """Return all table names in the Power BI semantic model.
 
     Strategy:
@@ -117,7 +125,7 @@ def discover_tables(token: str) -> list[str]:
     """
     # --- Attempt 1: INFO.TABLES() ---
     dax = "EVALUATE INFO.TABLES()"
-    df = run_dax(token, dax)
+    df = run_dax(token, dax, workspace_id=workspace_id, dataset_id=dataset_id)
     if not df.empty:
         name_col = [c for c in df.columns if c.lower() == "name"]
         if not name_col:
@@ -130,7 +138,9 @@ def discover_tables(token: str) -> list[str]:
         _MAIN_TABLE_CANDIDATES + _OTHER_TABLE_CANDIDATES
     ))
     for name in all_candidates:
-        if _probe_table_exists_simple(token, name):
+        if _probe_table_exists_simple(token, name,
+                                      workspace_id=workspace_id,
+                                      dataset_id=dataset_id):
             found.append(name)
     if found:
         return found
@@ -139,30 +149,38 @@ def discover_tables(token: str) -> list[str]:
 
 
 @st.cache_data(ttl=3600, show_spinner="Discovering tables...")
-def get_main_table(_token: str) -> str:
+def get_main_table(_token: str, *,
+                   workspace_id: str = WORKSPACE_ID,
+                   dataset_id: str = DATASET_ID) -> str:
     """Find the MainData table name (may be MainData, MainData_Motor, etc.)."""
-    tables = discover_tables(_token)
+    tables = discover_tables(_token, workspace_id=workspace_id, dataset_id=dataset_id)
     for t in tables:
         if t.startswith("MainData"):
             return t
     # Last resort: probe candidates directly (tables list may be partial)
     for name in _MAIN_TABLE_CANDIDATES:
-        if _probe_table_exists_simple(_token, name):
+        if _probe_table_exists_simple(_token, name,
+                                      workspace_id=workspace_id,
+                                      dataset_id=dataset_id):
             return name
     st.warning(f"Could not find MainData* table. Found: {tables}. Using fallback '{MAIN_TABLE}'.")
     return MAIN_TABLE
 
 
 @st.cache_data(ttl=3600, show_spinner="Discovering tables...")
-def get_other_table(_token: str) -> str:
+def get_other_table(_token: str, *,
+                    workspace_id: str = WORKSPACE_ID,
+                    dataset_id: str = DATASET_ID) -> str:
     """Find the AllOtherData table name."""
-    tables = discover_tables(_token)
+    tables = discover_tables(_token, workspace_id=workspace_id, dataset_id=dataset_id)
     for t in tables:
         if t.startswith("AllOtherData"):
             return t
     # Last resort: probe candidates directly
     for name in _OTHER_TABLE_CANDIDATES:
-        if _probe_table_exists_simple(_token, name):
+        if _probe_table_exists_simple(_token, name,
+                                      workspace_id=workspace_id,
+                                      dataset_id=dataset_id):
             return name
     st.warning(f"Could not find AllOtherData* table. Found: {tables}. Using fallback '{OTHER_TABLE}'.")
     return OTHER_TABLE
@@ -173,7 +191,9 @@ def get_other_table(_token: str) -> str:
 # ---------------------------------------------------------------------------
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def discover_columns(_token: str, table_name: str) -> set[str]:
+def discover_columns(_token: str, table_name: str, *,
+                     workspace_id: str = WORKSPACE_ID,
+                     dataset_id: str = DATASET_ID) -> set[str]:
     """Return the set of column names for a table in the semantic model.
 
     Strategy:
@@ -183,8 +203,8 @@ def discover_columns(_token: str, table_name: str) -> set[str]:
     # --- Attempt 1: TOPN(1, ...) ---
     dax = f"EVALUATE TOPN(1, '{table_name}')"
     url = (
-        f"https://api.powerbi.com/v1.0/myorg/groups/{WORKSPACE_ID}"
-        f"/datasets/{DATASET_ID}/executeQueries"
+        f"https://api.powerbi.com/v1.0/myorg/groups/{workspace_id}"
+        f"/datasets/{dataset_id}/executeQueries"
     )
     r = requests.post(
         url,
@@ -206,7 +226,7 @@ def discover_columns(_token: str, table_name: str) -> set[str]:
 
     # --- Attempt 2: INFO.COLUMNS() DMV ---
     dax_info = "EVALUATE INFO.COLUMNS()"
-    df = run_dax(_token, dax_info)
+    df = run_dax(_token, dax_info, workspace_id=workspace_id, dataset_id=dataset_id)
     if not df.empty:
         name_col = [c for c in df.columns if c.lower() == "explicitname"]
         table_col = [c for c in df.columns if c.lower() == "tablename"]
@@ -218,10 +238,12 @@ def discover_columns(_token: str, table_name: str) -> set[str]:
 
 
 def _check_required_columns(
-    token: str, table_name: str, required: set[str], context: str,
+    token: str, table_name: str, required: set[str], context: str, *,
+    workspace_id: str = WORKSPACE_ID, dataset_id: str = DATASET_ID,
 ) -> set[str] | None:
     """Return available columns if all *required* are present, else warn and return None."""
-    available = discover_columns(token, table_name)
+    available = discover_columns(token, table_name,
+                                 workspace_id=workspace_id, dataset_id=dataset_id)
     if not available:
         st.warning(f"{context}: could not discover columns for '{table_name}'.")
         return None
@@ -246,9 +268,11 @@ def _build_select_columns(table: str, columns: list[str], available: set[str]) -
 # ---------------------------------------------------------------------------
 
 @st.cache_data(ttl=3600, show_spinner="Loading months...")
-def load_months(_token, main_table: str = MAIN_TABLE):
+def load_months(_token, main_table: str = MAIN_TABLE, *,
+                workspace_id: str = WORKSPACE_ID, dataset_id: str = DATASET_ID):
     if _check_required_columns(
         _token, main_table, {"RenewalYearMonth"}, "Month discovery",
+        workspace_id=workspace_id, dataset_id=dataset_id,
     ) is None:
         return []
     dax = f"""
@@ -259,7 +283,7 @@ def load_months(_token, main_table: str = MAIN_TABLE):
         )
         ORDER BY '{main_table}'[RenewalYearMonth] ASC
     """
-    df = run_dax(_token, dax)
+    df = run_dax(_token, dax, workspace_id=workspace_id, dataset_id=dataset_id)
     if df.empty:
         return []
     return sorted(df["RenewalYearMonth"].dropna().unique().astype(int).tolist())
@@ -267,13 +291,16 @@ def load_months(_token, main_table: str = MAIN_TABLE):
 
 @st.cache_data(ttl=3600, show_spinner="Loading Q52 data...")
 def load_q52(_token, start_month: int, end_month: int,
-             main_table: str = MAIN_TABLE, other_table: str = OTHER_TABLE):
+             main_table: str = MAIN_TABLE, other_table: str = OTHER_TABLE, *,
+             workspace_id: str = WORKSPACE_ID, dataset_id: str = DATASET_ID):
     if _check_required_columns(
         _token, other_table, {"QuestionNumber", "Scale"}, "Q52 analysis",
+        workspace_id=workspace_id, dataset_id=dataset_id,
     ) is None:
         return pd.DataFrame()
     if _check_required_columns(
         _token, main_table, {"CurrentCompany", "Claimants", "RenewalYearMonth"}, "Q52 analysis",
+        workspace_id=workspace_id, dataset_id=dataset_id,
     ) is None:
         return pd.DataFrame()
     dax = f"""
@@ -300,18 +327,21 @@ def load_q52(_token, start_month: int, end_month: int,
         )
         ORDER BY [Q52_n] DESC
     """
-    return run_dax(_token, dax)
+    return run_dax(_token, dax, workspace_id=workspace_id, dataset_id=dataset_id)
 
 
 @st.cache_data(ttl=3600, show_spinner="Loading Q53 data...")
 def load_q53(_token, start_month: int, end_month: int,
-             main_table: str = MAIN_TABLE, other_table: str = OTHER_TABLE):
+             main_table: str = MAIN_TABLE, other_table: str = OTHER_TABLE, *,
+             workspace_id: str = WORKSPACE_ID, dataset_id: str = DATASET_ID):
     if _check_required_columns(
         _token, other_table, {"QuestionNumber", "Subject", "Ranking", "Scale"}, "Q53 analysis",
+        workspace_id=workspace_id, dataset_id=dataset_id,
     ) is None:
         return pd.DataFrame()
     if _check_required_columns(
         _token, main_table, {"CurrentCompany", "Claimants", "RenewalYearMonth"}, "Q53 analysis",
+        workspace_id=workspace_id, dataset_id=dataset_id,
     ) is None:
         return pd.DataFrame()
     dax = f"""
@@ -332,7 +362,7 @@ def load_q53(_token, start_month: int, end_month: int,
         )
         ORDER BY '{main_table}'[CurrentCompany] ASC, '{other_table}'[Ranking] ASC
     """
-    return run_dax(_token, dax)
+    return run_dax(_token, dax, workspace_id=workspace_id, dataset_id=dataset_id)
 
 
 # ---------------------------------------------------------------------------
@@ -352,9 +382,12 @@ _SS_DESIRED_COLUMNS = [
 
 @st.cache_data(ttl=3600, show_spinner="Loading S&S main data...")
 def load_ss_maindata(_token, start_month: int, end_month: int,
-                     main_table: str = MAIN_TABLE):
+                     main_table: str = MAIN_TABLE, *,
+                     workspace_id: str = WORKSPACE_ID,
+                     dataset_id: str = DATASET_ID):
     """Fetch MainData profile columns for Shopping & Switching analysis."""
-    available = discover_columns(_token, main_table)
+    available = discover_columns(_token, main_table,
+                                 workspace_id=workspace_id, dataset_id=dataset_id)
     if available:
         missing_req = _SS_REQUIRED_COLUMNS - available
         if missing_req:
@@ -378,15 +411,18 @@ def load_ss_maindata(_token, start_month: int, end_month: int,
             [RenewalYearMonth] >= {start_month} && [RenewalYearMonth] <= {end_month}
         )
     """
-    return run_dax(_token, dax)
+    return run_dax(_token, dax, workspace_id=workspace_id, dataset_id=dataset_id)
 
 
 @st.cache_data(ttl=3600, show_spinner="Loading S&S question data...")
 def load_ss_questions(_token, start_month: int, end_month: int,
-                      main_table: str = MAIN_TABLE, other_table: str = OTHER_TABLE):
+                      main_table: str = MAIN_TABLE, other_table: str = OTHER_TABLE, *,
+                      workspace_id: str = WORKSPACE_ID,
+                      dataset_id: str = DATASET_ID):
     """Fetch AllOtherData EAV table for Shopping & Switching analysis."""
     if _check_required_columns(
         _token, other_table, {"UniqueID", "QuestionNumber", "Answer"}, "S&S questions",
+        workspace_id=workspace_id, dataset_id=dataset_id,
     ) is None:
         return pd.DataFrame()
     dax = f"""
@@ -401,4 +437,4 @@ def load_ss_questions(_token, start_month: int, end_month: int,
             '{main_table}'[RenewalYearMonth] <= {end_month}
         )
     """
-    return run_dax(_token, dax)
+    return run_dax(_token, dax, workspace_id=workspace_id, dataset_id=dataset_id)
