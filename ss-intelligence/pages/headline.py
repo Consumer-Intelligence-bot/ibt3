@@ -757,6 +757,165 @@ def _butterfly_chart(won_from, lost_to, callout=None):
 
 
 # ---------------------------------------------------------------------------
+# Data-driven narrative (always available — no API key needed)
+# ---------------------------------------------------------------------------
+
+def _gap_desc(ins_val, mkt_val, label, inverted=False):
+    """Return a phrase describing how the insurer compares to market."""
+    gap = (ins_val - mkt_val) * 100
+    abs_gap = abs(gap)
+    if abs_gap < NEUTRAL_GAP_THRESHOLD:
+        return f"{label} is in line with the wider market"
+    if inverted:
+        # Shopping rate: higher is worse
+        if gap > 0:
+            return f"{label} is {abs_gap:.1f} pts above the market average, signalling higher churn intent"
+        return f"{label} is {abs_gap:.1f} pts below market, suggesting less inclination to shop"
+    else:
+        if gap > 0:
+            return f"{label} is {abs_gap:.1f} pts ahead of market ({ins_val * 100:.1f}% vs {mkt_val * 100:.1f}%)"
+        return f"{label} is {abs_gap:.1f} pts behind market ({ins_val * 100:.1f}% vs {mkt_val * 100:.1f}%)"
+
+
+def _build_data_narrative(d, ins, pre_pp, post_pp, delta_pp,
+                          shop_tag, ret_tag, stay_tag, biz_tag):
+    """Build headline, subtitle, and paragraph purely from the numbers."""
+
+    # ── Headline: lead with net share outcome ──
+    if delta_pp > NEUTRAL_GAP_THRESHOLD:
+        headline = (
+            f"{ins} grew share through renewal, up {delta_pp:.1f} pts "
+            f"to {post_pp:.1f}%"
+        )
+    elif delta_pp < -NEUTRAL_GAP_THRESHOLD:
+        headline = (
+            f"{ins} lost share through renewal, down {abs(delta_pp):.1f} pts "
+            f"to {post_pp:.1f}%"
+        )
+    else:
+        headline = (
+            f"{ins} held share steady through renewal at {post_pp:.1f}%"
+        )
+
+    # ── Subtitle: name the primary driver and the market context ──
+    ret_gap = (d["retained_pct"] - d["mkt_retained_pct"]) * 100
+    biz_gap = (d["new_biz_pct"] - d["mkt_new_biz_pct"]) * 100
+    shop_gap = (d["shop_pct"] - d["mkt_shop_pct"]) * 100
+
+    drivers = []
+    if abs(ret_gap) >= NEUTRAL_GAP_THRESHOLD:
+        word = "stronger" if ret_gap > 0 else "weaker"
+        drivers.append(f"{word} retention")
+    if abs(biz_gap) >= NEUTRAL_GAP_THRESHOLD:
+        word = "higher" if biz_gap > 0 else "lower"
+        drivers.append(f"{word} new business acquisition")
+
+    if drivers:
+        subtitle = f"Driven primarily by {' and '.join(drivers)}, relative to the market."
+    else:
+        subtitle = "Retention and acquisition are both broadly in line with the market average."
+
+    # ── Paragraph: the full story with numbers ──
+    sentences = []
+
+    # 1. Outcome and magnitude
+    if delta_pp > NEUTRAL_GAP_THRESHOLD:
+        sentences.append(
+            f"{ins} moved from {pre_pp:.1f}% to {post_pp:.1f}% share through "
+            f"the renewal process — a net gain of {delta_pp:.1f} percentage points."
+        )
+    elif delta_pp < -NEUTRAL_GAP_THRESHOLD:
+        sentences.append(
+            f"{ins} moved from {pre_pp:.1f}% to {post_pp:.1f}% share through "
+            f"the renewal process — a net loss of {abs(delta_pp):.1f} percentage points."
+        )
+    else:
+        sentences.append(
+            f"{ins} entered the renewal window at {pre_pp:.1f}% share and "
+            f"emerged at {post_pp:.1f}%, holding broadly steady."
+        )
+
+    # 2. Shopping rate context (inverted metric)
+    shop_ins = d["shop_pct"] * 100
+    shop_mkt = d["mkt_shop_pct"] * 100
+    if shop_gap > NEUTRAL_GAP_THRESHOLD:
+        sentences.append(
+            f"Shopping rate among {ins} customers is elevated at {shop_ins:.1f}% "
+            f"versus {shop_mkt:.1f}% market-wide, indicating higher dissatisfaction "
+            f"and churn intent than peers."
+        )
+    elif shop_gap < -NEUTRAL_GAP_THRESHOLD:
+        sentences.append(
+            f"Fewer {ins} customers shop around ({shop_ins:.1f}% vs "
+            f"{shop_mkt:.1f}% market), suggesting relatively stronger satisfaction "
+            f"at renewal."
+        )
+    else:
+        sentences.append(
+            f"Shopping rates are comparable to the market ({shop_ins:.1f}% vs "
+            f"{shop_mkt:.1f}%), so the story plays out in what happens next."
+        )
+
+    # 3. Retention and shopped-and-stayed
+    ret_ins = d["retained_pct"] * 100
+    ret_mkt = d["mkt_retained_pct"] * 100
+    stay_ins = d["shop_stay_pct"] * 100
+    stay_mkt = d["mkt_shop_stay_pct"] * 100
+
+    if ret_gap >= NEUTRAL_GAP_THRESHOLD:
+        ret_phrase = f"Retention is a strength — {ret_ins:.1f}% of customers stay versus {ret_mkt:.1f}% market-wide"
+    elif ret_gap <= -NEUTRAL_GAP_THRESHOLD:
+        ret_phrase = f"Retention is a pressure point at {ret_ins:.1f}% versus {ret_mkt:.1f}% market"
+    else:
+        ret_phrase = f"Retention is in line with market at {ret_ins:.1f}%"
+
+    stay_gap = (d["shop_stay_pct"] - d["mkt_shop_stay_pct"]) * 100
+    if abs(stay_gap) >= NEUTRAL_GAP_THRESHOLD:
+        stay_word = "outperforms" if stay_gap > 0 else "underperforms"
+        ret_phrase += (
+            f", and among those who do shop, {ins} {stay_word} "
+            f"at converting them back ({stay_ins:.1f}% vs {stay_mkt:.1f}% market)"
+        )
+    ret_phrase += "."
+    sentences.append(ret_phrase)
+
+    # 4. New business — the offsetting or compounding factor
+    biz_ins = d["new_biz_pct"] * 100
+    biz_mkt = d["mkt_new_biz_pct"] * 100
+    if biz_gap >= NEUTRAL_GAP_THRESHOLD:
+        sentences.append(
+            f"New business inflows provide a further boost, with {ins} "
+            f"acquiring at {biz_ins:.1f}% versus {biz_mkt:.1f}% market — "
+            f"explore the competitive exchange below to see where these "
+            f"customers are coming from."
+        )
+    elif biz_gap <= -NEUTRAL_GAP_THRESHOLD:
+        if biz_ins < 0.5:
+            sentences.append(
+                f"New business is negligible at {biz_ins:.1f}%, well below "
+                f"the {biz_mkt:.1f}% market rate, leaving retention losses "
+                f"largely unrecovered."
+            )
+        else:
+            sentences.append(
+                f"New business acquisition at {biz_ins:.1f}% trails the "
+                f"{biz_mkt:.1f}% market rate, meaning inflows are not fully "
+                f"offsetting any retention shortfall."
+            )
+    else:
+        sentences.append(
+            f"New business acquisition is broadly in line with the market "
+            f"({biz_ins:.1f}% vs {biz_mkt:.1f}%)."
+        )
+
+    return {
+        "headline": headline,
+        "subtitle": subtitle,
+        "paragraph": " ".join(sentences),
+    }
+
+
+# ---------------------------------------------------------------------------
 # Page builder
 # ---------------------------------------------------------------------------
 
@@ -776,23 +935,12 @@ def _build_headline_page(d, pc_data=None, ch_data=None, rank_data=None, dd=None,
     stay_tag = _derive_tag(d["shop_stay_pct"], d["mkt_shop_stay_pct"])
     biz_tag = _derive_tag(d["new_biz_pct"], d["mkt_new_biz_pct"])
 
-    # Narrative text: use AI-generated if available, else hardcoded fallback
-    direction = "lifting" if delta_pp > 0 else ("dropping" if delta_pp < 0 else "holding")
-    headline_text = (
-        narrative["headline"] if narrative
-        else f"Customers shop at the market rate, but {ins} keeps more of them"
-    )
-    support = (
-        narrative["subtitle"] if narrative
-        else (
-            f"Retention and acquisition both beat market, {direction} share "
-            f"from {pre_pp:.1f}% to {post_pp:.1f}% through renewal."
-        )
-    )
-    why_text = (
-        narrative["paragraph"] if narrative
-        else f"Customers are just as likely to shop around. {ins} performs better when they do."
-    )
+    # Narrative text: use AI-generated if available, else data-driven fallback
+    fallback = _build_data_narrative(d, ins, pre_pp, post_pp, delta_pp,
+                                     shop_tag, ret_tag, stay_tag, biz_tag)
+    headline_text = narrative["headline"] if narrative else fallback["headline"]
+    support = narrative["subtitle"] if narrative else fallback["subtitle"]
+    why_text = narrative["paragraph"] if narrative else fallback["paragraph"]
 
     # Dynamic callout for butterfly
     won_brands = {b for b, _ in d["won_from"]}
@@ -820,9 +968,23 @@ def _build_headline_page(d, pc_data=None, ch_data=None, rank_data=None, dd=None,
             },
         ),
         html.P(support, style={
-            "fontSize": 14, "color": CI_GREY, "margin": "0 0 20px",
+            "fontSize": 14, "color": CI_GREY, "margin": "0 0 16px",
             "lineHeight": "1.5", "fontFamily": FONT,
         }),
+
+        # ── NARRATIVE PARAGRAPH ───────────────────────────────
+        html.Div(
+            html.P(why_text, style={
+                "fontSize": 13, "color": "#4D5153", "margin": 0,
+                "lineHeight": "1.65",
+            }),
+            style={
+                "backgroundColor": "#F7F7F8", "borderRadius": 8,
+                "borderLeft": f"3px solid {CI_MAGENTA}",
+                "padding": "14px 18px", "marginBottom": 24,
+                "fontFamily": FONT,
+            },
+        ),
 
         # ── OUTCOME (3-column grid: KPI card + sub-card) ─────
         html.Div([
@@ -854,12 +1016,8 @@ def _build_headline_page(d, pc_data=None, ch_data=None, rank_data=None, dd=None,
         # ── WHY THIS HAPPENED (with deep-dive accordions) ────
         html.Div([
             html.Div("Why this happened", style={
-                "fontSize": 15, "fontWeight": "bold", "color": "#4D5153", "marginBottom": 4,
+                "fontSize": 15, "fontWeight": "bold", "color": "#4D5153", "marginBottom": 16,
             }),
-            html.P(
-                why_text,
-                style={"fontSize": 13, "color": CI_GREY, "margin": "0 0 20px", "lineHeight": "1.5"},
-            ),
             _comparison_bar_with_deepdive(
                 "Shopping rate", d["shop_pct"], d["mkt_shop_pct"], shop_tag,
                 "shopping", dd, ins,
