@@ -3,6 +3,8 @@ Unified configuration for Consumer Intelligence dashboards.
 Merges S&S and Claims settings into a single source of truth.
 """
 
+import os
+
 # ---------------------------------------------------------------------------
 # Azure / Power BI credentials
 # ---------------------------------------------------------------------------
@@ -93,8 +95,8 @@ TREND_NOISE_THRESHOLD = 2.0
 # ---------------------------------------------------------------------------
 # AI-generated narrative
 # ---------------------------------------------------------------------------
-NARRATIVE_MODEL = "claude-opus-4-6"
-NARRATIVE_ENABLED = True
+NARRATIVE_MODEL = os.getenv("NARRATIVE_MODEL", "claude-opus-4-6")
+NARRATIVE_ENABLED = os.getenv("NARRATIVE_ENABLED", "true").lower() in ("true", "1", "yes")
 
 # ---------------------------------------------------------------------------
 # CSS for Streamlit

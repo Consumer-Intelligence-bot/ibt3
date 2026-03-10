@@ -7,3 +7,7 @@ services:
     envVars:
       - key: ANTHROPIC_API_KEY
         sync: false  # must be set manually in Render dashboard (secret)
+      - key: NARRATIVE_ENABLED
+        value: "true"
+      - key: NARRATIVE_MODEL
+        value: "claude-opus-4-6"

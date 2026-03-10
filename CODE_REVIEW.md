@@ -90,16 +90,9 @@ except Exception:
 
 Catches all exceptions including `SystemExit` and `KeyboardInterrupt`. Should catch specific exceptions (`anthropic.APIError`, `json.JSONDecodeError`, `KeyError`).
 
-### 6. Hardcoded feature flags
+### 6. ~~Hardcoded feature flags~~ (RESOLVED)
 
-**File:** `lib/config.py:96-97`
-
-```python
-NARRATIVE_MODEL = "claude-opus-4-6"
-NARRATIVE_ENABLED = True
-```
-
-Should be environment-variable driven so the AI narrative feature can be toggled and the model changed without code deployment.
+`NARRATIVE_MODEL` and `NARRATIVE_ENABLED` are now environment-variable driven via `os.getenv()` in `lib/config.py`, with sensible defaults.
 
 ### 7. `.env.example` uses React/Vite naming convention
 

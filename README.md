@@ -79,6 +79,8 @@ The app connects to Power BI and auto-discovers table names at startup. If Power
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `ANTHROPIC_API_KEY` | Yes | Claude API key for AI-generated narratives |
+| `NARRATIVE_ENABLED` | No | Toggle AI narratives on/off (default: `true`) |
+| `NARRATIVE_MODEL` | No | Claude model ID (default: `claude-opus-4-6`) |
 
 Copy `.env.example` to `.env` and fill in values.
 

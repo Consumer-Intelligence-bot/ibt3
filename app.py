@@ -8,6 +8,10 @@ in a single multipage app. All data from Power BI via DAX queries.
 import signal
 import sys
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 import streamlit as st
 
 
