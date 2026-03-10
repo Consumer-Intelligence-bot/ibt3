@@ -150,14 +150,16 @@ with col3:
 # ---- Comparison bars with deep dives ----
 st.markdown("### Why this happened")
 
+descriptions = narrative.get("descriptions", {}) if narrative else {}
+
 comparison_metrics = [
-    ("Shopping rate", metrics["shop_pct"], metrics["mkt_shop_pct"]),
-    ("Retention", metrics["retained_pct"], metrics["mkt_retained_pct"]),
-    ("Shopped and stayed", metrics["shop_stay_pct"], metrics["mkt_shop_stay_pct"]),
-    ("New business acquisition", metrics["new_biz_pct"], metrics["mkt_new_biz_pct"]),
+    ("Shopping rate", metrics["shop_pct"], metrics["mkt_shop_pct"], "shopping_rate"),
+    ("Retention", metrics["retained_pct"], metrics["mkt_retained_pct"], "retention"),
+    ("Shopped and stayed", metrics["shop_stay_pct"], metrics["mkt_shop_stay_pct"], "shopped_and_stayed"),
+    ("New business acquisition", metrics["new_biz_pct"], metrics["mkt_new_biz_pct"], "new_business"),
 ]
 
-for label, ins_val, mkt_val in comparison_metrics:
+for label, ins_val, mkt_val, desc_key in comparison_metrics:
     tag = _derive_tag(ins_val, mkt_val)
     tag_col = _tag_colour(tag)
 
@@ -166,6 +168,9 @@ for label, ins_val, mkt_val in comparison_metrics:
     mkt_w = (mkt_val / max_val) * 100
 
     with st.expander(f"**{label}** — {insurer}: {_fmt_pct(ins_val)} vs Market: {_fmt_pct(mkt_val)} — *{tag}*"):
+        desc = descriptions.get(desc_key)
+        if desc:
+            st.markdown(desc)
         fig = go.Figure()
         fig.add_trace(go.Bar(
             y=[f"{insurer}", "Market"],
