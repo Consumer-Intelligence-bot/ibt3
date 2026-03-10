@@ -159,6 +159,21 @@ comparison_metrics = [
     ("New business acquisition", metrics["new_biz_pct"], metrics["mkt_new_biz_pct"], "new_business"),
 ]
 
+
+def _fallback_description(label: str, ins_val: float, mkt_val: float, tag: str) -> str:
+    """Generate a static description when AI narrative is unavailable."""
+    ins_pp = f"{ins_val * 100:.1f}%"
+    mkt_pp = f"{mkt_val * 100:.1f}%"
+    gap_pp = abs(ins_val - mkt_val) * 100
+    if tag == "Ahead":
+        return (f"{insurer}'s {label.lower()} of {ins_pp} is {gap_pp:.1f} percentage points "
+                f"above the market average of {mkt_pp}.")
+    if tag == "Below":
+        return (f"{insurer}'s {label.lower()} of {ins_pp} is {gap_pp:.1f} percentage points "
+                f"below the market average of {mkt_pp}.")
+    return f"{insurer}'s {label.lower()} of {ins_pp} is in line with the market average of {mkt_pp}."
+
+
 for label, ins_val, mkt_val, desc_key in comparison_metrics:
     tag = _derive_tag(ins_val, mkt_val)
     tag_col = _tag_colour(tag)
@@ -168,9 +183,8 @@ for label, ins_val, mkt_val, desc_key in comparison_metrics:
     mkt_w = (mkt_val / max_val) * 100
 
     with st.expander(f"**{label}** — {insurer}: {_fmt_pct(ins_val)} vs Market: {_fmt_pct(mkt_val)} — *{tag}*"):
-        desc = descriptions.get(desc_key)
-        if desc:
-            st.markdown(desc)
+        desc = descriptions.get(desc_key) or _fallback_description(label, ins_val, mkt_val, tag)
+        st.markdown(desc)
         fig = go.Figure()
         fig.add_trace(go.Bar(
             y=[f"{insurer}", "Market"],
