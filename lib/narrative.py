@@ -28,12 +28,18 @@ Your audience is senior leaders at insurance companies.
 You will receive brand metrics compared to market benchmarks, each tagged
 AHEAD, BELOW, or IN LINE.
 
-Return ONLY valid JSON with exactly three keys:
+Return ONLY valid JSON with exactly these keys:
 
 {
   "headline": "<one sentence>",
   "subtitle": "<one sentence>",
-  "paragraph": "<3-4 sentences>"
+  "paragraph": "<3-4 sentences>",
+  "descriptions": {
+    "shopping_rate": "<1-2 sentences>",
+    "retention": "<1-2 sentences>",
+    "shopped_and_stayed": "<1-2 sentences>",
+    "new_business": "<1-2 sentences>"
+  }
 }
 
 Rules for the headline (one sentence):
@@ -54,6 +60,12 @@ Paragraph (3-4 sentences of plain English explanation):
 - Whether retention helped or hurt
 - What new business contributed
 - The net share outcome
+
+Descriptions (1-2 sentences each explaining what the metric means for the brand):
+- shopping_rate: What the brand's shopping rate tells us compared to market
+- retention: How the brand's retention compares and what it means
+- shopped_and_stayed: What the shopped-and-stayed rate reveals about competitiveness
+- new_business: What the new business acquisition rate means for the brand
 
 Do not use bullet points. Do not use jargon. Write in British English.
 Do not mention sample sizes or survey methodology.
@@ -200,7 +212,7 @@ def _call_api(system_prompt: str, user_content: str) -> dict | None:
         client = anthropic.Anthropic()
         response = client.messages.create(
             model=NARRATIVE_MODEL,
-            max_tokens=400,
+            max_tokens=700,
             system=system_prompt,
             messages=[{"role": "user", "content": user_content}],
         )
