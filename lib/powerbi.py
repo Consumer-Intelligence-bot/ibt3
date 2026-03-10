@@ -61,7 +61,12 @@ def run_dax(token: str, dax: str) -> pd.DataFrame:
     if r.status_code != 200:
         st.error(f"Query failed: {r.text}")
         return pd.DataFrame()
-    rows = r.json()["results"][0]["tables"][0].get("rows", [])
+    body = r.json()
+    # Power BI may return HTTP 200 with an error payload (e.g. missing columns)
+    if "error" in body:
+        st.error(f"Query failed: {body['error']}")
+        return pd.DataFrame()
+    rows = body["results"][0]["tables"][0].get("rows", [])
     if not rows:
         return pd.DataFrame()
     df = pd.DataFrame(rows)
@@ -164,11 +169,88 @@ def get_other_table(_token: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Column discovery — auto-detect available columns in a table
+# ---------------------------------------------------------------------------
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def discover_columns(_token: str, table_name: str) -> set[str]:
+    """Return the set of column names for a table in the semantic model.
+
+    Strategy:
+    1. TOPN(1, ...) — parse column names from result row keys.
+    2. INFO.COLUMNS() DMV — filter client-side by table name.
+    """
+    # --- Attempt 1: TOPN(1, ...) ---
+    dax = f"EVALUATE TOPN(1, '{table_name}')"
+    url = (
+        f"https://api.powerbi.com/v1.0/myorg/groups/{WORKSPACE_ID}"
+        f"/datasets/{DATASET_ID}/executeQueries"
+    )
+    r = requests.post(
+        url,
+        headers={
+            "Authorization": f"Bearer {_token}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "queries": [{"query": dax}],
+            "serializerSettings": {"includeNulls": True},
+        },
+    )
+    if r.status_code == 200:
+        body = r.json()
+        if "error" not in body:
+            rows = body["results"][0]["tables"][0].get("rows", [])
+            if rows:
+                return {k.split("[")[-1].rstrip("]") for k in rows[0].keys()}
+
+    # --- Attempt 2: INFO.COLUMNS() DMV ---
+    dax_info = "EVALUATE INFO.COLUMNS()"
+    df = run_dax(_token, dax_info)
+    if not df.empty:
+        name_col = [c for c in df.columns if c.lower() == "explicitname"]
+        table_col = [c for c in df.columns if c.lower() == "tablename"]
+        if name_col and table_col:
+            mask = df[table_col[0]].astype(str) == table_name
+            return set(df.loc[mask, name_col[0]].tolist())
+
+    return set()
+
+
+def _check_required_columns(
+    token: str, table_name: str, required: set[str], context: str,
+) -> set[str] | None:
+    """Return available columns if all *required* are present, else warn and return None."""
+    available = discover_columns(token, table_name)
+    if not available:
+        st.warning(f"{context}: could not discover columns for '{table_name}'.")
+        return None
+    missing = required - available
+    if missing:
+        st.warning(f"{context}: missing columns in '{table_name}': {missing}")
+        return None
+    return available
+
+
+def _build_select_columns(table: str, columns: list[str], available: set[str]) -> str:
+    """Build SELECTCOLUMNS pairs, skipping columns not in *available*."""
+    parts = []
+    for col in columns:
+        if col in available:
+            parts.append(f'"{col}", \'{table}\'[{col}]')
+    return ",\n                ".join(parts)
+
+
+# ---------------------------------------------------------------------------
 # Claims DAX queries
 # ---------------------------------------------------------------------------
 
 @st.cache_data(ttl=3600, show_spinner="Loading months...")
 def load_months(_token, main_table: str = MAIN_TABLE):
+    if _check_required_columns(
+        _token, main_table, {"RenewalYearMonth"}, "Month discovery",
+    ) is None:
+        return []
     dax = f"""
         EVALUATE
         SUMMARIZE(
@@ -186,6 +268,14 @@ def load_months(_token, main_table: str = MAIN_TABLE):
 @st.cache_data(ttl=3600, show_spinner="Loading Q52 data...")
 def load_q52(_token, start_month: int, end_month: int,
              main_table: str = MAIN_TABLE, other_table: str = OTHER_TABLE):
+    if _check_required_columns(
+        _token, other_table, {"QuestionNumber", "Scale"}, "Q52 analysis",
+    ) is None:
+        return pd.DataFrame()
+    if _check_required_columns(
+        _token, main_table, {"CurrentCompany", "Claimants", "RenewalYearMonth"}, "Q52 analysis",
+    ) is None:
+        return pd.DataFrame()
     dax = f"""
         EVALUATE
         CALCULATETABLE(
@@ -216,6 +306,14 @@ def load_q52(_token, start_month: int, end_month: int,
 @st.cache_data(ttl=3600, show_spinner="Loading Q53 data...")
 def load_q53(_token, start_month: int, end_month: int,
              main_table: str = MAIN_TABLE, other_table: str = OTHER_TABLE):
+    if _check_required_columns(
+        _token, other_table, {"QuestionNumber", "Subject", "Ranking", "Scale"}, "Q53 analysis",
+    ) is None:
+        return pd.DataFrame()
+    if _check_required_columns(
+        _token, main_table, {"CurrentCompany", "Claimants", "RenewalYearMonth"}, "Q53 analysis",
+    ) is None:
+        return pd.DataFrame()
     dax = f"""
         EVALUATE
         CALCULATETABLE(
@@ -241,33 +339,41 @@ def load_q53(_token, start_month: int, end_month: int,
 # Shopping & Switching DAX queries
 # ---------------------------------------------------------------------------
 
+_SS_REQUIRED_COLUMNS = {"UniqueID", "RenewalYearMonth"}
+_SS_DESIRED_COLUMNS = [
+    "UniqueID", "RenewalYearMonth", "SurveyYearMonth",
+    "CurrentCompany", "PreRenewalCompany",
+    "Region", "Age Group", "Gender",
+    "Shoppers", "Switchers", "Retained",
+    "Renewal premium change", "How much higher", "How much lower",
+    "Did you use a PCW for shopping", "Claimants", "Employment status",
+]
+
+
 @st.cache_data(ttl=3600, show_spinner="Loading S&S main data...")
 def load_ss_maindata(_token, start_month: int, end_month: int,
                      main_table: str = MAIN_TABLE):
     """Fetch MainData profile columns for Shopping & Switching analysis."""
+    available = discover_columns(_token, main_table)
+    if available:
+        missing_req = _SS_REQUIRED_COLUMNS - available
+        if missing_req:
+            st.warning(f"S&S data unavailable — missing required columns in "
+                       f"'{main_table}': {missing_req}")
+            return pd.DataFrame()
+        select_expr = _build_select_columns(main_table, _SS_DESIRED_COLUMNS, available)
+    else:
+        # Column discovery failed — fall back to full hardcoded list
+        select_expr = _build_select_columns(
+            main_table, _SS_DESIRED_COLUMNS, set(_SS_DESIRED_COLUMNS))
+
     mt = main_table
     dax = f"""
         EVALUATE
         FILTER(
             SELECTCOLUMNS(
                 '{mt}',
-                "UniqueID", '{mt}'[UniqueID],
-                "RenewalYearMonth", '{mt}'[RenewalYearMonth],
-                "SurveyYearMonth", '{mt}'[SurveyYearMonth],
-                "CurrentCompany", '{mt}'[CurrentCompany],
-                "PreRenewalCompany", '{mt}'[PreRenewalCompany],
-                "Region", '{mt}'[Region],
-                "Age Group", '{mt}'[Age Group],
-                "Gender", '{mt}'[Gender],
-                "Shoppers", '{mt}'[Shoppers],
-                "Switchers", '{mt}'[Switchers],
-                "Retained", '{mt}'[Retained],
-                "Renewal premium change", '{mt}'[Renewal premium change],
-                "How much higher", '{mt}'[How much higher],
-                "How much lower", '{mt}'[How much lower],
-                "Did you use a PCW for shopping", '{mt}'[Did you use a PCW for shopping],
-                "Claimants", '{mt}'[Claimants],
-                "Employment status", '{mt}'[Employment status]
+                {select_expr}
             ),
             [RenewalYearMonth] >= {start_month} && [RenewalYearMonth] <= {end_month}
         )
@@ -279,6 +385,10 @@ def load_ss_maindata(_token, start_month: int, end_month: int,
 def load_ss_questions(_token, start_month: int, end_month: int,
                       main_table: str = MAIN_TABLE, other_table: str = OTHER_TABLE):
     """Fetch AllOtherData EAV table for Shopping & Switching analysis."""
+    if _check_required_columns(
+        _token, other_table, {"UniqueID", "QuestionNumber", "Answer"}, "S&S questions",
+    ) is None:
+        return pd.DataFrame()
     dax = f"""
         EVALUATE
         CALCULATETABLE(
