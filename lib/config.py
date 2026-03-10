@@ -13,8 +13,26 @@ CLIENT_ID = "9cd99ce2-4c31-46e0-bb7c-eeb8e12e73d6"
 SCOPE = ["https://analysis.windows.net/powerbi/api/Dataset.Read.All"]
 
 # Motor insurance fabric instance
-WORKSPACE_ID = "db6f5221-fa36-48f7-8c14-259a1f570bc5"
-DATASET_ID = "646c070f-5b4f-4ded-b0f9-4ae8a8b8a7ad"
+MOTOR_WORKSPACE_ID = "db6f5221-fa36-48f7-8c14-259a1f570bc5"
+MOTOR_DATASET_ID = "646c070f-5b4f-4ded-b0f9-4ae8a8b8a7ad"
+
+# Home insurance fabric instance
+# NOTE: The workspace ID comes from the Fabric URL. The DATASET_ID must point
+# to the *semantic model* (not the dataflow).  To find the correct dataset ID:
+#   1. Open the workspace in Fabric (groups/1c6e2798-...).
+#   2. Locate the semantic model that contains the home insurance survey data.
+#   3. Copy the dataset ID from the URL or via GET .../groups/{workspace_id}/datasets.
+# The dataflow ID (e6f052b4-...) is NOT the same as the dataset/semantic model ID.
+HOME_WORKSPACE_ID = os.getenv(
+    "HOME_WORKSPACE_ID", "1c6e2798-9b81-4643-82a2-791780138db3"
+)
+HOME_DATASET_ID = os.getenv(
+    "HOME_DATASET_ID", "71b28688-1e7e-421b-bb28-ccd29518ad94"
+)
+
+# Legacy aliases (default to motor)
+WORKSPACE_ID = MOTOR_WORKSPACE_ID
+DATASET_ID = MOTOR_DATASET_ID
 
 # Fallback table names (auto-discovered at runtime via INFO.TABLES())
 MAIN_TABLE = "MainData"
