@@ -204,10 +204,19 @@ def _call_api(system_prompt: str, user_content: str) -> dict | None:
             system=system_prompt,
             messages=[{"role": "user", "content": user_content}],
         )
+        if not response.content:
+            log.warning("API returned no content blocks (stop_reason=%s)", response.stop_reason)
+            return None
         text = response.content[0].text.strip()
         if not text:
             log.warning("API returned empty text; skipping narrative")
             return None
+        # Strip markdown code fences the model sometimes wraps around JSON
+        if text.startswith("```"):
+            text = text.split("\n", 1)[1] if "\n" in text else text[3:]
+            if text.endswith("```"):
+                text = text[: -3].strip()
+        log.debug("Raw API response text: %s", text[:500])
         result = json.loads(text)
         for k in ("headline", "subtitle", "paragraph"):
             if k not in result:

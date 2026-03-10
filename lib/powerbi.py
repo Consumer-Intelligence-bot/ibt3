@@ -43,10 +43,7 @@ def get_token():
 # DAX query helper
 # ---------------------------------------------------------------------------
 
-def run_dax(token: str, dax: str, *,
-            workspace_id: str = WORKSPACE_ID,
-            dataset_id: str = DATASET_ID,
-            silent: bool = False) -> pd.DataFrame:
+def run_dax(token: str, dax: str, *, silent: bool = False) -> pd.DataFrame:
     """Execute a DAX query against the Power BI semantic model.
 
     Parameters
@@ -135,7 +132,7 @@ def discover_tables(token: str, *,
     """
     # --- Attempt 1: INFO.TABLES() (needs admin perms; may fail silently) ---
     dax = "EVALUATE INFO.TABLES()"
-    df = run_dax(token, dax, workspace_id=workspace_id, dataset_id=dataset_id, silent=True)
+    df = run_dax(token, dax, silent=True)
     if not df.empty:
         name_col = [c for c in df.columns if c.lower() == "name"]
         if not name_col:
@@ -236,7 +233,7 @@ def discover_columns(_token: str, table_name: str, *,
 
     # --- Attempt 2: INFO.COLUMNS() DMV (needs admin perms; may fail silently) ---
     dax_info = "EVALUATE INFO.COLUMNS()"
-    df = run_dax(_token, dax_info, workspace_id=workspace_id, dataset_id=dataset_id, silent=True)
+    df = run_dax(_token, dax_info, silent=True)
     if not df.empty:
         name_col = [c for c in df.columns if c.lower() == "explicitname"]
         table_col = [c for c in df.columns if c.lower() == "tablename"]
