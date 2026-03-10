@@ -13,12 +13,7 @@ import streamlit as st
 from lib.analytics.demographics import apply_filters
 from lib.analytics.dimensions import get_all_dimensions
 from lib.analytics.transforms import transform
-from lib.config import (
-    MAIN_TABLE, OTHER_TABLE,
-    MOTOR_WORKSPACE_ID, MOTOR_DATASET_ID,
-    HOME_WORKSPACE_ID, HOME_DATASET_ID,
-    PRODUCTS,
-)
+from lib.config import MAIN_TABLE, OTHER_TABLE, PRODUCTS
 from lib.powerbi import load_months, load_ss_maindata, load_ss_questions
 
 
@@ -49,71 +44,29 @@ def format_year_month(ym) -> str:
     return str(ym)
 
 
-def _load_product_data(token: str, product: str, start_month: int, end_month: int,
-                       main_table: str, other_table: str | None,
-                       workspace_id: str, dataset_id: str):
-    """Load and transform data for a single product from its fabric instance."""
-    df_raw = load_ss_maindata(
-        token, start_month, end_month, main_table,
-        workspace_id=workspace_id, dataset_id=dataset_id,
-    )
+def init_ss_data(token: str, start_month: int, end_month: int,
+                 main_table: str = MAIN_TABLE, other_table: str | None = OTHER_TABLE):
+    """Load S&S data from Power BI, transform, and store in session state."""
+    df_raw = load_ss_maindata(token, start_month, end_month, main_table)
     if df_raw.empty:
-        return pd.DataFrame(), pd.DataFrame()
+        st.session_state["df_motor"] = pd.DataFrame()
+        st.session_state["df_questions"] = pd.DataFrame()
+        st.session_state["dimensions"] = {}
+        return
 
-    df = transform(df_raw, product)
+    df = transform(df_raw, "Motor")
 
     df_q = pd.DataFrame()
     if other_table:
-        df_q = load_ss_questions(
-            token, start_month, end_month, main_table, other_table,
-            workspace_id=workspace_id, dataset_id=dataset_id,
-        )
+        df_q = load_ss_questions(token, start_month, end_month, main_table, other_table)
     if not df_q.empty:
         df_q["UniqueID"] = df_q["UniqueID"].astype(str)
         df_q["Answer"] = df_q["Answer"].astype(str).str.strip()
-        df_q["Product"] = product
+        df_q["Product"] = "Motor"
 
-    return df, df_q
-
-
-def init_ss_data(token: str, start_month: int, end_month: int,
-                 main_table: str = MAIN_TABLE, other_table: str = OTHER_TABLE,
-                 home_main_table: str = MAIN_TABLE, home_other_table: str = OTHER_TABLE):
-    """Load S&S data from Power BI for all products, transform, and store in session state."""
-    # Load motor data
-    df_motor, df_q_motor = _load_product_data(
-        token, "Motor", start_month, end_month,
-        main_table, other_table,
-        MOTOR_WORKSPACE_ID, MOTOR_DATASET_ID,
-    )
-
-    # Load home data
-    df_home, df_q_home = _load_product_data(
-        token, "Home", start_month, end_month,
-        home_main_table, home_other_table,
-        HOME_WORKSPACE_ID, HOME_DATASET_ID,
-    )
-
-    # Combine products
-    frames = [df for df in [df_motor, df_home] if not df.empty]
-    if frames:
-        df_all = pd.concat(frames, ignore_index=True)
-    else:
-        df_all = pd.DataFrame()
-
-    q_frames = [df for df in [df_q_motor, df_q_home] if not df.empty]
-    if q_frames:
-        df_questions = pd.concat(q_frames, ignore_index=True)
-    else:
-        df_questions = pd.DataFrame()
-
-    st.session_state["df_motor"] = df_all
-    st.session_state["df_questions"] = df_questions
-
-    if not df_all.empty:
-        st.session_state["dimensions"] = get_all_dimensions(df_all)
-    else:
-        st.session_state["dimensions"] = {}
+    st.session_state["df_motor"] = df
+    st.session_state["df_questions"] = df_q
+    st.session_state["dimensions"] = get_all_dimensions(df) if not df.empty else {}
 
 
 def get_ss_data():

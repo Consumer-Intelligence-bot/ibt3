@@ -11,35 +11,14 @@ import streamlit as st
 from lib.config import (
     CI_BLUE, CI_DARK, CI_GREEN, CI_LGREY, CI_RED, CI_VIOLET, CI_WHITE,
     MIN_BASE_INDICATIVE, Z_95,
-    MOTOR_WORKSPACE_ID, MOTOR_DATASET_ID,
-    HOME_WORKSPACE_ID, HOME_DATASET_ID,
-    PRODUCTS,
 )
 from lib.narrative import generate_claims_narrative
 from lib.powerbi import load_q52, load_q53
 from lib.state import format_month
 
-# ---- Product selector ----
-product = st.sidebar.selectbox("Product", PRODUCTS, key="claims_product")
-
-_PRODUCT_FABRIC = {
-    "Motor": {
-        "workspace_id": MOTOR_WORKSPACE_ID,
-        "dataset_id": MOTOR_DATASET_ID,
-        "main_table_key": "main_table",
-        "other_table_key": "other_table",
-    },
-    "Home": {
-        "workspace_id": HOME_WORKSPACE_ID,
-        "dataset_id": HOME_DATASET_ID,
-        "main_table_key": "home_main_table",
-        "other_table_key": "home_other_table",
-    },
-}
-
 st.markdown(
     f'<h1 style="color:{CI_VIOLET}; margin-top:0;">'
-    f"Claims Intelligence | {product} Insurance</h1>",
+    f"Claims Intelligence | Motor Insurance</h1>",
     unsafe_allow_html=True,
 )
 
@@ -47,10 +26,8 @@ st.markdown(
 token = st.session_state.get("token")
 start_month = st.session_state.get("start_month")
 end_month = st.session_state.get("end_month")
-
-_fabric = _PRODUCT_FABRIC[product]
-main_table = st.session_state.get(_fabric["main_table_key"], "MainData")
-other_table = st.session_state.get(_fabric["other_table_key"])
+main_table = st.session_state.get("main_table", "MainData")
+other_table = st.session_state.get("other_table")
 
 if not token or not start_month or not end_month:
     st.warning("Please authenticate on the main page first.")
@@ -58,14 +35,10 @@ if not token or not start_month or not end_month:
 
 # ---- Load Claims data ----
 if other_table:
-    q52_df = load_q52(token, start_month, end_month, main_table, other_table,
-                      workspace_id=_fabric["workspace_id"],
-                      dataset_id=_fabric["dataset_id"])
-    q53_df = load_q53(token, start_month, end_month, main_table, other_table,
-                      workspace_id=_fabric["workspace_id"],
-                      dataset_id=_fabric["dataset_id"])
+    q52_df = load_q52(token, start_month, end_month, main_table, other_table)
+    q53_df = load_q53(token, start_month, end_month, main_table, other_table)
 else:
-    st.warning(f"No claims question data available for {product} — AllOtherData table not found.")
+    st.warning("No claims question data available — AllOtherData table not found.")
     q52_df = pd.DataFrame()
     q53_df = pd.DataFrame()
 

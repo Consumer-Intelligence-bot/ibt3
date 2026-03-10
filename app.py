@@ -33,7 +33,7 @@ if threading.current_thread() is threading.main_thread() and not hasattr(
     signal.signal(signal.SIGINT, _graceful_shutdown)
     st._graceful_shutdown_registered = True
 
-from lib.config import CSS, MOTOR_WORKSPACE_ID, MOTOR_DATASET_ID, HOME_WORKSPACE_ID, HOME_DATASET_ID
+from lib.config import CSS
 from lib.powerbi import get_token, get_main_table, get_other_table, load_months
 from lib.state import format_month, init_ss_data
 
@@ -56,29 +56,11 @@ st.markdown(
 token = get_token()
 
 # ---- Discover table names (auto-adapts when model is updated) ----
-# Motor instance
-main_table = get_main_table(token,
-                            workspace_id=MOTOR_WORKSPACE_ID,
-                            dataset_id=MOTOR_DATASET_ID)
-other_table = get_other_table(token,
-                              workspace_id=MOTOR_WORKSPACE_ID,
-                              dataset_id=MOTOR_DATASET_ID)
-# Home instance
-home_main_table = get_main_table(token,
-                                 workspace_id=HOME_WORKSPACE_ID,
-                                 dataset_id=HOME_DATASET_ID)
-home_other_table = get_other_table(token,
-                                   workspace_id=HOME_WORKSPACE_ID,
-                                   dataset_id=HOME_DATASET_ID)
+main_table = get_main_table(token)
+other_table = get_other_table(token)
 
-# ---- Load available months (union of both products) ----
-motor_months = load_months(token, main_table,
-                           workspace_id=MOTOR_WORKSPACE_ID,
-                           dataset_id=MOTOR_DATASET_ID)
-home_months = load_months(token, home_main_table,
-                          workspace_id=HOME_WORKSPACE_ID,
-                          dataset_id=HOME_DATASET_ID)
-months = sorted(set(motor_months) | set(home_months))
+# ---- Load available months ----
+months = load_months(token, main_table)
 if len(months) < 2:
     st.warning("Fewer than 2 data months available.")
     st.stop()
@@ -99,14 +81,11 @@ with st.sidebar:
 st.session_state["token"] = token
 st.session_state["main_table"] = main_table
 st.session_state["other_table"] = other_table
-st.session_state["home_main_table"] = home_main_table
-st.session_state["home_other_table"] = home_other_table
 st.session_state["start_month"] = start_month
 st.session_state["end_month"] = end_month
 
-# ---- Load S&S data for both products (cached, only refreshes when time window changes) ----
-init_ss_data(token, start_month, end_month, main_table, other_table,
-             home_main_table, home_other_table)
+# ---- Load S&S data (cached, only refreshes when time window changes) ----
+init_ss_data(token, start_month, end_month, main_table, other_table)
 
 # ---- Landing page content ----
 st.markdown("## Welcome")
