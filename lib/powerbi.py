@@ -104,7 +104,7 @@ def _probe_table_exists_simple(token: str, table_name: str, *,
                                workspace_id: str = WORKSPACE_ID,
                                dataset_id: str = DATASET_ID) -> bool:
     """Check if a table exists — returns True if the query succeeds (HTTP 200, no error body)."""
-    dax = f"EVALUATE TOPN(0, '{table_name}')"
+    dax = f"EVALUATE ROW(\"x\", COUNTROWS('{table_name}'))"
     url = (
         f"https://api.powerbi.com/v1.0/myorg/groups/{workspace_id}"
         f"/datasets/{dataset_id}/executeQueries"
@@ -264,12 +264,17 @@ def _check_required_columns(
     token: str, table_name: str, required: set[str], context: str, *,
     workspace_id: str = WORKSPACE_ID, dataset_id: str = DATASET_ID,
 ) -> set[str] | None:
-    """Return available columns if all *required* are present, else warn and return None."""
+    """Return available columns if all *required* are present, else warn and return None.
+
+    If column discovery fails entirely (empty set), assume columns exist
+    and let the DAX query run — it will produce its own error if the
+    columns are truly missing.
+    """
     available = discover_columns(token, table_name,
                                  workspace_id=workspace_id, dataset_id=dataset_id)
     if not available:
-        st.warning(f"{context}: could not discover columns for '{table_name}'.")
-        return None
+        # Discovery failed — don't block; let the query try anyway.
+        return required
     missing = required - available
     if missing:
         st.warning(f"{context}: missing columns in '{table_name}': {missing}")
