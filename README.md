@@ -1,78 +1,92 @@
-# Shopping & Switching Intelligence
+# Consumer Intelligence — Streamlit Dashboard
 
-Analytics dashboard for insurer shopping and switching data.
+Analytics dashboard for insurance market intelligence, combining Claims Intelligence and Shopping & Switching Intelligence in a single multipage Streamlit app. All data sourced from Power BI via DAX queries.
 
-## Build and start
+## Quick start
 
-### Option A: Python (local development)
+### Option A: Local development
 
 **Prerequisites:** Python 3.11+
 
 ```bash
-cd ss-intelligence
-
 # Create virtual environment
 python -m venv venv
-
-# Activate (Windows)
-venv\Scripts\activate
-
-# Activate (Linux/macOS)
-# source venv/bin/activate
+source venv/bin/activate  # Linux/macOS
+# venv\Scripts\activate   # Windows
 
 # Install dependencies
 pip install -r requirements.txt
 
-# Run the app (port 8050)
-python app.py
+# Run the app (default port 8501)
+streamlit run app.py
 ```
 
-Open **http://localhost:8050**
+Open **http://localhost:8501**
 
 ### Option B: Docker
 
 ```bash
-cd ss-intelligence
-
-# Build the image
-docker build -t ss-intelligence .
-
-# Run (port 8050)
-docker run -d --name ss-intelligence -p 8050:8050 ss-intelligence
+docker build -t consumer-intelligence .
+docker run -d --name consumer-intelligence -p 8501:8501 consumer-intelligence
 ```
 
-Open **http://localhost:8050**
+Open **http://localhost:8501**
 
-### Option C: Production (gunicorn)
+### Option C: Production (Render)
+
+Deployed via `render.yaml`:
 
 ```bash
-cd ss-intelligence
-source venv/bin/activate   # or venv\Scripts\activate on Windows
-gunicorn app:server -b 0.0.0.0:8050 --workers 4 --timeout 120
+streamlit run app.py --server.port $PORT --server.address 0.0.0.0
 ```
 
 ---
+
+## Project structure
+
+```
+app.py                      # Main entry point (landing page, auth, shared state)
+.streamlit/config.toml      # Streamlit theme and server config
+pages/                      # Streamlit multipage navigation
+  1_Claims_Intelligence.py
+  2_Market_Overview.py
+  3_Headline.py
+  4_Renewal_Flow.py
+  5_Insurer_Diagnostic.py
+  6_Insurer_Comparison.py
+  7_Customer_Flows.py
+  8_Awareness_Market.py
+  9_Awareness_Insurer.py
+  10_Price_Sensitivity.py
+  11_Channel_PCW.py
+  12_Admin.py
+lib/                        # Core library
+  config.py                 # Branding, thresholds, CSS
+  powerbi.py                # Power BI auth (MSAL) & DAX queries
+  narrative.py              # AI narrative generation (Claude API)
+  state.py                  # Session state & data caching
+  analytics/                # Analytics modules
+    awareness.py, bayesian.py, channels.py, confidence.py,
+    demographics.py, dimensions.py, flows.py, price.py,
+    queries.py, rates.py, reasons.py, suppression.py,
+    transforms.py, trends.py
+public/data/                # Demo/fallback CSV data
+```
 
 ## Data
 
-Place Motor and Home CSV files in `ss-intelligence/data/raw/`:
+The app connects to Power BI and auto-discovers table names at startup. If Power BI is unavailable, it falls back to demo CSV files in `public/data/`.
 
-- **Motor:** `motor_main_data.csv`, `motor_main_data_demo.csv`, or `motor all data.csv`
-- **Home:** `all home data.csv`, `home_main_data.csv`, or `ff_home.csv`
+## Environment variables
 
-If `data/raw/` is empty, the app falls back to `public/data/` (includes demo data).
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `ANTHROPIC_API_KEY` | Yes | Claude API key for AI-generated narratives |
 
----
-
-## Optional: Basic auth
-
-Set environment variables before starting:
-
-```bash
-export BASIC_AUTH_USERNAME=admin
-export BASIC_AUTH_PASSWORD=your-password
-```
+Copy `.env.example` to `.env` and fill in values.
 
 ---
 
-For full deployment details, see [ss-intelligence/DEPLOY.md](ss-intelligence/DEPLOY.md).
+## CI
+
+GitHub Actions (`.github/workflows/ci.yml`) runs an import check on all library modules against Python 3.12.

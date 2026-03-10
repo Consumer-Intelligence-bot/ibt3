@@ -2,9 +2,9 @@
 
 ## Overview
 
-Add four features to the Headline page on **both** the Python Dash (`ss-intelligence/pages/headline.py`) and React (`src/`) frontends:
+Add four features to the Headline page (`pages/3_Headline.py`) in the Streamlit app:
 
-1. **"Click for more" deep dive buttons** — accordion-expand panels below each of the 4 comparison bars
+1. **"Click for more" deep dive panels** — expandable sections below each of the 4 comparison bars
 2. **Renewal premium change vs market** — new sub-section below Pre-renewal share card
 3. **Source of business (PCW / Direct / Other)** — new sub-section below Post-renewal share card
 4. **Net movement rank** — rank badge below Net movement card
@@ -46,62 +46,17 @@ Add four features to the Headline page on **both** the Python Dash (`ss-intellig
 │  Why this happened                                                      │
 │  Customers are just as likely to shop around. AA performs better.       │
 │                                                                         │
-│  Shopping rate                              BELOW    [Click for more ▼] │
-│  ████████████████████████████████████████░░░░│░░░░░░░░░░░░░░░░░░░░░░░  │
-│  AA 68.3%                                           Market 71.1%       │
-│  ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐ │
-│  │  DEEP DIVE: Shopping Rate (accordion expand)                      │ │
-│  │                                                                    │ │
-│  │  By premium change:              Trend over time:                 │ │
-│  │  ┌────────────────────┐          ┌────────────────────┐           │ │
-│  │  │ Higher  → 82% shop │          │  ___/‾‾\___/‾‾‾   │           │ │
-│  │  │ Unchanged → 55%    │          │ /                   │           │ │
-│  │  │ Lower   → 48% shop │          │  J F M A M J J     │           │ │
-│  │  └────────────────────┘          └────────────────────┘           │ │
-│  │                                                                    │ │
-│  │  By age group:                                                    │ │
-│  │  18-24: ████████  78%    35-44: ██████  65%                       │ │
-│  │  25-34: ███████  72%     45-54: █████  58%                        │ │
-│  └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┘ │
+│  ▶ Shopping rate — AA 68.3% vs Market 71.1% — Below                    │
+│    (st.expander with deep dive charts)                                  │
 │                                                                         │
-│  Retention                                  AHEAD    [Click for more ▼] │
-│  ████████████████████████████████████████████│░░░░░░░░░░░░░░░░░░░░░░░  │
-│  AA 67.1%                                           Market 64.0%       │
-│  ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐ │
-│  │  DEEP DIVE: Retention                                             │ │
-│  │                                                                    │ │
-│  │  Retention by premium change:     By region:                      │ │
-│  │  Higher → 52% retained            North: 70%                      │ │
-│  │  Unchanged → 85% retained         South: 63%                      │ │
-│  │  Lower → 78% retained             Midlands: 68%                   │ │
-│  └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┘ │
+│  ▶ Retention — AA 67.1% vs Market 64.0% — Ahead                       │
+│    (st.expander with deep dive charts)                                  │
 │                                                                         │
-│  Shopped and stayed                         AHEAD    [Click for more ▼] │
-│  ██████████████████████████████████████│░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  │
-│  AA 54.0%                                           Market 50.3%       │
-│  ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐ │
-│  │  DEEP DIVE: Shopped and Stayed                                    │ │
-│  │                                                                    │ │
-│  │  Premium change for those who     PCW usage:                      │ │
-│  │  shopped and stayed:              AA: 74% used PCW                │ │
-│  │  Higher → 38%                     Mkt: 70% used PCW               │ │
-│  │  Unchanged → 35%                                                  │ │
-│  │  Lower → 27%                                                      │ │
-│  └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┘ │
+│  ▶ Shopped and stayed — AA 54.0% vs Market 50.3% — Ahead              │
+│    (st.expander with deep dive charts)                                  │
 │                                                                         │
-│  New business acquisition                   AHEAD    [Click for more ▼] │
-│  ██████████████│░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  │
-│  AA 2.2%                                            Market 1.1%       │
-│  ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐ │
-│  │  DEEP DIVE: New Business Acquisition                              │ │
-│  │                                                                    │ │
-│  │  Top source brands:              Channel:                         │ │
-│  │  1. Admiral  → 28%               PCW: 68%                         │ │
-│  │  2. Aviva    → 19%               Direct: 25%                      │ │
-│  │  3. Allianz  → 12%               Other: 7%                        │ │
-│  │  4. Direct Line → 9%                                              │ │
-│  │  5. LV       → 7%                                                 │ │
-│  └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┘ │
+│  ▶ New business acquisition — AA 2.2% vs Market 1.1% — Ahead          │
+│    (st.expander with deep dive charts)                                  │
 │                                                                         │
 ├─────────────────────────────────────────────────────────────────────────┤
 │  Competitive exchange                                                   │
@@ -121,94 +76,69 @@ Add four features to the Headline page on **both** the Python Dash (`ss-intellig
 
 ## Implementation Steps
 
-### Phase 1: Data Layer
+### Phase 1: Shared Utilities
 
-#### Step 1.1: Create `src/utils/measures/headlineMeasures.js` (React)
-- `calcHeadlineMetrics(data, insurer)` — core metrics (pre/post share, shopping rate, retention, etc.)
-- `calcPremiumChangeComparison(data, insurer)` — reuses `priceUpPct`/`priceDownPct`/`priceUnchangedPct` from `screen1Measures.js`
-- `calcChannelComparison(data, insurer)` — PCW vs Direct/Other, insurer vs market
-- `calcNetMovementRank(data, insurer)` — rank among all insurers by net movement
-- Deep dive helpers: `shoppingRateByPremiumChange()`, `shoppingRateByAge()`, `retentionByPremiumChange()`, `retentionByRegion()`, `shopStayByPremiumChange()`, `shopStayPCWUsage()`, `newBizSourceBrands()`, `newBizChannelBreakdown()`
+#### Step 1.1: Create `lib/formatting.py`
 
-#### Step 1.2: Export `buildChannelBreakdown` from `src/utils/measures/renewalJourneyMeasures.js`
-- One-line change: add `export` keyword
+Extract duplicated helpers from `pages/3_Headline.py` and `pages/4_Renewal_Flow.py`:
+- `pct(n, d)` — safe percentage calculation
+- `fmt_pct(val, dp=1)` — format as percentage string
+- `derive_tag(ins_val, mkt_val)` — "Ahead" / "Below" / "In line"
+- `tag_colour(tag)` — CI colour for tag
 
-#### Step 1.3: Add equivalent Python metrics to `headline.py`
-- `_calc_premium_change_comparison()` — insurer vs market premium change distribution
-- `_calc_channel_comparison()` — PCW/Direct/Other distribution for insurer vs market
-- `_calc_net_movement_rank()` — rank insurer among all brands
-- Deep dive breakdown functions for each of the 4 metrics
+#### Step 1.2: Add analytics helpers to `lib/analytics/`
 
-### Phase 2: Python Dash Implementation
+New functions (can go in existing modules or a new `lib/analytics/headline.py`):
+- `calc_premium_change_comparison(df, insurer)` — Higher/Unchanged/Lower distribution, insurer vs market
+- `calc_channel_comparison(df, insurer)` — PCW/Direct/Other distribution, insurer vs market
+- `calc_net_movement_rank(df, insurer)` — rank insurer among all brands by net share movement
 
-#### Step 2.1: Add "Click for more" accordion to `headline.py`
-- Replace each `_comparison_bar()` call with a new `_comparison_bar_with_deepdive()` that includes:
-  - The existing bar
-  - A "Click for more ▼" button (Dash `html.Button`)
-  - A collapsible `dbc.Collapse` section with deep dive content
-- Use Dash `callback` with `State` to toggle each panel open/closed
-- Add component IDs: `deepdive-shopping`, `deepdive-retention`, `deepdive-shopped-stayed`, `deepdive-new-biz`
+### Phase 2: Deep Dive Enhancements to `pages/3_Headline.py`
 
-#### Step 2.2: Add Premium Change vs Market below Pre-renewal share
-- New helper `_premium_change_card()` rendering three paired horizontal bars (Higher/Unchanged/Lower)
-- Insurer bars in magenta, market bars in grey
-- Insert into the outcome flex row below the Pre-renewal card
+The page already uses `st.expander()` for each comparison metric. Enhance the content inside each expander:
 
-#### Step 2.3: Add Source of Business below Post-renewal share
-- New helper `_source_of_business_card()` rendering PCW/Direct/Other paired bars
-- Data from `Did you use a PCW for shopping` column (Yes = PCW, No = Direct/Other)
-- Insert into the outcome flex row below the Post-renewal card
+#### Step 2.1: Shopping rate deep dive
+- Shopping rate by premium change (Higher/Unchanged/Lower) — horizontal bar chart
+- Shopping rate by age group — horizontal bar chart
 
-#### Step 2.4: Add Net Movement Rank below Net movement card
-- New helper `_rank_badge()` showing "Ranked #X of Y"
-- Color coded: green for top quartile, grey for middle, red for bottom quartile
-- Small position indicator bar showing where insurer sits
+#### Step 2.2: Retention deep dive
+- Retention by premium change — horizontal bar chart
+- Retention by region — horizontal bar chart
 
-### Phase 3: React Implementation
+#### Step 2.3: Shopped and stayed deep dive
+- Premium change distribution for shop-stay segment
+- PCW usage: insurer vs market
 
-#### Step 3.1: Create `src/components/headline/ComparisonBar.jsx`
-- Port `_comparison_bar` from Python with inline styles
-- Add `onClickMore` prop for the "Click for more" button
-- Uses brand constants for colours
+#### Step 2.4: New business acquisition deep dive
+- Top 5 source brands with percentages
+- Channel breakdown (PCW/Direct/Other)
 
-#### Step 3.2: Create `src/components/headline/ButterflyChart.jsx`
-- Port `_butterfly_chart` from Python
-- Pure HTML/CSS horizontal bars (no Recharts needed)
+### Phase 3: New Sub-Cards
 
-#### Step 3.3: Create `src/components/headline/DeepDivePanel.jsx`
-- Accordion-style expand with CSS `max-height` transition
-- Props: `metric`, `isOpen`, `data`, `insurer`
-- Renders metric-specific deep dive content:
-  - **Shopping rate**: By premium change, trend over time (sparkline), by age group
-  - **Retention**: By premium change, by region
-  - **Shopped and stayed**: Premium change split, PCW usage comparison
-  - **New business acquisition**: Top source brands, channel breakdown
+#### Step 3.1: Premium change vs market (below Pre-renewal share)
+- Three paired horizontal bars: Higher / Unchanged / Lower
+- Insurer bars in CI Magenta, market bars in CI Grey
+- Uses `calc_premium_change_comparison()`
 
-#### Step 3.4: Create `src/components/headline/PremiumChangeVsMarket.jsx`
-- Small sub-card showing Higher/Unchanged/Lower paired bars
+#### Step 3.2: Source of business (below Post-renewal share)
+- Three paired horizontal bars: PCW / Direct / Other
+- Data from shopping channel column
+- Uses `calc_channel_comparison()`
 
-#### Step 3.5: Create `src/components/headline/SourceOfBusiness.jsx`
-- Small sub-card showing PCW/Direct/Other paired bars
-
-#### Step 3.6: Create `src/components/headline/HeadlinePage.jsx`
-- Main page component assembling all sections
-- Uses `useDashboard()` context for data + filters
-- `useMemo` for all metric calculations
-- Manages accordion open/closed state
-
-#### Step 3.7: Add route and tab navigation
-- `src/App.jsx` — add `/headline` route
-- `src/components/shared/TabNavigation.jsx` — add "Headline" tab
+#### Step 3.3: Net movement rank (below Net movement card)
+- "Ranked #X of Y" badge
+- Colour coded: green (top quartile), grey (middle), red (bottom quartile)
+- Uses `calc_net_movement_rank()`
 
 ### Phase 4: Deep Dive Content Detail
 
-Each deep dive panel contains 2-3 compact visualizations:
+Each deep dive panel contains 2-3 compact Plotly visualisations in `st.columns()`:
 
 | Metric | Left column | Right column |
 |--------|------------|--------------|
-| Shopping rate | Shopping rate by premium change (Higher/Unchanged/Lower) | Shopping rate by age group (horizontal bars) |
-| Retention | Retention by premium change | Retention by region |
-| Shopped and stayed | Premium change distribution for shop-stay segment | PCW usage: insurer vs market |
+| Shopping rate | By premium change (Higher/Unchanged/Lower) | By age group (horizontal bars) |
+| Retention | By premium change | By region |
+| Shopped and stayed | Premium change distribution for shop-stay | PCW usage: insurer vs market |
 | New business acquisition | Top 5 source brands with % | Channel breakdown (PCW/Direct/Other) |
 
 All deep dive sub-breakdowns respect sample size governance (n >= 30 to display, n >= 50 for "publishable").
@@ -219,30 +149,22 @@ All deep dive sub-breakdowns respect sample size governance (n >= 30 to display,
 
 | File | Purpose |
 |------|---------|
-| `src/utils/measures/headlineMeasures.js` | All headline metric calculations + deep dive helpers |
-| `src/components/headline/HeadlinePage.jsx` | Main headline page component |
-| `src/components/headline/ComparisonBar.jsx` | Insurer vs market comparison bar |
-| `src/components/headline/ButterflyChart.jsx` | Won from / Lost to butterfly chart |
-| `src/components/headline/DeepDivePanel.jsx` | Accordion deep dive panel |
-| `src/components/headline/PremiumChangeVsMarket.jsx` | Premium change sub-card |
-| `src/components/headline/SourceOfBusiness.jsx` | Source of business sub-card |
+| `lib/formatting.py` | Shared formatting utilities (extracted from pages) |
+| `lib/analytics/headline.py` | Premium change, channel, and rank calculations |
 
 ## Files to Modify
 
 | File | Change |
 |------|--------|
-| `ss-intelligence/pages/headline.py` | Add all 4 features (deep dives, premium change, source of biz, rank) |
-| `src/utils/measures/renewalJourneyMeasures.js` | Export `buildChannelBreakdown` |
-| `src/App.jsx` | Add `/headline` route |
-| `src/components/shared/TabNavigation.jsx` | Add "Headline" tab |
+| `pages/3_Headline.py` | Add deep dives, premium change card, source of business card, rank badge |
+| `pages/4_Renewal_Flow.py` | Import shared utilities from `lib/formatting.py` instead of defining locally |
 
 ---
 
 ## Design Notes
 
 - **Colour scheme**: Insurer data in CI Magenta (#981D97), market in CI Grey (#54585A), positive in CI Green (#48A23F), negative in CI Red (#F4364C)
-- **Font**: Verdana, Geneva, sans-serif throughout
-- **Inline styles only** — matching existing codebase pattern (no CSS modules)
-- **Accordion animation**: CSS `max-height` + `overflow: hidden` + `transition: max-height 0.3s ease`
-- **"Click for more" button**: Small text-style button, CI Magenta colour, with ▼/▲ chevron indicator
+- **Font**: Verdana, Geneva, sans-serif (matches `lib/config.py` CSS)
+- **Charts**: Plotly `go.Bar` with horizontal orientation, matching existing pattern in `pages/3_Headline.py`
+- **Layout**: `st.columns()` for side-by-side cards, `st.expander()` for deep dives (already in use)
 - **Suppression**: All deep dive breakdowns check n >= 30 before rendering
