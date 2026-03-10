@@ -134,32 +134,36 @@ def discover_tables(token: str, *,
 
     Strategy:
     1. Try INFO.TABLES() DMV (requires admin/build permissions).
-    2. If that fails, probe known table name variants with zero-row queries.
+    2. Always probe known table name candidates (INFO.TABLES may be
+       incomplete due to permissions or hidden tables).
+    3. Merge both sources so no known table is missed.
     """
+    found: set[str] = set()
+
     # --- Attempt 1: INFO.TABLES() (needs admin perms; may fail silently) ---
     dax = "EVALUATE INFO.TABLES()"
     df = run_dax(token, dax, silent=True,
                  workspace_id=workspace_id, dataset_id=dataset_id)
     if not df.empty:
         name_col = [c for c in df.columns if c.lower() == "name"]
-        if not name_col:
-            return df.iloc[:, 0].tolist()
-        return df[name_col[0]].tolist()
+        if name_col:
+            found.update(df[name_col[0]].tolist())
+        else:
+            found.update(df.iloc[:, 0].tolist())
 
     # --- Attempt 2: Probe known table name candidates ---
-    found: list[str] = []
     all_candidates = list(dict.fromkeys(
         _MAIN_TABLE_CANDIDATES + _OTHER_TABLE_CANDIDATES
     ))
     for name in all_candidates:
-        if _probe_table_exists_simple(token, name,
-                                      workspace_id=workspace_id,
-                                      dataset_id=dataset_id):
-            found.append(name)
-    if found:
-        return found
+        if name not in found and _probe_table_exists_simple(
+            token, name,
+            workspace_id=workspace_id,
+            dataset_id=dataset_id,
+        ):
+            found.add(name)
 
-    return []
+    return list(found)
 
 
 @st.cache_data(ttl=3600, show_spinner="Discovering tables...")
@@ -196,7 +200,11 @@ def get_other_table(_token: str, *,
                                       workspace_id=workspace_id,
                                       dataset_id=dataset_id):
             return name
-    st.warning(f"Could not find AllOtherData* table. Found: {tables}. Using fallback '{OTHER_TABLE}'.")
+    st.warning(
+        f"Could not find AllOtherData* table in workspace {workspace_id[:8]}... "
+        f"Probed: {_OTHER_TABLE_CANDIDATES}. Tables found: {tables}. "
+        f"Using fallback '{OTHER_TABLE}'."
+    )
     return OTHER_TABLE
 
 
