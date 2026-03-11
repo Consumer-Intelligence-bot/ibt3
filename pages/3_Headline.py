@@ -88,6 +88,13 @@ ins_shop_switch = ins_shoppers[ins_shoppers["IsSwitcher"]]
 ins_total = len(ins_existing) + len(ins_new_biz)
 ins_retained = len(ins_non_shop) + len(ins_shop_stay)
 
+# Inbound switching — customers who switched FROM other brands TO this insurer
+ins_inbound = df_mkt[
+    (df_mkt["IsSwitcher"]) & (df_mkt["CurrentCompany"] == insurer) & (df_mkt["PreviousCompany"] != insurer)
+]
+after_all = len(df_mkt[df_mkt["CurrentCompany"] == insurer])
+mkt_inbound_pct = _pct(len(shop_switch), total)
+
 if ins_total == 0:
     st.warning(f"No data for {insurer} in this selection.")
     st.stop()
@@ -112,6 +119,8 @@ metrics = {
     "mkt_shop_switch_pct": _pct(len(shop_switch), len(shoppers)) if len(shoppers) > 0 else 0,
     "new_biz_pct": _pct(len(ins_new_biz), ins_total) if ins_total > 0 else 0,
     "mkt_new_biz_pct": mkt_new_biz_pct,
+    "inbound_switch_pct": _pct(len(ins_inbound), after_all) if after_all > 0 else 0,
+    "mkt_inbound_switch_pct": mkt_inbound_pct,
     "n": total,
 }
 
@@ -157,6 +166,7 @@ comparison_metrics = [
     ("Retention", metrics["retained_pct"], metrics["mkt_retained_pct"], "retention"),
     ("Shopped and stayed", metrics["shop_stay_pct"], metrics["mkt_shop_stay_pct"], "shopped_and_stayed"),
     ("New business acquisition", metrics["new_biz_pct"], metrics["mkt_new_biz_pct"], "new_business"),
+    ("Inbound switching", metrics["inbound_switch_pct"], metrics["mkt_inbound_switch_pct"], "inbound_switching"),
 ]
 
 for label, ins_val, mkt_val, desc_key in comparison_metrics:
@@ -191,9 +201,7 @@ for label, ins_val, mkt_val, desc_key in comparison_metrics:
 st.markdown("### Competitive exchange")
 
 # Won from
-switchers_to = df_mkt[
-    (df_mkt["IsSwitcher"]) & (df_mkt["CurrentCompany"] == insurer) & (df_mkt["PreviousCompany"] != insurer)
-]
+switchers_to = ins_inbound
 total_won = len(switchers_to) + len(ins_new_biz)
 won_counts = {}
 for _, r in switchers_to.iterrows():
