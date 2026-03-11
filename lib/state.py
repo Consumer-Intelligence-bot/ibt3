@@ -211,3 +211,85 @@ def render_global_filters():
         "payment_type": payment_type,
         "selected_months": selected_months,
     }
+
+
+def render_dual_period_selector() -> dict | None:
+    """
+    Render dual period selector for the Brand Awareness tab (Change 1).
+
+    Returns dict with keys:
+      period_a_months, period_b_months, period_a_label, period_b_label,
+      caption
+    Or None if insufficient data to build the selector.
+    """
+    df_motor = st.session_state.get("df_motor", pd.DataFrame())
+    if df_motor.empty or "RenewalYearMonth" not in df_motor.columns:
+        return None
+
+    all_months = sorted(
+        df_motor["RenewalYearMonth"].dropna().unique().astype(int).tolist()
+    )
+    if len(all_months) < 2:
+        return None
+
+    month_labels = {m: format_month(m) for m in all_months}
+
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("Period Comparison")
+
+    # Period A — Comparison period (baseline)
+    st.sidebar.markdown("**Comparison period** (baseline)")
+    default_a_end_idx = max(0, len(all_months) - 13)
+    default_a_start_idx = max(0, default_a_end_idx - 11)
+
+    period_a_start, period_a_end = st.sidebar.select_slider(
+        "Comparison period",
+        options=all_months,
+        value=(all_months[default_a_start_idx], all_months[default_a_end_idx]),
+        format_func=lambda x: month_labels.get(x, str(x)),
+        key="period_a_slider",
+    )
+
+    # Period B — Current period
+    st.sidebar.markdown("**Current period** (now)")
+    default_b_start_idx = min(default_a_end_idx + 1, len(all_months) - 1)
+
+    # Filter months that come after Period A end
+    b_options = [m for m in all_months if m > period_a_end]
+    if not b_options:
+        st.sidebar.error("Current period must follow comparison period.")
+        return None
+
+    period_b_start, period_b_end = st.sidebar.select_slider(
+        "Current period",
+        options=b_options,
+        value=(b_options[0], b_options[-1]),
+        format_func=lambda x: month_labels.get(x, str(x)),
+        key="period_b_slider",
+    )
+
+    # Build month lists
+    period_a_months = [m for m in all_months if period_a_start <= m <= period_a_end]
+    period_b_months = [m for m in all_months if period_b_start <= m <= period_b_end]
+
+    # Validation: at least one complete survey month each
+    if not period_a_months or not period_b_months:
+        st.sidebar.error("Select at least one full survey month for each period.")
+        return None
+
+    # Validation: no overlap
+    if period_a_end >= period_b_start:
+        st.sidebar.error("Periods overlap. Please adjust your selection.")
+        return None
+
+    period_a_label = f"{format_month(period_a_months[0])} to {format_month(period_a_months[-1])}"
+    period_b_label = f"{format_month(period_b_months[0])} to {format_month(period_b_months[-1])}"
+    caption = f"Comparison period: {period_a_label} | Current period: {period_b_label}"
+
+    return {
+        "period_a_months": period_a_months,
+        "period_b_months": period_b_months,
+        "period_a_label": period_a_label,
+        "period_b_label": period_b_label,
+        "caption": caption,
+    }

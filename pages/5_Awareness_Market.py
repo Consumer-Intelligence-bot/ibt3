@@ -1,6 +1,12 @@
 """
 Brand Awareness — Market View.
-Rank and rates across the market over time.
+
+Implements Changes 1–5 from the Brand Awareness Dashboard spec:
+  1. Dual period selector (Period A / Period B comparison)
+  2. Rank-enriched "Most Improved" callout
+  3. Movement-threshold filter
+  4. Separate Absolute and Mover views
+  5. Suppression rules for thin periods
 """
 
 import plotly.graph_objects as go
@@ -8,16 +14,28 @@ import streamlit as st
 
 from lib.analytics.awareness import (
     Q1_GATING_MESSAGE,
-    calc_awareness_bump,
-    calc_awareness_rates,
-    calc_awareness_summary,
+    apply_movement_filters,
+    calc_dual_period_comparison,
+    calc_most_improved_enriched,
 )
 from lib.analytics.demographics import apply_filters
-from lib.config import CI_GREEN, CI_GREY, CI_RED, BUMP_COLOURS
-from lib.state import format_year_month, render_global_filters, get_ss_data
+from lib.config import (
+    CI_GREEN,
+    CI_GREY,
+    CI_LIGHT_GREY,
+    CI_RED,
+    MIN_BASE_PUBLISHABLE,
+)
+from lib.state import (
+    format_year_month,
+    render_dual_period_selector,
+    render_global_filters,
+    get_ss_data,
+)
 
-st.header("Brand Awareness \u2014 Market View")
+st.header("Brand Awareness — Market View")
 
+# ---- Global filters ----
 filters = render_global_filters()
 df_motor, df_questions, dimensions = get_ss_data()
 
@@ -28,92 +46,335 @@ if df_motor.empty:
 product = filters["product"]
 selected_months = filters["selected_months"]
 
-# ---- Level toggle ----
+# ---- Awareness level toggle ----
 level = st.radio(
     "Awareness level",
     ["prompted", "consideration"],
-    format_func=lambda x: {"prompted": "Prompted (Q2)", "consideration": "Consideration (Q27)"}.get(x, x),
+    format_func=lambda x: {
+        "prompted": "Prompted (Q2)",
+        "consideration": "Consideration (Q27)",
+    }.get(x, x),
     horizontal=True,
 )
 
-df_main = apply_filters(df_motor, product=product, selected_months=selected_months)
+# ---- Change 1: Dual period selector ----
+periods = render_dual_period_selector()
+if periods is None:
+    st.warning("Insufficient data to build period comparison. Need at least two distinct survey months.")
+    st.stop()
 
-# ---- KPI summary ----
-summary = calc_awareness_summary(df_main, df_questions, level)
-if summary is None:
+period_a_months = periods["period_a_months"]
+period_b_months = periods["period_b_months"]
+caption = periods["caption"]
+
+# Apply product filter to main data
+df_main = apply_filters(df_motor, product=product)
+
+# Low-data warning (n < 50 at market level)
+n_a = df_main[df_main["RenewalYearMonth"].isin(period_a_months)]["UniqueID"].nunique()
+n_b = df_main[df_main["RenewalYearMonth"].isin(period_b_months)]["UniqueID"].nunique()
+if n_a < MIN_BASE_PUBLISHABLE or n_b < MIN_BASE_PUBLISHABLE:
+    st.warning(
+        "One or both periods have limited data. "
+        "Market-level metrics shown; insurer-level metrics may be suppressed."
+    )
+
+# ---- Compute dual-period comparison ----
+comparison = calc_dual_period_comparison(
+    df_main, df_questions, level,
+    period_a_months, period_b_months,
+)
+if comparison.empty:
     st.warning("No awareness data available for this selection.")
     st.stop()
 
-col1, col2, col3, col4 = st.columns(4)
-with col1:
-    st.metric("Brands Eligible", f"{summary['n_brands']:,}")
-with col2:
-    st.metric("Market Average", f"{summary['mean_rate']:.1%}")
-with col3:
-    st.metric("Highest", f"{summary['top_brand_rate']:.1%}")
-    st.caption(summary["top_brand_name"])
-with col4:
-    if summary.get("most_improved_name"):
-        change = summary["most_improved_change"]
-        sign = "+" if change > 0 else ""
-        st.metric("Most Improved", f"{summary['most_improved_name']}")
-        st.caption(f"{sign}{change:.1%}")
-    else:
-        st.metric("Most Improved", "\u2014")
+# Period caption on every section
+st.caption(caption)
 
-# ---- Bump chart ----
-st.subheader("Brand Rank Over Time")
-bump_data = calc_awareness_bump(df_main, df_questions, level)
-if bump_data.empty:
-    st.info("Insufficient data for bump chart.")
+# ---- Change 2: Rank-enriched "Most Improved" callout ----
+st.subheader("Summary")
+
+most_improved = calc_most_improved_enriched(comparison)
+
+col1, col2, col3, col4 = st.columns(4)
+
+# Brands eligible (in Period B)
+eligible_brands = comparison[comparison["combined_tier"].isin(["full", "indicative"])]
+with col1:
+    st.metric("Brands Eligible", f"{len(eligible_brands):,}")
+
+# Market average (Period B)
+with col2:
+    avg_b = eligible_brands["rate_b"].mean() if not eligible_brands.empty else 0
+    st.metric("Market Average", f"{avg_b:.1%}")
+
+# Highest awareness (Period B)
+with col3:
+    if not eligible_brands.empty:
+        top_row = eligible_brands.loc[eligible_brands["rate_b"].idxmax()]
+        st.metric("Highest Awareness", f"{top_row['rate_b']:.1%}")
+        st.caption(top_row["brand"])
+    else:
+        st.metric("Highest Awareness", "—")
+
+# Most improved — enriched callout
+with col4:
+    if most_improved:
+        mi = most_improved
+        st.metric("Most Improved", mi["brand"])
+        st.markdown(
+            f"Awareness: **{mi['rate_b']:.0%}** (was {mi['rate_a']:.0%}) &nbsp;|&nbsp; "
+            f"Change: **{mi['rate_change_pp']:+.0f}pp**  \n"
+            f"Rank: **{mi['rank_b']}** (was {mi['rank_a']}) &nbsp;|&nbsp; "
+            f"**{mi['direction_text']}**",
+            unsafe_allow_html=True,
+        )
+    else:
+        st.metric("Most Improved", "—")
+        st.caption("Insufficient data to identify most improved brand in the selected period.")
+
+# ---- Change 3: Movement-threshold filter ----
+st.sidebar.markdown("---")
+st.sidebar.subheader("Awareness Filters")
+
+show_all = st.sidebar.checkbox("Show all brands", value=False)
+
+min_rank_move = None
+min_pp_change = None
+top_n = None
+pinned_brands = []
+
+if not show_all:
+    use_rank_move = st.sidebar.checkbox("Minimum rank movement", value=True)
+    if use_rank_move:
+        min_rank_move = st.sidebar.number_input(
+            "Min rank positions moved", min_value=1, max_value=50, value=5, step=1,
+        )
+
+    use_pp_change = st.sidebar.checkbox("Minimum awareness change (pp)", value=False)
+    if use_pp_change:
+        min_pp_change = st.sidebar.number_input(
+            "Min awareness change (pp)", min_value=0.5, max_value=50.0, value=3.0, step=0.5,
+        )
+
+    use_top_n = st.sidebar.checkbox("Top N by current awareness", value=False)
+    if use_top_n:
+        top_n = st.sidebar.slider("Top N brands", min_value=5, max_value=30, value=15)
+
+# Brand search (pin)
+all_brands = sorted(comparison["brand"].unique().tolist())
+pinned_brands = st.sidebar.multiselect("Pin specific brands", options=all_brands)
+
+# Apply filters
+if show_all:
+    filtered = comparison.copy()
 else:
-    bump_data["month_label"] = bump_data["month"].apply(format_year_month)
-    brands = sorted(bump_data["brand"].unique())
+    filtered = apply_movement_filters(
+        comparison,
+        min_rank_movement=min_rank_move,
+        min_awareness_change_pp=min_pp_change,
+        top_n=top_n,
+        pinned_brands=pinned_brands,
+    )
+
+# Build dynamic chart title
+if show_all:
+    filter_title = "All brands"
+elif min_rank_move and not min_pp_change and not top_n:
+    filter_title = f"Brands moving {min_rank_move} or more rank positions"
+elif min_pp_change and not min_rank_move and not top_n:
+    filter_title = f"Brands with {min_pp_change:.0f}pp+ awareness change"
+elif top_n and not min_rank_move and not min_pp_change:
+    filter_title = f"Top {top_n} brands by current awareness"
+else:
+    parts = []
+    if min_rank_move:
+        parts.append(f"≥{min_rank_move} rank positions")
+    if min_pp_change:
+        parts.append(f"≥{min_pp_change:.0f}pp change")
+    if top_n:
+        parts.append(f"top {top_n}")
+    filter_title = "Brands: " + ", ".join(parts) if parts else "Filtered brands"
+
+# ---- Change 4: Separate Absolute and Mover views ----
+view = st.radio(
+    "View",
+    ["Awareness level", "Awareness movement"],
+    horizontal=True,
+    help="Level view: ranked by current awareness. Movement view: ranked by rank change.",
+)
+
+st.caption(caption)
+
+if view == "Awareness level":
+    # ---- Awareness Level View ----
+    st.subheader(f"Awareness Level — {filter_title}")
+
+    chart_data = filtered.sort_values("rate_b", ascending=True)
+
+    # Change 5: visual indicator for thin data
+    bar_colours = []
+    patterns = []
+    for _, row in chart_data.iterrows():
+        if row["combined_tier"] == "suppress":
+            bar_colours.append(CI_LIGHT_GREY)
+            patterns.append("/")
+        elif row["combined_tier"] == "indicative":
+            bar_colours.append(CI_GREY)
+            patterns.append("")
+        else:
+            bar_colours.append(CI_GREEN)
+            patterns.append("")
+
+    market_avg = chart_data.loc[
+        chart_data["combined_tier"].isin(["full", "indicative"]), "rate_b"
+    ].mean()
 
     fig = go.Figure()
-    for i, brand in enumerate(brands):
-        bd = bump_data[bump_data["brand"] == brand].sort_values("month")
-        colour = BUMP_COLOURS[i % len(BUMP_COLOURS)]
-        fig.add_trace(go.Scatter(
-            x=bd["month_label"], y=bd["rank"],
-            mode="lines+markers", name=brand,
-            line=dict(color=colour, width=2), marker=dict(size=6, color=colour),
-            hovertemplate=f"<b>{brand}</b><br>Rank: %{{y}}<br>Rate: %{{text}}<br>%{{x}}<extra></extra>",
-            text=[f"{r:.1%}" for r in bd["rate"]],
-        ))
-    fig.update_layout(
-        yaxis=dict(autorange="reversed", title="Rank", dtick=1),
-        height=500, font=dict(family="Verdana"),
-        plot_bgcolor="white", paper_bgcolor="white",
-        legend=dict(orientation="h", yanchor="top", y=-0.15),
-    )
-    st.plotly_chart(fig, width="stretch")
 
-# ---- Ranked bar chart ----
-st.subheader("Awareness Rate \u2014 Latest Month")
-rates = calc_awareness_rates(df_main, df_questions, level)
-if rates.empty:
-    st.info("Insufficient data for bar chart.")
-else:
-    latest_month = rates["month"].max()
-    latest = rates[rates["month"] == latest_month].sort_values("rate", ascending=True)
-    market_avg = latest["rate"].mean()
-
-    bar_colours = [CI_GREEN if r > market_avg else CI_RED for r in latest["rate"]]
-    fig_bar = go.Figure(go.Bar(
-        y=latest["brand"], x=latest["rate"], orientation="h",
-        marker_color=bar_colours,
-        text=[f"{r:.1%}" for r in latest["rate"]],
-        textposition="outside",
+    # Period A bars (lighter, behind)
+    fig.add_trace(go.Bar(
+        y=chart_data["brand"],
+        x=chart_data["rate_a"],
+        orientation="h",
+        name=periods["period_a_label"],
+        marker_color=CI_LIGHT_GREY,
+        text=[f"{r:.0%}" for r in chart_data["rate_a"]],
+        textposition="inside",
+        textfont=dict(size=10, color=CI_GREY),
     ))
-    fig_bar.add_vline(
-        x=market_avg, line_dash="dash", line_color=CI_GREY, line_width=1.5,
-        annotation_text=f"Market avg: {market_avg:.1%}",
-        annotation_font_size=11, annotation_font_color=CI_GREY,
+
+    # Period B bars (foreground)
+    fig.add_trace(go.Bar(
+        y=chart_data["brand"],
+        x=chart_data["rate_b"],
+        orientation="h",
+        name=periods["period_b_label"],
+        marker_color=bar_colours,
+        text=[
+            f"{r:.0%}  (Rank {rk})"
+            for r, rk in zip(chart_data["rate_b"], chart_data["rank_b"])
+        ],
+        textposition="outside",
+        textfont=dict(size=10),
+    ))
+
+    # Market average reference line
+    if market_avg and market_avg > 0:
+        fig.add_vline(
+            x=market_avg, line_dash="dash", line_color=CI_GREY, line_width=1.5,
+            annotation_text=f"Market avg: {market_avg:.0%}",
+            annotation_font_size=11, annotation_font_color=CI_GREY,
+        )
+
+    fig.update_layout(
+        barmode="overlay",
+        xaxis_tickformat=".0%",
+        height=max(400, len(chart_data) * 35),
+        margin=dict(l=180, r=80),
+        font=dict(family="Verdana"),
+        plot_bgcolor="white",
+        paper_bgcolor="white",
+        legend=dict(orientation="h", yanchor="top", y=-0.05),
     )
-    fig_bar.update_layout(
-        xaxis_tickformat=".0%", height=max(400, len(latest) * 30),
-        margin=dict(l=150), font=dict(family="Verdana"),
-        plot_bgcolor="white", paper_bgcolor="white",
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Change 5: legend for thin data indicators
+    st.caption(
+        "Dashed/grey bars indicate indicative data (low base). "
+        "Light grey bars indicate suppressed data — treat with caution."
     )
-    st.plotly_chart(fig_bar, width="stretch")
+
+else:
+    # ---- Awareness Movement View ----
+    st.subheader(f"Awareness Movement — {filter_title}")
+
+    # Change 5: exclude brands with suppress or absent tier from movement view
+    movement_data = filtered[
+        filtered["combined_tier"].isin(["full", "indicative"])
+    ].copy()
+
+    if movement_data.empty:
+        st.info("No brands with sufficient data in both periods to show movement.")
+    else:
+        # Sort by absolute rank movement (largest movers at top)
+        movement_data = movement_data.sort_values("abs_rank_movement", ascending=True)
+
+        # Colour coding (Change 4)
+        bar_colours = []
+        for mv in movement_data["rank_movement"]:
+            if mv > 0:
+                bar_colours.append(CI_GREEN)
+            elif mv < 0:
+                bar_colours.append(CI_RED)
+            else:
+                bar_colours.append(CI_GREY)
+
+        # Delta labels
+        delta_labels = []
+        for mv in movement_data["rank_movement"]:
+            if mv > 0:
+                delta_labels.append(f"↑{mv}")
+            elif mv < 0:
+                delta_labels.append(f"↓{abs(mv)}")
+            else:
+                delta_labels.append("—")
+
+        fig_mv = go.Figure()
+
+        fig_mv.add_trace(go.Bar(
+            y=movement_data["brand"],
+            x=movement_data["rank_movement"],
+            orientation="h",
+            marker_color=bar_colours,
+            text=delta_labels,
+            textposition="outside",
+            textfont=dict(size=11, family="Verdana"),
+            hovertemplate=(
+                "<b>%{y}</b><br>"
+                "Rank: %{customdata[0]} → %{customdata[1]}<br>"
+                "Movement: %{x} positions<br>"
+                "<extra></extra>"
+            ),
+            customdata=list(zip(
+                movement_data["rank_a"],
+                movement_data["rank_b"],
+            )),
+        ))
+
+        fig_mv.update_layout(
+            xaxis_title="Rank positions gained / lost",
+            height=max(400, len(movement_data) * 35),
+            margin=dict(l=180, r=60),
+            font=dict(family="Verdana"),
+            plot_bgcolor="white",
+            paper_bgcolor="white",
+        )
+
+        # Add rank labels as annotations
+        for i, (_, row) in enumerate(movement_data.iterrows()):
+            # Change 5: indicative flag
+            suffix = ""
+            if row["combined_tier"] == "indicative":
+                suffix = " ⚠"
+
+            fig_mv.add_annotation(
+                x=0,
+                y=row["brand"],
+                text=f"Rank {row['rank_a']} → {row['rank_b']}{suffix}",
+                showarrow=False,
+                font=dict(size=9, color=CI_GREY, family="Verdana"),
+                xanchor="left" if row["rank_movement"] < 0 else "right",
+                xshift=5 if row["rank_movement"] < 0 else -5,
+            )
+
+        st.plotly_chart(fig_mv, use_container_width=True)
+
+        # Change 5 legend
+        st.caption(
+            "⚠ = Indicative — low base. "
+            "Brands with insufficient data in either period are excluded."
+        )
+
+# ---- Footer caption ----
+st.caption(caption)
