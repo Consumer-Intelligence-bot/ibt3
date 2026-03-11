@@ -38,7 +38,8 @@ Return ONLY valid JSON with exactly these keys:
     "shopping_rate": "<1-2 sentences>",
     "retention": "<1-2 sentences>",
     "shopped_and_stayed": "<1-2 sentences>",
-    "new_business": "<1-2 sentences>"
+    "new_business": "<1-2 sentences>",
+    "inbound_switching": "<1-2 sentences>"
   }
 }
 
@@ -55,10 +56,11 @@ Then complete the headline based on what drives the share outcome:
 
 Subtitle (one sentence): Summarise what retention and new business did to share overall.
 
-Paragraph (3-4 sentences of plain English explanation):
+Paragraph (3-5 sentences of plain English explanation):
 - What the shopping rate tells us
 - Whether retention helped or hurt
-- What new business contributed
+- What inbound switching from competitors contributed
+- What new-to-market business contributed
 - The net share outcome
 
 Descriptions (1-2 sentences each explaining what the metric means for the brand):
@@ -66,6 +68,7 @@ Descriptions (1-2 sentences each explaining what the metric means for the brand)
 - retention: How the brand's retention compares and what it means
 - shopped_and_stayed: What the shopped-and-stayed rate reveals about competitiveness
 - new_business: What the new business acquisition rate means for the brand
+- inbound_switching: What the brand's ability to attract switchers from competitors tells us
 
 Do not use bullet points. Do not use jargon. Write in British English.
 Do not mention sample sizes or survey methodology.
@@ -88,6 +91,7 @@ def _format_ss_metrics(d: dict) -> str:
     ret_tag = _derive_tag(d["retained_pct"], d["mkt_retained_pct"])
     stay_tag = _derive_tag(d["shop_stay_pct"], d["mkt_shop_stay_pct"])
     biz_tag = _derive_tag(d["new_biz_pct"], d["mkt_new_biz_pct"])
+    inbound_tag = _derive_tag(d["inbound_switch_pct"], d["mkt_inbound_switch_pct"])
 
     return (
         f"Brand: {d['insurer']}\n"
@@ -101,6 +105,8 @@ def _format_ss_metrics(d: dict) -> str:
         f"{d['mkt_retained_pct'] * 100:.1f}% — {ret_tag}\n"
         f"Shopped and stayed: {d['shop_stay_pct'] * 100:.1f}% vs market "
         f"{d['mkt_shop_stay_pct'] * 100:.1f}% — {stay_tag}\n"
+        f"Inbound switching: {d['inbound_switch_pct'] * 100:.1f}% vs market "
+        f"{d['mkt_inbound_switch_pct'] * 100:.1f}% — {inbound_tag}\n"
         f"New business acquisition: {d['new_biz_pct'] * 100:.1f}% vs market "
         f"{d['mkt_new_biz_pct'] * 100:.1f}% — {biz_tag}\n\n"
         f"Write the headline, subtitle, and explanatory paragraph for this brand."
@@ -193,6 +199,8 @@ def _cache_key_ss(d: dict) -> str:
         round(d["mkt_retained_pct"] * 1000),
         round(d["shop_stay_pct"] * 1000),
         round(d["mkt_shop_stay_pct"] * 1000),
+        round(d["inbound_switch_pct"] * 1000),
+        round(d["mkt_inbound_switch_pct"] * 1000),
         round(d["new_biz_pct"] * 1000),
         round(d["mkt_new_biz_pct"] * 1000),
     )
