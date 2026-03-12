@@ -24,7 +24,7 @@ from lib.analytics.rates import calc_shopping_rate, calc_switching_rate, calc_re
 from lib.analytics.reasons import calc_reason_ranking, calc_reason_comparison
 from lib.analytics.suppression import check_suppression
 from lib.analytics.trends import calc_trend
-from lib.chart_export import apply_export_metadata, render_suppression_html, confidence_tooltip
+from lib.chart_export import apply_export_metadata, heading_with_tooltip, render_suppression_html, confidence_tooltip
 from lib.config import (
     CI_GREEN,
     CI_GREY,
@@ -87,14 +87,21 @@ def _card_html(title, value, subtitle="", colour=CI_MAGENTA):
     )
 
 
-def _section_divider(title):
-    """Render a branded section divider."""
-    st.markdown(
-        f'<div style="font-family:{FONT}; font-size:15px; font-weight:bold; color:{CI_GREY}; '
-        f'border-bottom:2px solid {CI_LIGHT_GREY}; padding-bottom:8px; margin:28px 0 16px 0;">'
-        f"{title}</div>",
-        unsafe_allow_html=True,
-    )
+def _section_divider(title, q_code=None):
+    """Render a branded section divider with optional question tooltip."""
+    if q_code:
+        st.markdown(heading_with_tooltip(title, q_code, level="small"), unsafe_allow_html=True)
+        st.markdown(
+            f'<div style="border-bottom:2px solid {CI_LIGHT_GREY}; margin:-8px 0 16px 0;"></div>',
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown(
+            f'<div style="font-family:{FONT}; font-size:15px; font-weight:bold; color:{CI_GREY}; '
+            f'border-bottom:2px solid {CI_LIGHT_GREY}; padding-bottom:8px; margin:28px 0 16px 0;">'
+            f"{title}</div>",
+            unsafe_allow_html=True,
+        )
 
 
 def _period_label(selected_months):
@@ -214,7 +221,7 @@ if not conf.can_show:
 # Section 2: Retention Performance Cards
 # ---------------------------------------------------------------------------
 
-_section_divider("Retention Performance")
+_section_divider("Retention Performance", "Q15")
 
 # Insurer Bayesian-smoothed retention
 ins_rate_display = bay["posterior_mean"]
@@ -289,7 +296,7 @@ with col3:
 # Section 3: Customer Flow Panel
 # ---------------------------------------------------------------------------
 
-_section_divider("Customer Flows")
+_section_divider("Customer Flows", "Q39")
 
 sources = calc_top_sources(df_mkt, insurer, 5)
 destinations = calc_top_destinations(df_mkt, insurer, 5)
@@ -390,7 +397,7 @@ with col_n:
 # Section 5: Why Customers Stay (Q18 Reasons)
 # ---------------------------------------------------------------------------
 
-_section_divider("Why Customers Stay (Q18)")
+_section_divider("Why Customers Stay", "Q18")
 
 if n_ins >= MIN_BASE_REASON:
     q18_comparison = calc_reason_comparison(df_mkt, df_questions, "Q18", insurer, top_n=5)
@@ -439,7 +446,7 @@ else:
 # Section 6: Why Customers Leave (Q31 Reasons)
 # ---------------------------------------------------------------------------
 
-_section_divider("Why Customers Leave (Q31)")
+_section_divider("Why Customers Leave", "Q31")
 
 # For Q31, the base is departed customers
 departed_ins = df_mkt[(df_mkt["IsSwitcher"]) & (df_mkt["PreviousCompany"] == insurer)] if "PreviousCompany" in df_mkt.columns else pd.DataFrame()
@@ -492,7 +499,7 @@ else:
 # Section 7: Previous Insurer Satisfaction (Q40a / Q40b)
 # ---------------------------------------------------------------------------
 
-_section_divider("Previous Insurer Satisfaction (Q40a / Q40b)")
+_section_divider("Previous Insurer Satisfaction", "Q40a")
 
 sentiment_ins = calc_departed_sentiment(df_mkt, insurer)
 

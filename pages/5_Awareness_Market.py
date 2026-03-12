@@ -21,7 +21,7 @@ from lib.analytics.awareness import (
     calc_most_improved_enriched,
 )
 from lib.analytics.demographics import apply_filters
-from lib.chart_export import apply_export_metadata
+from lib.chart_export import apply_export_metadata, heading_with_tooltip
 from lib.config import (
     BUMP_COLOURS,
     CI_GREEN,
@@ -382,7 +382,8 @@ else:
 
 # ---- Multi-Brand Trend Line Chart (Spec Section 9.6) ----
 st.markdown("---")
-st.subheader("Multi-Brand Awareness Trend")
+_trend_q = "Q2" if level == "prompted" else "Q27"
+st.markdown(heading_with_tooltip("Multi-Brand Awareness Trend", _trend_q, level="subheader"), unsafe_allow_html=True)
 st.caption(
     "Showing overall rank movement by brand. Arrows indicate rank positions "
     "gained or lost, not absolute rank."

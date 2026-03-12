@@ -12,7 +12,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from lib.chart_export import apply_export_metadata, confidence_tooltip
+from lib.chart_export import apply_export_metadata, confidence_tooltip, heading_with_tooltip
 from lib.config import (
     CI_BLUE, CI_DARK, CI_GREEN, CI_GREY, CI_LGREY, CI_LIGHT_GREY,
     CI_MAGENTA, CI_RED, CI_VIOLET, CI_WHITE,
@@ -285,9 +285,7 @@ st.markdown(
 
 # ---- Key Metrics ----
 st.markdown(
-    f'<div style="font-family:{FONT}; font-size:15px; font-weight:bold; color:{CI_GREY}; '
-    f'border-bottom:2px solid {CI_LIGHT_GREY}; padding-bottom:8px; margin-bottom:16px;">'
-    f'Key Metrics</div>',
+    heading_with_tooltip("Key Metrics", "Q52", level="small"),
     unsafe_allow_html=True,
 )
 
@@ -318,9 +316,7 @@ with col4:
 
 # ---- Star Rating with Rank Positioning ----
 st.markdown(
-    f'<div style="font-family:{FONT}; font-size:15px; font-weight:bold; color:{CI_GREY}; '
-    f'border-bottom:2px solid {CI_LIGHT_GREY}; padding-bottom:8px; margin:24px 0 16px 0;">'
-    f'Star Rating</div>',
+    heading_with_tooltip("Star Rating", "Q52", level="small"),
     unsafe_allow_html=True,
 )
 
@@ -362,9 +358,7 @@ if stars is not None:
 
 # ---- Bar Chart — All Insurers with CI Bands ----
 st.markdown(
-    f'<div style="font-family:{FONT}; font-size:15px; font-weight:bold; color:{CI_GREY}; '
-    f'border-bottom:2px solid {CI_LIGHT_GREY}; padding-bottom:8px; margin:24px 0 16px 0;">'
-    f'Overall Satisfaction by Insurer</div>',
+    heading_with_tooltip("Overall Satisfaction by Insurer", "Q52", level="small"),
     unsafe_allow_html=True,
 )
 
@@ -443,9 +437,7 @@ st.plotly_chart(fig, use_container_width=True)
 # ---- Q53 Journey Statement Detail ----
 if not q53_df.empty and diagnostics_for_ai:
     st.markdown(
-        f'<div style="font-family:{FONT}; font-size:15px; font-weight:bold; color:{CI_GREY}; '
-        f'border-bottom:2px solid {CI_LIGHT_GREY}; padding-bottom:8px; margin:24px 0 16px 0;">'
-        f'Claims Journey — Diagnostic Statements (Q53)</div>',
+        heading_with_tooltip("Claims Journey — Diagnostic Statements", "Q53", level="small"),
         unsafe_allow_html=True,
     )
 

@@ -9,28 +9,59 @@ from __future__ import annotations
 
 import plotly.graph_objects as go
 
+from lib.question_ref import QUESTION_WORDING
 
-# Question reference mapping (full wording)
-QUESTION_REF = {
-    "Q1": "Q1: Which companies come to mind that sell motor/home insurance? (Spontaneous, open-text)",
-    "Q2": "Q2: Which of these companies are you aware of selling motor/home insurance? (Prompted, multi-select)",
-    "Q4": "Q4: Which company is your current motor/home insurance with?",
-    "Q7": "Q7: Did you shop around at your most recent renewal?",
-    "Q8": "Q8: What were your reasons for shopping around? (Ranked)",
-    "Q9b": "Q9b: Which channels did you use to shop around? (Multi-select)",
-    "Q11": "Q11: Which price comparison websites did you use? (Multi-select)",
-    "Q15": "Q15: Did you switch insurer at your most recent renewal?",
-    "Q18": "Q18: What were your reasons for staying with your insurer after shopping? (Ranked)",
-    "Q19": "Q19: What were your reasons for not shopping around? (Ranked)",
-    "Q27": "Q27: Which of these companies would you consider buying insurance from? (Multi-select)",
-    "Q31": "Q31: What were your reasons for switching away? (Multi-select)",
-    "Q33": "Q33: What were your reasons for choosing your new insurer? (Ranked)",
-    "Q39": "Q39: Which company were you previously insured with?",
-    "Q40a": "Q40a: How satisfied were you with your previous insurer overall? (1-5)",
-    "Q40b": "Q40b: How likely would you be to recommend your previous insurer? (0-10, NPS)",
-    "Q52": "Q52: How satisfied were you with the claims process overall? (1-5)",
-    "Q53": "Q53: How would you rate the following aspects of your claims experience? (1-5)",
-}
+# Re-export for backward compatibility (chart footers use shorter refs)
+QUESTION_REF = {k: f"{k}: {v}" for k, v in QUESTION_WORDING.items()}
+
+# ---------------------------------------------------------------------------
+# Tooltip heading helper — renders a section heading with an (i) icon
+# that shows the underlying survey question on hover.
+# ---------------------------------------------------------------------------
+
+_TOOLTIP_CSS = (
+    "display:inline-block; margin-left:8px; width:18px; height:18px; "
+    "border-radius:50%; background:#E9EAEB; text-align:center; "
+    "line-height:18px; font-size:11px; font-weight:bold; color:#54585A; "
+    "cursor:help; vertical-align:middle; font-style:normal;"
+)
+
+
+def heading_with_tooltip(title: str, q_code: str | None = None, level: str = "subheader") -> str:
+    """Return HTML for a section heading with an (i) tooltip showing the question wording.
+
+    Parameters
+    ----------
+    title : str
+        The visible heading text.
+    q_code : str | None
+        Question code (e.g. "Q8"). If None or not found, no tooltip is shown.
+    level : str
+        Visual size: "header" (h2), "subheader" (h3), or "small" (h4).
+
+    Returns
+    -------
+    str
+        HTML string — call st.markdown(..., unsafe_allow_html=True) to render.
+    """
+    tag = {"header": "h2", "subheader": "h3", "small": "h4"}.get(level, "h3")
+    font_size = {"header": "22px", "subheader": "17px", "small": "15px"}.get(level, "17px")
+
+    tooltip_html = ""
+    if q_code:
+        wording = QUESTION_WORDING.get(q_code, "")
+        if wording:
+            # Escape quotes for HTML title attribute
+            escaped = wording.replace('"', '&quot;').replace("'", "&#39;")
+            tooltip_html = (
+                f'<span style="{_TOOLTIP_CSS}" title="{escaped}">i</span>'
+            )
+
+    return (
+        f'<{tag} style="font-family:Verdana,sans-serif; font-size:{font_size}; '
+        f'color:#54585A; margin:24px 0 12px 0; font-weight:bold;">'
+        f'{title}{tooltip_html}</{tag}>'
+    )
 
 
 def apply_export_metadata(

@@ -14,7 +14,7 @@ from lib.analytics.awareness import (
     calc_awareness_slopegraph,
 )
 from lib.analytics.demographics import apply_filters
-from lib.chart_export import apply_export_metadata, confidence_tooltip
+from lib.chart_export import apply_export_metadata, confidence_tooltip, heading_with_tooltip
 from lib.config import (
     BUMP_COLOURS, CI_BLUE, CI_GREEN, CI_GREY, CI_LIGHT_GREY,
     CI_MAGENTA, CI_RED, MIN_BASE_PUBLISHABLE,
@@ -75,22 +75,22 @@ else:
     st.stop()
 
 # ---- Slopegraph panels (Spec 10.3) ----
-st.subheader("Awareness Funnel")
+st.markdown(heading_with_tooltip("Awareness Funnel", "Q2", level="subheader"), unsafe_allow_html=True)
 prompted_slope = calc_awareness_slopegraph(df_main, df_questions, insurer, "prompted")
 consideration_slope = calc_awareness_slopegraph(df_main, df_questions, insurer, "consideration")
 
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    st.markdown("**Spontaneous (Q1)**")
+    st.markdown(heading_with_tooltip("Spontaneous", "Q1", level="small"), unsafe_allow_html=True)
     st.info(Q1_GATING_MESSAGE)
 
-for col, title, data, colour in [
-    (col2, "Prompted (Q2)", prompted_slope, CI_BLUE),
-    (col3, "Consideration (Q27)", consideration_slope, CI_GREEN),
+for col, title, data, colour, qc in [
+    (col2, "Prompted", prompted_slope, CI_BLUE, "Q2"),
+    (col3, "Consideration", consideration_slope, CI_GREEN, "Q27"),
 ]:
     with col:
-        st.markdown(f"**{title}**")
+        st.markdown(heading_with_tooltip(title, qc, level="small"), unsafe_allow_html=True)
         if data and data.get("can_show"):
             arrows = {"up": "\u2191", "down": "\u2193", "flat": "\u2192"}
             arrow = arrows.get(data["direction"], "\u2192")
@@ -125,7 +125,7 @@ if prompted_slope and consideration_slope:
             )
 
 # ---- Trend chart with market bands (Spec 10.4) ----
-st.subheader("Awareness Trend vs Market")
+st.markdown(heading_with_tooltip("Awareness Trend vs Market", "Q2", level="subheader"), unsafe_allow_html=True)
 
 prompted_rates = calc_awareness_rates(df_main, df_questions, "prompted")
 consideration_rates = calc_awareness_rates(df_main, df_questions, "consideration")
@@ -182,7 +182,7 @@ st.caption(confidence_tooltip("ci"))
 
 # ---- Co-Awareness Panel (Spec 10.5) ----
 st.markdown("---")
-st.subheader("Co-Awareness")
+st.markdown(heading_with_tooltip("Co-Awareness", "Q2", level="subheader"), unsafe_allow_html=True)
 st.caption(
     f"Of people who are aware of {insurer}, which other brands do they also recognise?"
 )

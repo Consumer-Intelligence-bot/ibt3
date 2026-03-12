@@ -14,7 +14,7 @@ from lib.analytics.channels import calc_channel_usage, calc_pcw_usage
 from lib.analytics.demographics import apply_filters
 from lib.analytics.rates import calc_shopping_rate, calc_switching_rate, calc_retention_rate
 from lib.analytics.reasons import calc_reason_ranking
-from lib.chart_export import apply_export_metadata
+from lib.chart_export import apply_export_metadata, heading_with_tooltip
 from lib.config import CI_GREEN, CI_MAGENTA, CI_GREY, MIN_BASE_REASON
 from lib.state import format_year_month, render_global_filters, get_ss_data
 
@@ -76,7 +76,7 @@ with col4:
     st.caption(f"n = {n:,}")
 
 # ---- Market Retention Trend (rolling 12-month default) ----
-st.subheader("Market Retention Trend")
+st.markdown(heading_with_tooltip("Market Retention Trend", "Q15"), unsafe_allow_html=True)
 
 by_month = df_market.groupby("RenewalYearMonth").agg(
     retained=("IsRetained", "sum"),
@@ -119,7 +119,7 @@ col_left, col_right = st.columns(2)
 
 # -- Q8 Reasons --
 with col_left:
-    st.subheader("Why Customers Shop (Q8)")
+    st.markdown(heading_with_tooltip("Why Customers Shop", "Q8"), unsafe_allow_html=True)
     n_shoppers = int(df_market["IsShopper"].sum()) if "IsShopper" in df_market.columns else 0
 
     if n_shoppers < MIN_BASE_REASON:
@@ -163,7 +163,7 @@ with col_left:
 
 # -- Channel usage (Q9b) --
 with col_right:
-    st.subheader("Shopping Channels (Q9b)")
+    st.markdown(heading_with_tooltip("Shopping Channels", "Q9b"), unsafe_allow_html=True)
     ch = calc_channel_usage(df_market, df_questions)
     if ch is not None and len(ch) > 0:
         # Sort descending and take top channels
@@ -197,7 +197,7 @@ with col_right:
         st.info("Channel data not available.")
 
 # ---- PCW Market Share (Q11) ----
-st.subheader("PCW Market Share (Q11)")
+st.markdown(heading_with_tooltip("PCW Market Share", "Q11"), unsafe_allow_html=True)
 pcw = calc_pcw_usage(df_market, df_questions)
 if pcw is not None and len(pcw) > 0:
     col_pcw, _ = st.columns([2, 1])

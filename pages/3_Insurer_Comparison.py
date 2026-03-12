@@ -13,7 +13,7 @@ from lib.analytics.demographics import apply_filters
 from lib.analytics.flows import calc_net_flow
 from lib.analytics.rates import calc_shopping_rate, calc_retention_rate
 from lib.analytics.trends import calc_trend
-from lib.chart_export import apply_export_metadata
+from lib.chart_export import apply_export_metadata, heading_with_tooltip
 from lib.config import (
     CI_GREEN,
     CI_GREY,
@@ -154,7 +154,7 @@ df_comp = pd.DataFrame(rows).sort_values("retention", ascending=False).reset_ind
 # ===========================================================================
 # Section 1: Retention Comparison Chart (Spec 7.2)
 # ===========================================================================
-st.markdown("### Retention Comparison")
+st.markdown(heading_with_tooltip("Retention Comparison", "Q15", level="subheader"), unsafe_allow_html=True)
 
 fig = go.Figure()
 
