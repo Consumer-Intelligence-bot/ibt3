@@ -97,7 +97,12 @@ def run_dax(token: str, dax: str, *, silent: bool = False,
 
 # Known table name variants to probe when metadata queries fail.
 _MAIN_TABLE_CANDIDATES = ["MainData_Motor", "MainData_Home", "MainData"]
-_OTHER_TABLE_CANDIDATES = ["AllOtherData_Motor", "AllOtherData_Home", "AllOtherData"]
+_OTHER_TABLE_CANDIDATES = [
+    "AllOtherData_Motor", "AllOtherData_Home", "AllOtherData",
+    "OtherData", "OtherData_Motor", "OtherData_Home",
+    "QuestionData", "SurveyData", "ResponseData",
+    "Questions", "Responses",
+]
 
 
 def _probe_table_exists_simple(token: str, table_name: str, *,
@@ -147,14 +152,19 @@ def discover_tables(token: str, *,
         return df[name_col[0]].tolist()
 
     # --- Attempt 2: Probe known table name candidates ---
+    import logging
+    _log = logging.getLogger(__name__)
     found: list[str] = []
     all_candidates = list(dict.fromkeys(
         _MAIN_TABLE_CANDIDATES + _OTHER_TABLE_CANDIDATES
     ))
+    _log.info("INFO.TABLES() failed or empty; probing %d candidate table names", len(all_candidates))
     for name in all_candidates:
-        if _probe_table_exists_simple(token, name,
-                                      workspace_id=workspace_id,
-                                      dataset_id=dataset_id):
+        exists = _probe_table_exists_simple(token, name,
+                                            workspace_id=workspace_id,
+                                            dataset_id=dataset_id)
+        _log.info("  Probe '%s': %s", name, "FOUND" if exists else "not found")
+        if exists:
             found.append(name)
     if found:
         return found
@@ -196,7 +206,13 @@ def get_other_table(_token: str, *,
                                       workspace_id=workspace_id,
                                       dataset_id=dataset_id):
             return name
-    st.warning(f"Could not find AllOtherData* table. Found: {tables}. Using fallback '{OTHER_TABLE}'.")
+    st.warning(
+        f"Could not find question data table. Tables discovered: {tables}. "
+        f"Probed candidates: {_OTHER_TABLE_CANDIDATES}. "
+        f"Using fallback '{OTHER_TABLE}'. "
+        f"If your question data table has a different name, add it to "
+        f"_OTHER_TABLE_CANDIDATES in lib/powerbi.py."
+    )
     return OTHER_TABLE
 
 
