@@ -9,6 +9,7 @@ pyarrow>=16.0.0
 
 # Visualization
 plotly>=5.22.0
+kaleido>=0.2.1
 
 # Power BI / Azure authentication
 msal>=1.28.0

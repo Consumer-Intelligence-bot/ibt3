@@ -28,17 +28,24 @@ Your audience is senior leaders at insurance companies.
 You will receive brand metrics compared to market benchmarks, each tagged
 AHEAD, BELOW, or IN LINE.
 
+IMPORTANT: Follow the fact-observation-prompt pattern for every insight:
+1. Lead with the FACT: "{Brand}'s shopping rate is 67%, versus 71% for the market."
+2. Then the OBSERVATION: "This is below market, suggesting customers are less inclined to compare."
+3. Then the PROMPT: "The top reasons given for not shopping were X, Y, Z. This may warrant investigation."
+Never state causation. You can suggest hypotheses and prompt investigation.
+"What are the contributing factors?" not "What is driving it?"
+
 Return ONLY valid JSON with exactly these keys:
 
 {
   "headline": "<one sentence>",
   "subtitle": "<one sentence>",
-  "paragraph": "<3-4 sentences>",
+  "paragraph": "<3-4 sentences following fact-observation-prompt pattern>",
   "descriptions": {
-    "shopping_rate": "<1-2 sentences>",
-    "retention": "<1-2 sentences>",
-    "shopped_and_stayed": "<1-2 sentences>",
-    "new_business": "<1-2 sentences>"
+    "shopping_rate": "<1-2 sentences: fact then observation>",
+    "retention": "<1-2 sentences: fact then observation>",
+    "shopped_and_stayed": "<1-2 sentences: fact then observation>",
+    "new_business": "<1-2 sentences: fact then observation>"
   }
 }
 
@@ -55,17 +62,17 @@ Then complete the headline based on what drives the share outcome:
 
 Subtitle (one sentence): Summarise what retention and new business did to share overall.
 
-Paragraph (3-4 sentences of plain English explanation):
-- What the shopping rate tells us
-- Whether retention helped or hurt
-- What new business contributed
-- The net share outcome
+Paragraph (3-4 sentences following fact-observation-prompt):
+- State the shopping rate fact and observation
+- State the retention fact and observation
+- State what new business contributed (fact)
+- End with a prompt: what should be investigated next
 
-Descriptions (1-2 sentences each explaining what the metric means for the brand):
-- shopping_rate: What the brand's shopping rate tells us compared to market
-- retention: How the brand's retention compares and what it means
-- shopped_and_stayed: What the shopped-and-stayed rate reveals about competitiveness
-- new_business: What the new business acquisition rate means for the brand
+Descriptions (1-2 sentences each, always lead with the fact):
+- shopping_rate: State the rate vs market, then what it suggests
+- retention: State the rate vs market, then what it means
+- shopped_and_stayed: State the rate, then what it reveals about competitiveness
+- new_business: State the rate, then what it means for the brand
 
 Do not use bullet points. Do not use jargon. Write in British English.
 Do not mention sample sizes or survey methodology.
@@ -117,12 +124,18 @@ Your audience is senior leaders at insurance companies.
 
 You will receive an insurer's claims satisfaction data compared to market benchmarks.
 
+IMPORTANT: Follow the fact-observation-prompt pattern for every insight:
+1. Lead with the FACT: "{Brand}'s overall claims satisfaction is 4.19, versus 3.87 for the market."
+2. Then the OBSERVATION: "This places {brand} in the top quintile, earning five stars."
+3. Then the PROMPT: "The strongest areas are X and Y. It may be worth investigating whether Z is contributing."
+Never state causation. Suggest hypotheses and prompt investigation.
+
 Return ONLY valid JSON with exactly three keys:
 
 {
   "headline": "<one sentence>",
   "subtitle": "<one sentence>",
-  "paragraph": "<3-4 sentences>"
+  "paragraph": "<3-4 sentences following fact-observation-prompt pattern>"
 }
 
 Rules for the headline (one sentence):
@@ -133,11 +146,11 @@ Rules for the headline (one sentence):
 
 Subtitle (one sentence): Summarise the gap to market and confidence level.
 
-Paragraph (3-4 sentences of plain English explanation):
-- Overall satisfaction position
-- Key diagnostic strengths (highest-rated statements vs market)
-- Key diagnostic weaknesses (lowest-rated statements vs market)
-- What this means for the brand
+Paragraph (3-4 sentences following fact-observation-prompt):
+- State the overall satisfaction fact and market comparison
+- Identify key diagnostic strengths (top journey statements vs market)
+- Identify key diagnostic weaknesses (bottom journey statements vs market)
+- End with a prompt about what to investigate or what external data might help
 
 Do not use bullet points. Do not use jargon. Write in British English.
 Do not mention sample sizes or survey methodology.
@@ -286,3 +299,117 @@ def generate_claims_narrative(
     key = _cache_key_claims(insurer, mean, market_mean)
     user_content = _format_claims_metrics(insurer, mean, market_mean, gap, stars, diagnostics)
     return _cached_call(key, _CLAIMS_SYSTEM_PROMPT, user_content)
+
+
+# ---------------------------------------------------------------------------
+# Insurer Diagnostic Narrative (Spec Section 13.2 — Funnel Sequence)
+# ---------------------------------------------------------------------------
+
+_DIAGNOSTIC_SYSTEM_PROMPT = """\
+You write concise insurer diagnostic summaries for a UK motor insurance dashboard.
+Your audience is senior leaders at insurance companies.
+
+CRITICAL: Follow the fact-observation-prompt pattern for EVERY finding:
+1. FACT: State the metric and its value vs market. Include actual numbers.
+2. OBSERVATION: What this suggests about the insurer's position. Do not state causation.
+3. PROMPT: What should be investigated next, or what external data would help.
+
+Follow the diagnostic funnel sequence:
+1. Shopping rate: What proportion shopped? How does this compare to market?
+2. Non-shopper reasons: For those who did not shop, what reasons did they give?
+3. Shopper reasons: For those who did shop, what triggered it?
+4. Switching rate: Of shoppers, what proportion switched?
+5. Retention analysis: Who stayed and why? Who left and why? Who switched in?
+6. Net flow: Net winner or net loser? Which insurers are biggest sources/destinations?
+7. Anomaly check: Flag anything that deviates meaningfully from market.
+
+Where the data cannot answer a question, say so explicitly and suggest what
+external data source would help (e.g. advertising schedules, pricing data).
+
+Return ONLY valid JSON:
+{
+  "headline": "<one sentence summary of the insurer's position>",
+  "subtitle": "<one sentence on the key finding>",
+  "findings": [
+    {"fact": "<metric statement>", "observation": "<what it suggests>", "prompt": "<what to investigate>"},
+    ...
+  ],
+  "data_gaps": ["<external data source that would help>", ...]
+}
+
+Write 3-5 findings. Each should follow the fact-observation-prompt pattern.
+Do not use bullet points within text. Write in British English.
+Do not mention sample sizes or survey methodology.
+"""
+
+
+def _format_diagnostic_metrics(d: dict) -> str:
+    """Format insurer diagnostic data for the AI funnel narrative."""
+    lines = [f"Brand: {d['insurer']}"]
+
+    # Shopping
+    if d.get("shopping_rate") is not None:
+        tag = _derive_tag(d["shopping_rate"], d.get("mkt_shopping_rate", 0))
+        lines.append(
+            f"Shopping rate: {d['shopping_rate'] * 100:.1f}% vs market "
+            f"{d.get('mkt_shopping_rate', 0) * 100:.1f}% — {tag}"
+        )
+
+    # Retention
+    if d.get("retention_rate") is not None:
+        tag = _derive_tag(d["retention_rate"], d.get("mkt_retention_rate", 0))
+        lines.append(
+            f"Retention rate: {d['retention_rate'] * 100:.1f}% vs market "
+            f"{d.get('mkt_retention_rate', 0) * 100:.1f}% — {tag}"
+        )
+
+    # Net flow
+    if d.get("net_flow") is not None:
+        nf = d["net_flow"]
+        direction = "net winner" if nf > 0 else ("net loser" if nf < 0 else "neutral")
+        lines.append(f"Net flow: {nf:+d} ({direction})")
+        if d.get("gained"):
+            lines.append(f"  Gained: {d['gained']}")
+        if d.get("lost"):
+            lines.append(f"  Lost: {d['lost']}")
+
+    # Top sources and destinations
+    if d.get("top_sources"):
+        lines.append(f"Top sources (won from): {', '.join(d['top_sources'][:3])}")
+    if d.get("top_destinations"):
+        lines.append(f"Top destinations (lost to): {', '.join(d['top_destinations'][:3])}")
+
+    # Reasons
+    if d.get("stay_reasons"):
+        lines.append(f"Top reasons for staying (Q18): {', '.join(d['stay_reasons'][:3])}")
+    if d.get("leave_reasons"):
+        lines.append(f"Top reasons for leaving (Q31): {', '.join(d['leave_reasons'][:3])}")
+    if d.get("shop_reasons"):
+        lines.append(f"Top reasons for shopping (Q8): {', '.join(d['shop_reasons'][:3])}")
+    if d.get("no_shop_reasons"):
+        lines.append(f"Top reasons for not shopping (Q19): {', '.join(d['no_shop_reasons'][:3])}")
+
+    # Satisfaction
+    if d.get("departed_satisfaction") is not None:
+        lines.append(f"Departed satisfaction (Q40a): {d['departed_satisfaction']:.1f}")
+    if d.get("departed_nps") is not None:
+        lines.append(f"Departed NPS (Q40b): {d['departed_nps']:+.0f}")
+
+    lines.append(
+        "\nWrite the diagnostic headline, subtitle, and 3-5 findings "
+        "following the fact-observation-prompt pattern."
+    )
+    return "\n".join(lines)
+
+
+def generate_diagnostic_narrative(metrics: dict) -> dict | None:
+    """Generate AI narrative for the Insurer Diagnostic page.
+
+    Follows the funnel sequence from Spec Section 13.2.
+    Returns {"headline": str, "subtitle": str, "findings": list, "data_gaps": list} or None.
+    """
+    if not NARRATIVE_ENABLED:
+        return None
+    key = f"diag:{metrics.get('insurer', '')}:{hash(str(sorted(metrics.items())))}"
+    user_content = _format_diagnostic_metrics(metrics)
+    return _cached_call(key, _DIAGNOSTIC_SYSTEM_PROMPT, user_content)

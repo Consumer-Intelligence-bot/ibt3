@@ -1,6 +1,7 @@
 """
 Admin / Governance — Internal page.
 Data quality monitoring, confidence threshold management.
+Enhanced per Spec Section 8.
 """
 
 import json
@@ -21,9 +22,49 @@ from lib.config import (
     CI_WIDTH_PUBLISHABLE_AWARENESS, CI_WIDTH_PUBLISHABLE_RATE, CI_WIDTH_PUBLISHABLE_REASON,
     CONFIDENCE_LEVEL, MARKET_CI_ALERT_THRESHOLD, MIN_BASE_FLOW_CELL,
     MIN_BASE_PUBLISHABLE, NPS_MIN_N, PRIOR_STRENGTH, SYSTEM_FLOOR_N,
-    TREND_NOISE_THRESHOLD,
+    TREND_NOISE_THRESHOLD, CI_MAGENTA, CI_LIGHT_GREY,
 )
 from lib.state import format_year_month, get_ss_data
+
+# ---------------------------------------------------------------------------
+# Page-level CSS: Verdana font, CI brand colours, table highlights
+# ---------------------------------------------------------------------------
+st.markdown(
+    f"""
+    <style>
+    html, body, [class*="css"] {{
+        font-family: Verdana, sans-serif;
+        color: {CI_GREY};
+    }}
+    div[data-testid="stMetricValue"] {{
+        font-size: 26px !important;
+        font-weight: bold !important;
+        color: {CI_MAGENTA} !important;
+    }}
+    .alert-badge {{
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: bold;
+        margin-top: 4px;
+    }}
+    .alert-red {{
+        background-color: {CI_RED};
+        color: white;
+    }}
+    .alert-yellow {{
+        background-color: {CI_YELLOW};
+        color: {CI_GREY};
+    }}
+    .alert-green {{
+        background-color: {CI_GREEN};
+        color: white;
+    }}
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 st.header("Admin / Governance")
 st.caption("Internal page \u2014 not visible to clients")
@@ -34,7 +75,7 @@ if df_motor.empty:
     st.warning("No S&S data loaded.")
     st.stop()
 
-# ---- Summary KPIs ----
+# ---- Summary KPIs (Spec 8.2) ----
 total = len(df_motor)
 all_insurers = dimensions.get("DimInsurer", pd.DataFrame())
 insurer_list = all_insurers["Insurer"].dropna().astype(str).tolist() if not all_insurers.empty else []
@@ -55,12 +96,25 @@ with col1:
     st.metric("Total Respondents", f"{total:,}")
 with col2:
     st.metric("Eligible Insurers", f"{eligible:,}")
+    if eligible < 15:
+        st.markdown(
+            f'<span class="alert-badge alert-red">⚠ &lt;15 eligible</span>',
+            unsafe_allow_html=True,
+        )
 with col3:
     st.metric("Suppressed", f"{suppressed:,}")
+    if suppressed > 10:
+        st.markdown(
+            f'<span class="alert-badge alert-yellow">⚠ &gt;10 suppressed</span>',
+            unsafe_allow_html=True,
+        )
 with col4:
     st.metric("Data Freshness", f"{freshness} days" if freshness else "N/A")
     if freshness and freshness > 45:
-        st.warning("Alert: > 45 days old")
+        st.markdown(
+            f'<span class="alert-badge alert-red">⚠ &gt;45 days old</span>',
+            unsafe_allow_html=True,
+        )
 
 # ---- Confidence Thresholds ----
 st.subheader("Confidence Thresholds")
@@ -78,7 +132,7 @@ thresholds = pd.DataFrame([
 
 edited = st.data_editor(thresholds, width="stretch", num_rows="fixed", key="threshold_editor")
 
-# ---- Governance Parameters ----
+# ---- Governance Parameters (Spec 8.6 — read-only) ----
 st.subheader("Governance Parameters")
 market_ret = df_motor["IsRetained"].mean() if "IsRetained" in df_motor.columns else 0.5
 
@@ -93,7 +147,7 @@ params = pd.DataFrame([
 ])
 st.dataframe(params, width="stretch", hide_index=True)
 
-# ---- Market-Level CI ----
+# ---- Market-Level CI (Spec 8.4) ----
 st.subheader("Market-Level Confidence")
 col1, col2, col3 = st.columns(3)
 for col, label, calc_fn in [
@@ -142,7 +196,7 @@ if not df_questions.empty and "RenewalYearMonth" in df_motor.columns:
 else:
     st.info("No QC flag data available.")
 
-# ---- Respondents by Month ----
+# ---- Respondents by Month (Spec 8.5) ----
 st.subheader("Respondents by Month")
 by_month = df_motor.groupby("RenewalYearMonth").size().reset_index(name="count")
 by_month["month_label"] = by_month["RenewalYearMonth"].apply(format_year_month)
@@ -173,8 +227,36 @@ if len(flow_mat) > 0:
 if val_results:
     st.dataframe(pd.DataFrame(val_results), width="stretch", hide_index=True)
 
-# ---- Insurer Data Quality ----
+# ---- Insurer Data Quality (Spec 8.3 — enhanced) ----
 st.subheader("Insurer Data Quality")
+
+# Confidence icon mapping
+_CONF_ICONS = {
+    "HIGH": "\u2705",        # green check
+    "MEDIUM": "\U0001F7E1",  # yellow circle
+    "LOW": "\U0001F7E0",     # orange circle
+    "INSUFFICIENT": "\u274C", # red cross
+}
+
+
+def _n_highlight(val: int) -> str:
+    """Return background colour CSS for sample size cells."""
+    if val < 50:
+        return f"background-color: {CI_RED}; color: white"
+    elif val < 100:
+        return f"background-color: {CI_YELLOW}; color: {CI_GREY}"
+    return ""
+
+
+def _ci_highlight(val: float) -> str:
+    """Return background colour CSS for CI Width cells."""
+    if val > 12.0:
+        return f"background-color: {CI_RED}; color: white"
+    elif val > 8.0:
+        return f"background-color: {CI_YELLOW}; color: {CI_GREY}"
+    return ""
+
+
 quality_rows = []
 for ins in sorted(insurer_list):
     ins_df = df_motor[df_motor["CurrentCompany"] == ins]
@@ -185,14 +267,57 @@ for ins in sorted(insurer_list):
     smoothed = bayesian_smooth_rate(int(retained), n, market_ret)
     ci_w = (smoothed["ci_upper"] - smoothed["ci_lower"]) * 100
     conf = assess_confidence(n, retained / n if n > 0 else 0, MetricType.RATE, posterior_ci_width=ci_w)
+
+    # Detect active issues / flags
+    issues = []
+    if n < MIN_BASE_PUBLISHABLE:
+        issues.append(f"n<{MIN_BASE_PUBLISHABLE}")
+    if ci_w > CI_WIDTH_INDICATIVE_RATE:
+        issues.append("CI too wide")
+    if conf.label.value == "INSUFFICIENT":
+        issues.append("Insufficient")
+
     quality_rows.append({
-        "Insurer": ins, "n": n,
+        "Insurer": ins,
+        "n": n,
         "CI Width (pp)": round(ci_w, 1),
-        "Confidence": conf.label.value,
-        "Weight": f"{smoothed['weight']:.0%}",
+        "Confidence": f"{_CONF_ICONS.get(conf.label.value, '')} {conf.label.value}",
+        "Smoothing Weight": f"{smoothed['weight']:.0%}",
+        "Issues": ", ".join(issues) if issues else "\u2014",
     })
 
 if quality_rows:
-    st.dataframe(pd.DataFrame(quality_rows), width="stretch", hide_index=True)
+    df_quality = pd.DataFrame(quality_rows)
+
+    # Apply colour-coded styling via pandas Styler
+    def _style_quality(row: pd.Series) -> list[str]:
+        """Row-wise styler returning CSS strings per cell."""
+        styles = [""] * len(row)
+        col_names = list(row.index)
+
+        # n column highlighting
+        n_idx = col_names.index("n")
+        n_val = row["n"]
+        if n_val < 50:
+            styles[n_idx] = f"background-color: {CI_RED}; color: white"
+        elif n_val < 100:
+            styles[n_idx] = f"background-color: {CI_YELLOW}; color: {CI_GREY}"
+
+        # CI Width column highlighting
+        ci_idx = col_names.index("CI Width (pp)")
+        ci_val = row["CI Width (pp)"]
+        if ci_val > 12.0:
+            styles[ci_idx] = f"background-color: {CI_RED}; color: white"
+        elif ci_val > 8.0:
+            styles[ci_idx] = f"background-color: {CI_YELLOW}; color: {CI_GREY}"
+
+        return styles
+
+    styled = (
+        df_quality.style
+        .apply(_style_quality, axis=1)
+        .set_properties(**{"font-family": "Verdana, sans-serif"})
+    )
+    st.dataframe(styled, width="stretch", hide_index=True)
 else:
     st.info("No insurer quality data.")
