@@ -109,11 +109,17 @@ init_ss_data(token, start_month, end_month, main_table, other_table,
              home_main_table, home_other_table)
 
 # ---- Landing page content ----
-st.markdown("## Welcome")
+st.markdown("## Welcome to the IBT Portal")
 st.markdown(
-    "Use the sidebar to navigate between **Claims Intelligence** and "
-    "**Shopping & Switching Intelligence** pages."
+    "Use the sidebar to navigate between pages: **Market Overview**, "
+    "**Insurer Diagnostic**, **Insurer Comparison**, **Awareness**, "
+    "**Claims Intelligence**, and **What Changed This Month**."
 )
 st.markdown(
     f"**Data period**: {format_month(start_month)} to {format_month(end_month)}"
+)
+st.markdown(
+    "All metrics on each page use the same time period selected above. "
+    "Both *versus last month* and *versus same month last year* comparisons "
+    "are available on insurer pages."
 )

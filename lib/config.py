@@ -110,6 +110,25 @@ Z_95 = 1.96
 TREND_NOISE_THRESHOLD = 2.0
 
 # ---------------------------------------------------------------------------
+# Sister brand / shared handler mapping (Spec Section 11.4)
+# ---------------------------------------------------------------------------
+SISTER_BRANDS = {
+    "Direct Line": ["Churchill", "Privilege", "Green Flag"],
+    "Churchill": ["Direct Line", "Privilege", "Green Flag"],
+    "Privilege": ["Direct Line", "Churchill", "Green Flag"],
+    "Aviva": ["Quotemehappy.com"],
+    "Quotemehappy.com": ["Aviva"],
+}
+
+# Comparable insurer sets for competitor cross-referencing (Spec Section 13.3)
+COMPARABLE_INSURERS = {
+    "direct": ["Direct Line", "Churchill", "Admiral", "Hastings"],
+    "aggregator": ["Admiral", "Hastings", "esure"],
+    "composite": ["Aviva", "AXA", "Zurich", "RSA"],
+    "mutual": ["NFU Mutual", "LV="],
+}
+
+# ---------------------------------------------------------------------------
 # AI-generated narrative
 # ---------------------------------------------------------------------------
 NARRATIVE_MODEL = os.getenv("NARRATIVE_MODEL", "claude-opus-4-6")

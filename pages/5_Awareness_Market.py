@@ -7,6 +7,7 @@ Implements Changes 1–5 from the Brand Awareness Dashboard spec:
   3. Movement-threshold filter
   4. Separate Absolute and Mover views
   5. Suppression rules for thin periods
+  6. Multi-brand trend line chart (Spec Section 9.6)
 """
 
 import plotly.graph_objects as go
@@ -15,11 +16,14 @@ import streamlit as st
 from lib.analytics.awareness import (
     Q1_GATING_MESSAGE,
     apply_movement_filters,
+    calc_awareness_rates,
     calc_dual_period_comparison,
     calc_most_improved_enriched,
 )
 from lib.analytics.demographics import apply_filters
+from lib.chart_export import apply_export_metadata
 from lib.config import (
+    BUMP_COLOURS,
     CI_GREEN,
     CI_GREY,
     CI_LIGHT_GREY,
@@ -375,6 +379,99 @@ else:
             "⚠ = Indicative — low base. "
             "Brands with insufficient data in either period are excluded."
         )
+
+# ---- Multi-Brand Trend Line Chart (Spec Section 9.6) ----
+st.markdown("---")
+st.subheader("Multi-Brand Awareness Trend")
+st.caption(
+    "Showing overall rank movement by brand. Arrows indicate rank positions "
+    "gained or lost, not absolute rank."
+)
+
+# Compute per-brand per-month awareness rates
+trend_rates = calc_awareness_rates(df_main, df_questions, level)
+
+if not trend_rates.empty:
+    # Filter options for trend chart
+    trend_filter = st.radio(
+        "Trend filter",
+        ["Top 10 by current awareness", "Top 10 by market share", "Custom competitor set"],
+        horizontal=True,
+        key="trend_filter",
+    )
+
+    # Determine which brands to show
+    latest_month = trend_rates["month"].max()
+    latest_rates = trend_rates[trend_rates["month"] == latest_month].sort_values("rate", ascending=False)
+
+    if trend_filter == "Top 10 by current awareness":
+        selected_brands = latest_rates.head(10)["brand"].tolist()
+    elif trend_filter == "Top 10 by market share":
+        # Use mention count as proxy for market share
+        selected_brands = latest_rates.sort_values("n_mentions", ascending=False).head(10)["brand"].tolist()
+    else:
+        # Custom competitor set
+        all_trend_brands = sorted(trend_rates["brand"].unique().tolist())
+        selected_brands = st.multiselect(
+            "Select brands (max 30)",
+            options=all_trend_brands,
+            default=latest_rates.head(10)["brand"].tolist(),
+            max_selections=30,
+            key="trend_brands",
+        )
+
+    if selected_brands:
+        trend_data = trend_rates[trend_rates["brand"].isin(selected_brands)].sort_values("month")
+
+        fig_trend = go.Figure()
+        for i, brand in enumerate(selected_brands):
+            brand_data = trend_data[trend_data["brand"] == brand]
+            if brand_data.empty:
+                continue
+            colour = BUMP_COLOURS[i % len(BUMP_COLOURS)]
+            x_labels = [format_year_month(m) for m in brand_data["month"]]
+            fig_trend.add_trace(go.Scatter(
+                x=x_labels,
+                y=brand_data["rate"],
+                mode="lines+markers",
+                name=brand,
+                line=dict(color=colour, width=2),
+                marker=dict(size=5, color=colour),
+                hovertemplate=(
+                    f"<b>{brand}</b><br>"
+                    "Rate: %{y:.1%}<br>"
+                    "%{x}<extra></extra>"
+                ),
+            ))
+
+        q_code = "Q2" if level == "prompted" else "Q27"
+        period_label = f"{format_year_month(trend_rates['month'].min())} to {format_year_month(trend_rates['month'].max())}"
+        n_total = int(trend_rates[trend_rates["month"] == latest_month]["n_total"].iloc[0]) if not latest_rates.empty else 0
+
+        apply_export_metadata(
+            fig_trend,
+            title=f"Multi-Brand Awareness Trend ({level.title()})",
+            period=period_label,
+            base=n_total,
+            question=q_code,
+        )
+
+        fig_trend.update_layout(
+            yaxis_tickformat=".0%",
+            yaxis_title="Awareness Rate",
+            yaxis_range=[0, 1],
+            height=500,
+            font=dict(family="Verdana"),
+            plot_bgcolor="white",
+            paper_bgcolor="white",
+            legend=dict(orientation="v", yanchor="top", y=1, xanchor="left", x=1.02),
+        )
+        st.plotly_chart(fig_trend, use_container_width=True)
+        st.caption(f"Showing {len(selected_brands)} brands. Maximum 30 brands displayed.")
+    else:
+        st.info("Select at least one brand to display the trend chart.")
+else:
+    st.info("Insufficient data to build multi-brand trend chart.")
 
 # ---- Footer caption ----
 st.caption(caption)
