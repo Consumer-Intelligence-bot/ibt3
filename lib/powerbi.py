@@ -130,7 +130,10 @@ def run_dax(token: str, dax: str, *, silent: bool = False,
         if not silent:
             st.error(f"Query failed: {body['error']}")
         return pd.DataFrame()
-    rows = body["results"][0]["tables"][0].get("rows", [])
+    try:
+        rows = body["results"][0]["tables"][0].get("rows", [])
+    except (KeyError, IndexError):
+        return pd.DataFrame()
     if not rows:
         return pd.DataFrame()
     df = pd.DataFrame(rows)
