@@ -1,84 +1,99 @@
 # Code Review — Consumer Intelligence Streamlit Dashboard
 
-**Date:** 2026-03-10
+**Original review date:** 2026-03-10
+**Updated:** 2026-03-18
 **Reviewer:** Claude (automated code review)
 **Scope:** Full codebase — Streamlit multipage app (`app.py`, `pages/`, `lib/`), CI/CD, and security
 
 ---
 
-## Executive Summary
+## Status Summary
 
-This is a well-structured Streamlit multipage analytics dashboard for insurance market intelligence. The codebase has solid separation of concerns (pages → lib → analytics), a clear confidence-first data governance model, and good use of Streamlit session state for shared filters. Several issues should be addressed before production delivery.
-
-### Severity Legend
-
-- **CRITICAL** — Must fix before delivery / production
-- **HIGH** — Should fix; causes bugs, security issues, or major maintainability problems
-- **MEDIUM** — Recommended; improves quality, performance, or readability
-- **LOW** — Suggestion; nice-to-have improvements
-
----
-
-## CRITICAL Issues
-
-### 1. Large data file committed to git
-
-**File:** `public/data/motor_main_data.csv` (15 MB, ~74K rows)
-
-A full production-scale CSV is tracked in git alongside the small demo file. This bloats the repo and may contain sensitive respondent data.
-
-**Recommendation:**
-- `git rm --cached public/data/motor_main_data.csv`
-- Add `public/data/motor_main_data.csv` to `.gitignore` (keep only the demo file)
-- Consider `git filter-branch` or BFG to remove from history if the data is sensitive
-
-### 2. Hardcoded Azure credentials in source
-
-**File:** `lib/config.py:9-13`
-
-```python
-TENANT_ID = "21c877f6-..."
-CLIENT_ID = "9cd99ce2-..."
-WORKSPACE_ID = "db6f5221-..."
-DATASET_ID = "646c070f-..."
-```
-
-While these are application IDs (not secrets), they identify specific Azure resources and should not be in source code.
-
-**Recommendation:** Move to environment variables with fallback defaults:
-```python
-TENANT_ID = os.getenv("AZURE_TENANT_ID", "21c877f6-...")
-```
+| # | Issue | Severity | Status |
+|---|-------|----------|--------|
+| 1 | Large data file committed to git | CRITICAL | ✅ Resolved |
+| 2 | Hardcoded Azure credentials in source | CRITICAL | ✅ Resolved |
+| 3 | Unsafe JSON parsing in `run_dax()` | HIGH | ✅ Resolved |
+| 4 | Duplicated utility functions across pages | HIGH | ✅ Resolved |
+| 5 | Bare exception handling in `narrative.py` | MEDIUM | ⏳ Pending |
+| 6 | Hardcoded feature flags | MEDIUM | ✅ Previously resolved |
+| 7 | `.env.example` uses Vite naming convention | MEDIUM | ⏳ Pending |
+| 8 | Demo data committed to git | LOW | Accepted — intentional |
+| 9 | No automated tests | LOW | ⏳ Pending |
+| 10 | Commit history hygiene | LOW | ⏳ Pending |
 
 ---
 
-## HIGH Issues
+## Resolved Issues
 
-### 3. Unsafe JSON parsing in `run_dax()`
+### 1. Large data file — RESOLVED (2026-03-18)
 
-**File:** `lib/powerbi.py`
+The 15 MB `motor_main_data.csv` was not actually tracked in git. The `.gitignore` has been updated to explicitly exclude it, along with `ss-intelligence/` and `node_modules/`, which were untracked directories sitting loose in the repo.
 
-```python
-rows = r.json()["results"][0]["tables"][0].get("rows", [])
-```
-
-No validation of response structure. A malformed Power BI response will crash with `KeyError` or `IndexError` rather than returning an empty DataFrame gracefully.
-
-**Recommendation:** Wrap in try/except and validate the response shape before indexing.
-
-### 4. Duplicated utility functions across pages
-
-**Files:** `pages/3_Headline.py` and others
-
-`_pct()`, `_fmt_pct()`, `_derive_tag()`, `_tag_colour()` are defined independently in multiple pages.
-
-**Recommendation:** Extract to a shared module (e.g., `lib/formatting.py`) and import.
+**Commits:** `524dfde`, subsequent .gitignore update.
 
 ---
 
-## MEDIUM Issues
+### 2. Hardcoded Azure credentials — RESOLVED (2026-03-18)
 
-### 5. Bare exception handling in narrative generation
+`TENANT_ID`, `CLIENT_ID`, `MOTOR_WORKSPACE_ID`, and `MOTOR_DATASET_ID` in `lib/config.py` have been wrapped with `os.getenv()`, using the original hardcoded values as fallback defaults. `HOME_WORKSPACE_ID` and `HOME_DATASET_ID` were already correctly handled.
+
+**File changed:** `lib/config.py`
+
+The following environment variables must be set in any deployment environment:
+
+```
+AZURE_TENANT_ID
+AZURE_CLIENT_ID
+MOTOR_WORKSPACE_ID
+MOTOR_DATASET_ID
+HOME_WORKSPACE_ID
+HOME_DATASET_ID
+```
+
+See GCP deployment checklist below.
+
+---
+
+### 3. Unsafe JSON parsing in `run_dax()` — RESOLVED (2026-03-18)
+
+The bare index access `body["results"][0]["tables"][0].get("rows", [])` in `lib/powerbi.py` is now wrapped in a `try/except (KeyError, IndexError)` block that returns an empty DataFrame on failure. The second occurrence of this pattern (line 284 in `discover_columns()`) was correctly left untouched — it is already guarded by `r.status_code == 200` and `"error" not in body` checks.
+
+**File changed:** `lib/powerbi.py`
+
+---
+
+### 4. Duplicated utility functions — RESOLVED (2026-03-18)
+
+`_fmt_pct` was defined independently in `pages/2_Insurer_Diagnostic.py` and `pages/3_Insurer_Comparison.py`. `_pct` (safe division) was also defined locally in `pages/3_Insurer_Comparison.py`.
+
+**Note:** The original review also flagged `_derive_tag` and `_tag_colour` as duplicated. These functions do not exist anywhere in the codebase. The review was incorrect on those two.
+
+A new shared module has been created:
+
+**File created:** `lib/formatting.py`
+
+```python
+def fmt_pct(val, dp=1):
+    """Format a proportion (0-1) as a percentage string."""
+    if val is None:
+        return "\u2014"
+    return f"{val * 100:.{dp}f}%"
+
+def safe_pct(n, d):
+    """Divide n by d, returning 0.0 if d is zero."""
+    return n / d if d > 0 else 0.0
+```
+
+Both pages now import from `lib.formatting`. All call sites updated.
+
+**Files changed:** `lib/formatting.py` (new), `pages/2_Insurer_Diagnostic.py`, `pages/3_Insurer_Comparison.py`
+
+---
+
+## Outstanding Issues
+
+### 5. Bare exception handling in `narrative.py` (MEDIUM)
 
 **File:** `lib/narrative.py`
 
@@ -88,55 +103,39 @@ except Exception:
     return None
 ```
 
-Catches all exceptions including `SystemExit` and `KeyboardInterrupt`. Should catch specific exceptions (`anthropic.APIError`, `json.JSONDecodeError`, `KeyError`).
+Should catch specific exceptions: `anthropic.APIError`, `json.JSONDecodeError`, `KeyError`. Catching bare `Exception` silently swallows `SystemExit` and `KeyboardInterrupt`.
 
-### 6. ~~Hardcoded feature flags~~ (RESOLVED)
+---
 
-`NARRATIVE_MODEL` and `NARRATIVE_ENABLED` are now environment-variable driven via `os.getenv()` in `lib/config.py`, with sensible defaults.
-
-### 7. `.env.example` uses React/Vite naming convention
+### 7. `.env.example` naming convention (MEDIUM)
 
 **File:** `.env.example`
 
-```
-VITE_DATA_FILE=motor_main_data.csv
-```
-
-The `VITE_` prefix is a React/Vite convention and misleading in a Streamlit project. This variable also doesn't appear to be used anywhere in the codebase.
+The `VITE_DATA_FILE` variable uses a React/Vite prefix and is not used anywhere in the Streamlit codebase. Now that Azure credentials are environment-variable driven, `.env.example` should be updated to document all required variables. See the GCP deployment checklist below for the full list.
 
 ---
 
-## LOW Issues
+### 9. No automated tests (LOW)
 
-### 8. Demo data committed to git
+The CI pipeline only checks that imports resolve. The analytics modules contain non-trivial statistical logic (Bayesian smoothing, suppression rules, confidence intervals) that should have unit test coverage.
 
-**File:** `public/data/motor_main_data_demo.csv`
-
-While small (33 KB) and intentionally for fallback, committing data files to git is generally avoided. Consider documenting this as an intentional design choice or hosting externally.
-
-### 9. No automated tests
-
-The CI pipeline (`ci.yml`) only checks that imports resolve. There are no unit tests for the analytics modules, which contain non-trivial statistical logic (Bayesian smoothing, suppression rules, confidence intervals).
-
-**Recommendation:** Add `pytest` with tests for at least `lib/analytics/bayesian.py`, `lib/analytics/suppression.py`, and `lib/analytics/confidence.py`.
-
-### 10. Commit history hygiene
-
-Recent commits include messages like `"wefyguywefgyu"`, `"jiedjieijji"`. Consider squashing before merging to main.
+**Recommended:** Add `pytest` with tests for at least `lib/analytics/bayesian.py`, `lib/analytics/suppression.py`, and `lib/analytics/confidence.py`.
 
 ---
 
-## Security Summary
+## Architecture Notes
 
-| Area | Status | Notes |
-|------|--------|-------|
-| `.env` in git | OK | `.gitignore` correctly excludes `.env` files |
-| Azure credentials | **Fix needed** | Hardcoded in `lib/config.py` |
-| Data exposure | **Fix needed** | Large CSV committed to repo |
-| Auth | OK | MSAL device flow properly implemented |
-| Debug mode | OK | No debug flags enabled |
-| XSS | Low risk | Streamlit auto-escapes; limited `unsafe_allow_html` usage for CSS only |
-| Dependencies | Review | No `pip audit` in CI pipeline |
+### DuckDB cache layer
+
+`lib/db.py` implements a DuckDB-backed local cache at `~/.ehubot/cache.duckdb`. This is fit for purpose for both local development and GCP VM deployment. The cache:
+
+- Survives browser refresh within a session
+- Invalidates correctly when the time window changes
+- Degrades gracefully if DuckDB is not installed
+- Uses restrictive file permissions (0o600)
+- Validates table names to prevent SQL injection
+
+**Concurrency caveat:** DuckDB has limited write concurrency. If multiple users are expected to hit the "Clear cached data" button simultaneously on the GCP VM, consider whether this is a real operational risk. For single-user or low-concurrency use, no changes are needed.
 
 ---
 
@@ -147,14 +146,55 @@ Recent commits include messages like `"wefyguywefgyu"`, `"jiedjieijji"`. Conside
 3. **Bayesian smoothing** — Proper Beta-Binomial implementation for rate stabilisation
 4. **Graceful degradation** — Falls back to demo data when Power BI is unavailable
 5. **AI narratives** — Claude-powered headline generation with fallback text
+6. **Dual-product support** — Motor and Home fabric instances handled cleanly through shared config and parameterised functions
 
 ---
 
-## Recommended Priority Order
+## Security Summary
 
-1. Remove large data file from git **(CRITICAL)**
-2. Move Azure credentials to env vars **(CRITICAL)**
-3. Add defensive parsing in `run_dax()` **(HIGH)**
-4. Deduplicate shared utility functions **(HIGH)**
-5. Catch specific exceptions in narrative.py **(MEDIUM)**
-6. Add pytest for analytics modules **(LOW)**
+| Area | Status | Notes |
+|------|--------|-------|
+| `.env` in git | ✅ OK | `.gitignore` correctly excludes `.env` files |
+| Azure credentials | ✅ Fixed | Now driven by environment variables |
+| Data exposure | ✅ Fixed | Large CSV not tracked; `.gitignore` updated |
+| Auth | ✅ OK | MSAL device flow properly implemented |
+| Token storage | ✅ OK | Persisted to `~/.ehubot/token.json` with 0o600 permissions |
+| Debug mode | ✅ OK | No debug flags enabled |
+| XSS | Low risk | Streamlit auto-escapes; limited `unsafe_allow_html` for CSS only |
+| SQL injection | ✅ OK | DuckDB table names validated against allowlist regex |
+| Dependencies | ⏳ Review | No `pip audit` in CI pipeline |
+
+---
+
+## GCP Deployment Checklist
+
+Before deploying to the GCP VM, confirm the following:
+
+**Environment variables** — set in `.env` or equivalent on the VM:
+
+```
+AZURE_TENANT_ID=
+AZURE_CLIENT_ID=
+MOTOR_WORKSPACE_ID=
+MOTOR_DATASET_ID=
+HOME_WORKSPACE_ID=
+HOME_DATASET_ID=
+NARRATIVE_MODEL=claude-opus-4-6
+NARRATIVE_ENABLED=true
+EHUBOT_DB_PATH=          # optional; defaults to ~/.ehubot/cache.duckdb
+```
+
+**Dependencies:**
+- [ ] `duckdb` installed in the VM's Python environment
+- [ ] `pip audit` run and no critical vulnerabilities
+
+**Data:**
+- [ ] `dist/data/motor_main_data_demo.csv` present (fallback demo file)
+- [ ] `all home data.csv` — referenced in `data-config.json` but not present on disk. Confirm whether this file is needed or the reference should be removed.
+
+**Auth:**
+- [ ] MSAL device flow tested from the VM (token persists to `~/.ehubot/token.json`)
+
+**Process:**
+- [ ] Streamlit running as a persistent process (systemd service or equivalent)
+- [ ] Nginx or equivalent reverse proxy configured if exposing externally
