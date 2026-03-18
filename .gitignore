@@ -24,3 +24,4 @@ build/
 
 # Data files (user uploads)
 /data/
+dist/data/motor_main_data.csv
