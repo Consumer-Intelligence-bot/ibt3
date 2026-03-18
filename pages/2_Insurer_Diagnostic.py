@@ -25,6 +25,7 @@ from lib.analytics.reasons import calc_reason_ranking, calc_reason_comparison
 from lib.analytics.suppression import check_suppression
 from lib.analytics.trends import calc_trend
 from lib.chart_export import apply_export_metadata, render_suppression_html, confidence_tooltip
+from lib.formatting import fmt_pct
 from lib.config import (
     CI_GREEN,
     CI_GREY,
@@ -54,13 +55,6 @@ st.header("Insurer Diagnostic")
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-def _fmt_pct(val, dp=1):
-    """Format a proportion (0-1) as percentage string."""
-    if val is None:
-        return "\u2014"
-    return f"{val * 100:.{dp}f}%"
 
 
 def _fmt_pp(val, dp=1, sign=False):
@@ -258,8 +252,8 @@ with col1:
     st.markdown(
         _card_html(
             "Your Retention (Bayesian-smoothed)",
-            _fmt_pct(ins_rate_display),
-            f"95% Confidence Interval: {_fmt_pct(ins_ci_lower, dp=0)} \u2013 {_fmt_pct(ins_ci_upper, dp=0)}",
+            fmt_pct(ins_rate_display),
+            f"95% Confidence Interval: {fmt_pct(ins_ci_lower, dp=0)} \u2013 {fmt_pct(ins_ci_upper, dp=0)}",
             CI_MAGENTA,
         ),
         unsafe_allow_html=True,
@@ -269,7 +263,7 @@ with col2:
     st.markdown(
         _card_html(
             "Market Average",
-            _fmt_pct(mkt_rate_display),
+            fmt_pct(mkt_rate_display),
             f"n={n_mkt:,}",
             MARKET_COLOUR,
         ),

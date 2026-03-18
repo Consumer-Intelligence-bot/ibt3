@@ -14,6 +14,7 @@ from lib.analytics.flows import calc_net_flow
 from lib.analytics.rates import calc_shopping_rate, calc_retention_rate
 from lib.analytics.trends import calc_trend
 from lib.chart_export import apply_export_metadata
+from lib.formatting import fmt_pct, safe_pct
 from lib.config import (
     CI_GREEN,
     CI_GREY,
@@ -70,14 +71,10 @@ st.caption(f"Active period: **{period_label}**")
 # ---------------------------------------------------------------------------
 # Build per-insurer metrics
 # ---------------------------------------------------------------------------
-def _pct(n, d):
-    return n / d if d > 0 else 0.0
-
-
 # Market-level retention (prior for Bayesian smoothing)
 mkt_existing = df_mkt[~df_mkt["IsNewToMarket"]]
 mkt_retained = mkt_existing[~mkt_existing["IsSwitcher"]]
-mkt_retention_rate = _pct(len(mkt_retained), len(mkt_existing)) if len(mkt_existing) > 0 else 0.5
+mkt_retention_rate = safe_pct(len(mkt_retained), len(mkt_existing)) if len(mkt_existing) > 0 else 0.5
 mkt_shopping_rate = calc_shopping_rate(mkt_existing)
 
 # Discover all insurers from PreviousCompany (renewals base)
@@ -270,12 +267,6 @@ st.plotly_chart(fig, use_container_width=True)
 st.markdown("### Metrics Table")
 
 
-def _fmt_pct(val, dp=1):
-    if val is None:
-        return "\u2014"
-    return f"{val * 100:.{dp}f}%"
-
-
 def _trend_arrow(direction, suppressed):
     if suppressed or direction is None:
         return "\u2014"
@@ -353,9 +344,9 @@ for _, r in df_comp.iterrows():
         f"<td style='padding: 8px 12px; border-bottom: 1px solid {CI_LIGHT_GREY}; text-align: right;'>"
         f"{r['n_renewals']:,}</td>"
         f"<td style='padding: 8px 12px; border-bottom: 1px solid {CI_LIGHT_GREY}; text-align: right; {retention_style}'>"
-        f"{_fmt_pct(r['retention'])}</td>"
+        f"{fmt_pct(r['retention'])}</td>"
         f"<td style='padding: 8px 12px; border-bottom: 1px solid {CI_LIGHT_GREY}; text-align: right;'>"
-        f"{_fmt_pct(r['shopping_rate'])}</td>"
+        f"{fmt_pct(r['shopping_rate'])}</td>"
         f"<td style='padding: 8px 12px; border-bottom: 1px solid {CI_LIGHT_GREY}; text-align: right; {net_style}'>"
         f"{_net_flow_label(r['net_flow'], r.get('net_flow_pct'))}</td>"
         f"<td style='padding: 8px 12px; border-bottom: 1px solid {CI_LIGHT_GREY}; text-align: center; "
@@ -392,8 +383,8 @@ html_table = f"""
 <tr style="background-color: rgba(152, 29, 151, 0.08); font-weight: bold;">
     <td style="padding: 8px 12px; border-top: 2px solid {MARKET_COLOUR}; color: {MARKET_COLOUR};">Market</td>
     <td style="padding: 8px 12px; border-top: 2px solid {MARKET_COLOUR}; text-align: right;">{len(mkt_existing):,}</td>
-    <td style="padding: 8px 12px; border-top: 2px solid {MARKET_COLOUR}; text-align: right; color: {MARKET_COLOUR};">{_fmt_pct(mkt_retention_rate)}</td>
-    <td style="padding: 8px 12px; border-top: 2px solid {MARKET_COLOUR}; text-align: right;">{_fmt_pct(mkt_shopping_rate)}</td>
+    <td style="padding: 8px 12px; border-top: 2px solid {MARKET_COLOUR}; text-align: right; color: {MARKET_COLOUR};">{fmt_pct(mkt_retention_rate)}</td>
+    <td style="padding: 8px 12px; border-top: 2px solid {MARKET_COLOUR}; text-align: right;">{fmt_pct(mkt_shopping_rate)}</td>
     <td style="padding: 8px 12px; border-top: 2px solid {MARKET_COLOUR}; text-align: right;">&mdash;</td>
     <td style="padding: 8px 12px; border-top: 2px solid {MARKET_COLOUR}; text-align: center;">&mdash;</td>
     <td style="padding: 8px 12px; border-top: 2px solid {MARKET_COLOUR}; text-align: center;">&mdash;</td>
