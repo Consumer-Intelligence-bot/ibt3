@@ -247,8 +247,17 @@ def _call_api(system_prompt: str, user_content: str) -> dict | None:
             if k not in result:
                 raise KeyError(f"Missing key in API response: {k}")
         return result
+    except anthropic.APIError as e:
+        log.warning("Anthropic API error during narrative generation: %s", e)
+        return None
+    except json.JSONDecodeError as e:
+        log.warning("Failed to parse narrative JSON response: %s", e)
+        return None
+    except KeyError as e:
+        log.warning("Missing expected key in narrative response: %s", e)
+        return None
     except Exception:
-        log.exception("Narrative generation failed; caller will use fallback text")
+        log.exception("Unexpected error during narrative generation; caller will use fallback text")
         return None
 
 
