@@ -226,13 +226,13 @@ rank_info = calc_insurer_rank(df_mkt, insurer, min_base=MIN_BASE_PUBLISHABLE)
 rank_suffix = f" (Rank {rank_info['rank']} of {rank_info['total']})" if rank_info else ""
 
 if abs(gap_pp) < 1.0:
-    position_label = f"At Market{rank_suffix}"
+    position_label = "At Market"
     position_colour = CI_GREY
 elif gap_pp > 0:
-    position_label = f"Above Market{rank_suffix}"
+    position_label = "Above Market"
     position_colour = CI_GREEN
 else:
-    position_label = f"Below Market{rank_suffix}"
+    position_label = "Below Market"
     position_colour = CI_RED
 
 # Trend
@@ -272,6 +272,8 @@ with col2:
 
 with col3:
     trend_sub = f"{_fmt_pp(gap_pp, sign=True)} vs market"
+    if rank_suffix:
+        trend_sub += f" &nbsp;|&nbsp; {rank_suffix.strip(' ()')}"
     if trend_indicator:
         trend_sub += f" &nbsp;|&nbsp; Trend: {trend_indicator}"
     st.markdown(
