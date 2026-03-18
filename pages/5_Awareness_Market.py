@@ -28,6 +28,7 @@ from lib.config import (
     CI_GREY,
     CI_LIGHT_GREY,
     CI_RED,
+    MARKET_COLOUR,
     MIN_BASE_PUBLISHABLE,
 )
 from lib.state import (
@@ -84,13 +85,21 @@ if n_a < MIN_BASE_PUBLISHABLE or n_b < MIN_BASE_PUBLISHABLE:
     )
 
 # ---- Compute dual-period comparison ----
-comparison = calc_dual_period_comparison(
-    df_main, df_questions, level,
-    period_a_months, period_b_months,
-)
+with st.spinner("Calculating awareness comparison..."):
+    comparison = calc_dual_period_comparison(
+        df_main, df_questions, level,
+        period_a_months, period_b_months,
+    )
 if comparison.empty:
     st.warning("No awareness data available for this selection.")
     st.stop()
+
+# Filter out "Other" when toggle is off
+if not filters.get("include_other", False):
+    comparison = comparison[comparison["brand"].str.lower() != "other"]
+    if comparison.empty:
+        st.warning("No awareness data available after excluding 'Other'.")
+        st.stop()
 
 # Period caption on every section
 st.caption(caption)
@@ -266,9 +275,9 @@ if view == "Awareness level":
     # Market average reference line
     if market_avg and market_avg > 0:
         fig.add_vline(
-            x=market_avg, line_dash="dash", line_color=CI_GREY, line_width=1.5,
+            x=market_avg, line_dash="dash", line_color=MARKET_COLOUR, line_width=1.5,
             annotation_text=f"Market avg: {market_avg:.0%}",
-            annotation_font_size=11, annotation_font_color=CI_GREY,
+            annotation_font_size=11, annotation_font_color=MARKET_COLOUR,
         )
 
     fig.update_layout(
@@ -383,13 +392,10 @@ else:
 # ---- Multi-Brand Trend Line Chart (Spec Section 9.6) ----
 st.markdown("---")
 st.subheader("Multi-Brand Awareness Trend")
-st.caption(
-    "Showing overall rank movement by brand. Arrows indicate rank positions "
-    "gained or lost, not absolute rank."
-)
 
 # Compute per-brand per-month awareness rates
-trend_rates = calc_awareness_rates(df_main, df_questions, level)
+with st.spinner("Calculating awareness trends..."):
+    trend_rates = calc_awareness_rates(df_main, df_questions, level)
 
 if not trend_rates.empty:
     # Filter options for trend chart
@@ -422,6 +428,7 @@ if not trend_rates.empty:
 
     if selected_brands:
         trend_data = trend_rates[trend_rates["brand"].isin(selected_brands)].sort_values("month")
+        awareness_selected_insurer = st.session_state.get("selected_insurer", "")
 
         fig_trend = go.Figure()
         for i, brand in enumerate(selected_brands):
@@ -429,14 +436,17 @@ if not trend_rates.empty:
             if brand_data.empty:
                 continue
             colour = BUMP_COLOURS[i % len(BUMP_COLOURS)]
+            is_selected = brand == awareness_selected_insurer
+            line_width = 4 if is_selected else 2
+            marker_size = 8 if is_selected else 5
             x_labels = [format_year_month(m) for m in brand_data["month"]]
             fig_trend.add_trace(go.Scatter(
                 x=x_labels,
                 y=brand_data["rate"],
                 mode="lines+markers",
                 name=brand,
-                line=dict(color=colour, width=2),
-                marker=dict(size=5, color=colour),
+                line=dict(color=colour, width=line_width),
+                marker=dict(size=marker_size, color=colour),
                 hovertemplate=(
                     f"<b>{brand}</b><br>"
                     "Rate: %{y:.1%}<br>"
@@ -448,9 +458,11 @@ if not trend_rates.empty:
         period_label = f"{format_year_month(trend_rates['month'].min())} to {format_year_month(trend_rates['month'].max())}"
         n_total = int(trend_rates[trend_rates["month"] == latest_month]["n_total"].iloc[0]) if not latest_rates.empty else 0
 
+        trend_chart_title = f"Multi-Brand Awareness Trend — {trend_filter} ({level.title()})"
+
         apply_export_metadata(
             fig_trend,
-            title=f"Multi-Brand Awareness Trend ({level.title()})",
+            title=trend_chart_title,
             period=period_label,
             base=n_total,
             question=q_code,

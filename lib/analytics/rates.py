@@ -44,6 +44,58 @@ def calc_conversion_rate(df: pd.DataFrame) -> float | None:
     return len(switchers) / len(shoppers)
 
 
+def calc_insurer_rank(df_market: pd.DataFrame, insurer: str, min_base: int = 50) -> dict | None:
+    """Return 1-based rank of insurer among all insurers with sufficient base.
+
+    Uses Bayesian-smoothed retention rates for ranking (consistent with the
+    Insurer Comparison page sort order).
+
+    Returns dict with 'rank' and 'total' keys, or None if insurer not eligible.
+    """
+    from lib.analytics.bayesian import bayesian_smooth_rate
+
+    if df_market is None or df_market.empty:
+        return None
+    if "PreviousCompany" not in df_market.columns:
+        return None
+
+    existing = df_market[~df_market.get("IsNewToMarket", False)]
+    insurers = existing["PreviousCompany"].dropna().loc[lambda s: s != ""].unique()
+
+    # Market-level retention as Bayesian prior
+    mkt_retained = (~existing["IsSwitcher"]).sum()
+    mkt_rate = mkt_retained / len(existing) if len(existing) > 0 else 0.5
+
+    rates = {}
+    for ins in insurers:
+        ins_df = existing[existing["PreviousCompany"] == ins]
+        if len(ins_df) < min_base:
+            continue
+        retained = int((~ins_df["IsSwitcher"]).sum())
+        bay = bayesian_smooth_rate(retained, len(ins_df), mkt_rate)
+        rates[ins] = bay["posterior_mean"]
+
+    if insurer not in rates:
+        return None
+
+    sorted_insurers = sorted(rates.items(), key=lambda x: x[1], reverse=True)
+    for i, (name, _) in enumerate(sorted_insurers, 1):
+        if name == insurer:
+            return {"rank": i, "total": len(sorted_insurers)}
+    return None
+
+
+def calc_rolling_avg(by_month_df: pd.DataFrame, window: int = 3, rate_col: str = "retention") -> pd.DataFrame:
+    """Add a rolling average column to a month-level rates dataframe.
+
+    Expects by_month_df to be sorted by RenewalYearMonth with a column named rate_col.
+    Returns a copy with '{rate_col}_rolling' column added.
+    """
+    df = by_month_df.copy()
+    df[f"{rate_col}_rolling"] = df[rate_col].rolling(window=window, min_periods=1).mean()
+    return df
+
+
 def _wilson_score(successes: int, n: int, z: float = Z_SCORE) -> tuple[float, float]:
     """Wilson score interval for binomial proportion."""
     if n == 0:

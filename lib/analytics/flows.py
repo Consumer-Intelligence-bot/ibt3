@@ -34,14 +34,34 @@ def calc_flow_matrix(df: pd.DataFrame) -> pd.DataFrame:
     )
 
 
-def calc_net_flow(df: pd.DataFrame, insurer: str) -> dict:
-    """Gained (switched TO) minus Lost (switched FROM)."""
+def calc_net_flow(df: pd.DataFrame, insurer: str, base: int | None = None) -> dict:
+    """Gained (switched TO) minus Lost (switched FROM).
+
+    If *base* is provided (e.g. renewal base for this insurer), also returns
+    gained_pct, lost_pct, and net_pct as proportions of base.
+    """
     if df is None or len(df) == 0:
-        return {"gained": 0, "lost": 0, "net": 0}
+        return {"gained": 0, "lost": 0, "net": 0,
+                "gained_pct": None, "lost_pct": None, "net_pct": None}
     switchers = _exclude_q4_eq_q39(df[df["IsSwitcher"]])
     gained = len(switchers[switchers["CurrentCompany"] == insurer])
     lost = len(switchers[switchers["PreviousCompany"] == insurer])
-    return {"gained": gained, "lost": lost, "net": gained - lost}
+    net = gained - lost
+
+    # Percentage of base
+    if base and base > 0:
+        gained_pct = gained / base
+        lost_pct = lost / base
+        net_pct = net / base
+    else:
+        gained_pct = None
+        lost_pct = None
+        net_pct = None
+
+    return {
+        "gained": gained, "lost": lost, "net": net,
+        "gained_pct": gained_pct, "lost_pct": lost_pct, "net_pct": net_pct,
+    }
 
 
 def calc_top_sources(df: pd.DataFrame, insurer: str, n: int = 10) -> pd.Series:

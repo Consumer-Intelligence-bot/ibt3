@@ -19,6 +19,7 @@ from lib.config import (
     HOME_WORKSPACE_ID, HOME_DATASET_ID,
     PRODUCTS,
 )
+from lib.db import save_dataframe, load_dataframe, has_data, clear_data, save_metadata, load_metadata
 from lib.powerbi import load_months, load_ss_maindata, load_ss_questions
 
 
@@ -110,8 +111,42 @@ def init_ss_data(token: str, start_month: int, end_month: int,
 
     if not df_all.empty:
         st.session_state["dimensions"] = get_all_dimensions(df_all)
+        # Persist to local DB for refresh survival
+        save_dataframe(df_all, "df_motor")
+        if not df_questions.empty:
+            save_dataframe(df_questions, "df_questions")
+        # Store time window so we can detect stale cache on reload
+        save_metadata("start_month", str(start_month))
+        save_metadata("end_month", str(end_month))
     else:
         st.session_state["dimensions"] = {}
+
+
+def load_from_db(start_month: int, end_month: int) -> bool:
+    """Attempt to load data from local DuckDB cache.
+
+    Returns True if data found and time window matches. If the cached data
+    covers a different time window, returns False so the caller re-fetches.
+    """
+    if not has_data("df_motor"):
+        return False
+
+    # Check time window matches
+    cached_start = load_metadata("start_month")
+    cached_end = load_metadata("end_month")
+    if cached_start != str(start_month) or cached_end != str(end_month):
+        return False
+
+    df_all = load_dataframe("df_motor")
+    if df_all.empty:
+        return False
+
+    df_questions = load_dataframe("df_questions")
+
+    st.session_state["df_motor"] = df_all
+    st.session_state["df_questions"] = df_questions
+    st.session_state["dimensions"] = get_all_dimensions(df_all)
+    return True
 
 
 def get_ss_data():
@@ -157,7 +192,19 @@ def render_global_filters():
     insurer_list = []
     if "DimInsurer" in dimensions:
         insurer_list = sorted(dimensions["DimInsurer"]["Insurer"].dropna().astype(str).tolist())
-    insurer = st.sidebar.selectbox("Insurer", [""] + insurer_list, format_func=lambda x: x or "All / Market")
+    # Persistent brand selection across pages
+    default_idx = 0
+    if "selected_insurer" in st.session_state and st.session_state["selected_insurer"] in insurer_list:
+        default_idx = insurer_list.index(st.session_state["selected_insurer"]) + 1  # +1 for "" entry
+    insurer = st.sidebar.selectbox(
+        "Insurer", [""] + insurer_list,
+        index=default_idx,
+        format_func=lambda x: x or "All / Market",
+        key="selected_insurer_selectbox",
+    )
+    # Store in session state for cross-page persistence
+    if insurer:
+        st.session_state["selected_insurer"] = insurer
 
     # Product
     product = st.sidebar.selectbox("Product", PRODUCTS)
@@ -197,6 +244,9 @@ def render_global_filters():
         )
         selected_months = [m for m in months if start_m <= m <= end_m]
 
+    # "Other" toggle
+    include_other = st.sidebar.toggle("Include 'Other'", value=False)
+
     # Normalise
     insurer = insurer or None
     age_band = None if age_band in (None, "ALL", "") else age_band
@@ -210,6 +260,7 @@ def render_global_filters():
         "region": region,
         "payment_type": payment_type,
         "selected_months": selected_months,
+        "include_other": include_other,
     }
 
 

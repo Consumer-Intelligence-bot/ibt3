@@ -113,8 +113,9 @@ if eligible_insurers:
         ret_prev = calc_retention_rate(ins_prev) if len(ins_prev) >= MIN_BASE_PUBLISHABLE else None
         shop_curr = calc_shopping_rate(ins_curr)
         shop_prev = calc_shopping_rate(ins_prev) if len(ins_prev) >= MIN_BASE_PUBLISHABLE else None
-        nf_curr = calc_net_flow(df_current, insurer)
-        nf_prev = calc_net_flow(df_previous, insurer) if not df_previous.empty else None
+        n_ins_curr = len(ins_curr)
+        nf_curr = calc_net_flow(df_current, insurer, base=n_ins_curr)
+        nf_prev = calc_net_flow(df_previous, insurer, base=len(ins_prev) if len(ins_prev) > 0 else None) if not df_previous.empty else None
 
         ret_delta = ((ret_curr or 0) - (ret_prev or 0)) * 100 if ret_curr and ret_prev else None
         shop_delta = ((shop_curr or 0) - (shop_prev or 0)) * 100 if shop_curr and shop_prev else None
@@ -125,6 +126,7 @@ if eligible_insurers:
             "Renewals": len(ins_curr),
             "Retention \u0394": f"{ret_delta:+.1f}pp" if ret_delta is not None else "\u2014",
             "Shopping \u0394": f"{shop_delta:+.1f}pp" if shop_delta is not None else "\u2014",
+            "Net Flow": f"{nf_curr['net_pct']:+.1%} ({nf_curr['net']:+d})" if nf_curr.get("net_pct") is not None else f"{nf_curr['net']:+d}",
             "Net Flow \u0394": f"{nf_delta:+d}" if nf_delta is not None else "\u2014",
         })
 

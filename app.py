@@ -34,8 +34,9 @@ if threading.current_thread() is threading.main_thread() and not hasattr(
     st._graceful_shutdown_registered = True
 
 from lib.config import CSS, MOTOR_WORKSPACE_ID, MOTOR_DATASET_ID, HOME_WORKSPACE_ID, HOME_DATASET_ID
+from lib.db import clear_data, has_data
 from lib.powerbi import get_token, get_main_table, get_other_table, load_months
-from lib.state import format_month, init_ss_data
+from lib.state import format_month, init_ss_data, load_from_db
 
 st.set_page_config(
     page_title="Consumer Intelligence",
@@ -52,7 +53,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ---- Authentication ----
+# ---- Authentication (persisted token survives browser refresh) ----
 token = get_token()
 
 # ---- Discover table names (auto-adapts when model is updated) ----
@@ -104,9 +105,30 @@ st.session_state["home_other_table"] = home_other_table
 st.session_state["start_month"] = start_month
 st.session_state["end_month"] = end_month
 
-# ---- Load S&S data for both products (cached, only refreshes when time window changes) ----
-init_ss_data(token, start_month, end_month, main_table, other_table,
-             home_main_table, home_other_table)
+# ---- Load S&S data: try local DB cache first, then Power BI ----
+if not st.session_state.get("data_loaded", False):
+    if has_data("df_motor"):
+        with st.spinner("Loading cached data..."):
+            loaded = load_from_db(start_month, end_month)
+        if loaded:
+            st.success("Data loaded from local cache.")
+            st.session_state["data_loaded"] = True
+        else:
+            init_ss_data(token, start_month, end_month, main_table, other_table,
+                         home_main_table, home_other_table)
+            st.session_state["data_loaded"] = True
+    else:
+        init_ss_data(token, start_month, end_month, main_table, other_table,
+                     home_main_table, home_other_table)
+        st.session_state["data_loaded"] = True
+
+# ---- Clear cached data button ----
+with st.sidebar:
+    if st.button("Clear cached data"):
+        clear_data()
+        for key in ["df_motor", "df_questions", "dimensions", "data_loaded"]:
+            st.session_state.pop(key, None)
+        st.rerun()
 
 # ---- Landing page content ----
 st.markdown("## Welcome to the IBT Portal")

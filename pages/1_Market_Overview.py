@@ -12,10 +12,11 @@ import streamlit as st
 
 from lib.analytics.channels import calc_channel_usage, calc_pcw_usage
 from lib.analytics.demographics import apply_filters
-from lib.analytics.rates import calc_shopping_rate, calc_switching_rate, calc_retention_rate
+from lib.analytics.rates import calc_shopping_rate, calc_switching_rate, calc_retention_rate, calc_rolling_avg
 from lib.analytics.reasons import calc_reason_ranking
 from lib.chart_export import apply_export_metadata
 from lib.config import CI_GREEN, CI_MAGENTA, CI_GREY, MIN_BASE_REASON
+from lib.question_ref import get_question_text
 from lib.state import format_year_month, render_global_filters, get_ss_data
 
 FONT = "Verdana, Geneva, sans-serif"
@@ -75,8 +76,11 @@ with col4:
     st.metric("Data Period", period_label)
     st.caption(f"n = {n:,}")
 
-# ---- Market Retention Trend (rolling 12-month default) ----
+# ---- Market Retention Trend ----
 st.subheader("Market Retention Trend")
+st.caption(get_question_text("Q15"))
+
+use_rolling = st.toggle("Rolling 3-month average", value=True)
 
 by_month = df_market.groupby("RenewalYearMonth").agg(
     retained=("IsRetained", "sum"),
@@ -86,10 +90,18 @@ by_month = by_month.sort_values("RenewalYearMonth")
 by_month["retention"] = by_month["retained"] / by_month["total"]
 by_month["month_label"] = by_month["RenewalYearMonth"].apply(format_year_month)
 
+if use_rolling:
+    by_month = calc_rolling_avg(by_month, window=3, rate_col="retention")
+    plot_col = "retention_rolling"
+    chart_title = "Market Retention Trend (Rolling 3-month average)"
+else:
+    plot_col = "retention"
+    chart_title = "Market Retention Trend (Monthly)"
+
 fig_trend = go.Figure()
 fig_trend.add_trace(go.Scatter(
     x=by_month["month_label"],
-    y=by_month["retention"],
+    y=by_month[plot_col],
     mode="lines+markers",
     line=dict(color=CI_MAGENTA, width=2.5),
     marker=dict(size=6, color=CI_MAGENTA),
@@ -106,11 +118,11 @@ fig_trend.update_layout(
 )
 apply_export_metadata(
     fig_trend,
-    title="Market Retention Trend",
+    title=chart_title,
     period=period_label,
     base=n,
     question="Q15",
-    subtitle="Monthly retention rate across all insurers",
+    subtitle="Rolling 3-month average" if use_rolling else "Monthly retention rate across all insurers",
 )
 st.plotly_chart(fig_trend, use_container_width=True)
 
@@ -120,6 +132,7 @@ col_left, col_right = st.columns(2)
 # -- Q8 Reasons --
 with col_left:
     st.subheader("Why Customers Shop (Q8)")
+    st.caption(get_question_text("Q8"))
     n_shoppers = int(df_market["IsShopper"].sum()) if "IsShopper" in df_market.columns else 0
 
     if n_shoppers < MIN_BASE_REASON:
@@ -164,6 +177,7 @@ with col_left:
 # -- Channel usage (Q9b) --
 with col_right:
     st.subheader("Shopping Channels (Q9b)")
+    st.caption(get_question_text("Q9b"))
     ch = calc_channel_usage(df_market, df_questions)
     if ch is not None and len(ch) > 0:
         # Sort descending and take top channels
@@ -198,6 +212,7 @@ with col_right:
 
 # ---- PCW Market Share (Q11) ----
 st.subheader("PCW Market Share (Q11)")
+st.caption(get_question_text("Q11"))
 pcw = calc_pcw_usage(df_market, df_questions)
 if pcw is not None and len(pcw) > 0:
     col_pcw, _ = st.columns([2, 1])

@@ -20,7 +20,7 @@ from lib.analytics.flows import (
     calc_top_destinations,
     calc_departed_sentiment,
 )
-from lib.analytics.rates import calc_shopping_rate, calc_switching_rate, calc_retention_rate
+from lib.analytics.rates import calc_shopping_rate, calc_switching_rate, calc_retention_rate, calc_insurer_rank
 from lib.analytics.reasons import calc_reason_ranking, calc_reason_comparison
 from lib.analytics.suppression import check_suppression
 from lib.analytics.trends import calc_trend
@@ -32,12 +32,14 @@ from lib.config import (
     CI_MAGENTA,
     CI_RED,
     CI_YELLOW,
+    MARKET_COLOUR,
     MIN_BASE_PUBLISHABLE,
     MIN_BASE_REASON,
     MIN_BASE_FLOW_CELL,
     MIN_BASE_INDICATIVE,
 )
 from lib.narrative import generate_diagnostic_narrative
+from lib.question_ref import get_question_text
 from lib.state import format_year_month, render_global_filters, get_ss_data
 
 # ---------------------------------------------------------------------------
@@ -189,9 +191,9 @@ conf_icon = {"HIGH": "\u2705", "MEDIUM": "\u26A0\uFE0F", "LOW": "\u26A0\uFE0F", 
     str(conf.label), ""
 )
 conf_text = {
-    "HIGH": f"High confidence \u2014 n={n_ins:,}, CI width {posterior_ci_width:.1f}pp",
-    "MEDIUM": f"Medium confidence \u2014 n={n_ins:,}, CI width {posterior_ci_width:.1f}pp. Treat as indicative.",
-    "LOW": f"Low confidence \u2014 n={n_ins:,}, CI width {posterior_ci_width:.1f}pp. Interpret with caution.",
+    "HIGH": f"High confidence \u2014 n={n_ins:,}, Confidence interval width {posterior_ci_width:.0f}pp",
+    "MEDIUM": f"Medium confidence \u2014 n={n_ins:,}, Confidence interval width {posterior_ci_width:.0f}pp. Treat as indicative.",
+    "LOW": f"Low confidence \u2014 n={n_ins:,}, Confidence interval width {posterior_ci_width:.0f}pp. Interpret with caution.",
     "INSUFFICIENT": f"Insufficient data \u2014 n={n_ins:,}. Results suppressed.",
 }.get(str(conf.label), "")
 
@@ -226,14 +228,17 @@ mkt_rate_display = mkt_retention if mkt_retention else 0
 
 # Position assessment
 gap_pp = (ins_rate_display - mkt_rate_display) * 100
+rank_info = calc_insurer_rank(df_mkt, insurer, min_base=MIN_BASE_PUBLISHABLE)
+rank_suffix = f" (Rank {rank_info['rank']} of {rank_info['total']})" if rank_info else ""
+
 if abs(gap_pp) < 1.0:
-    position_label = "At Market"
+    position_label = f"At Market{rank_suffix}"
     position_colour = CI_GREY
 elif gap_pp > 0:
-    position_label = "Above Market"
+    position_label = f"Above Market{rank_suffix}"
     position_colour = CI_GREEN
 else:
-    position_label = "Below Market"
+    position_label = f"Below Market{rank_suffix}"
     position_colour = CI_RED
 
 # Trend
@@ -254,7 +259,7 @@ with col1:
         _card_html(
             "Your Retention (Bayesian-smoothed)",
             _fmt_pct(ins_rate_display),
-            f"95% CI: {_fmt_pct(ins_ci_lower)} \u2013 {_fmt_pct(ins_ci_upper)}",
+            f"95% Confidence Interval: {_fmt_pct(ins_ci_lower, dp=0)} \u2013 {_fmt_pct(ins_ci_upper, dp=0)}",
             CI_MAGENTA,
         ),
         unsafe_allow_html=True,
@@ -266,7 +271,7 @@ with col2:
             "Market Average",
             _fmt_pct(mkt_rate_display),
             f"n={n_mkt:,}",
-            CI_GREY,
+            MARKET_COLOUR,
         ),
         unsafe_allow_html=True,
     )
@@ -345,10 +350,13 @@ with col_dst:
 
 _section_divider("Net Movement")
 
-nf = calc_net_flow(df_mkt, insurer)
+nf = calc_net_flow(df_mkt, insurer, base=n_ins)
 gained = nf["gained"]
 lost = nf["lost"]
 net = nf["net"]
+gained_pct = nf.get("gained_pct")
+lost_pct = nf.get("lost_pct")
+net_pct = nf.get("net_pct")
 
 if net > 0:
     net_colour = CI_GREEN
@@ -363,23 +371,30 @@ else:
 col_g, col_l, col_n = st.columns(3)
 
 with col_g:
+    gained_display = f"+{gained_pct:.1%} (+{gained:,})" if gained_pct is not None else f"+{gained:,}"
     st.markdown(
-        _card_html("Gained", f"+{gained:,}", "Switched in", CI_GREEN),
+        _card_html("Gained", gained_display, "Switched in", CI_GREEN),
         unsafe_allow_html=True,
     )
 
 with col_l:
+    lost_display = f"\u2212{lost_pct:.1%} (\u2212{lost:,})" if lost_pct is not None else f"\u2212{lost:,}"
     st.markdown(
-        _card_html("Lost", f"\u2212{lost:,}", "Switched out", CI_RED),
+        _card_html("Lost", lost_display, "Switched out", CI_RED),
         unsafe_allow_html=True,
     )
 
 with col_n:
     net_sign = "+" if net > 0 else ""
+    if net_pct is not None:
+        net_pct_sign = "+" if net_pct > 0 else ""
+        net_display = f"{net_icon} {net_pct_sign}{net_pct:.1%} ({net_sign}{net:,})"
+    else:
+        net_display = f"{net_icon} {net_sign}{net:,}"
     st.markdown(
         _card_html(
             "Net Flow",
-            f"{net_icon} {net_sign}{net:,}",
+            net_display,
             "Net winner" if net > 0 else ("Net loser" if net < 0 else "Neutral"),
             net_colour,
         ),
@@ -391,6 +406,7 @@ with col_n:
 # ---------------------------------------------------------------------------
 
 _section_divider("Why Customers Stay (Q18)")
+st.caption(get_question_text("Q18"))
 
 if n_ins >= MIN_BASE_REASON:
     q18_comparison = calc_reason_comparison(df_mkt, df_questions, "Q18", insurer, top_n=5)
@@ -415,7 +431,7 @@ if n_ins >= MIN_BASE_REASON:
         with col_mkt_r:
             st.markdown(
                 f'<div style="font-family:{FONT}; font-size:12px; font-weight:bold; '
-                f'color:{CI_GREY}; margin-bottom:6px;">Market</div>',
+                f'color:{MARKET_COLOUR}; margin-bottom:6px;">Market</div>',
                 unsafe_allow_html=True,
             )
             for r in q18_comparison.get("market", []):
@@ -423,7 +439,7 @@ if n_ins >= MIN_BASE_REASON:
                 st.markdown(
                     f'<div style="font-family:{FONT}; font-size:12px; padding:3px 0; '
                     f'border-bottom:1px solid {CI_LIGHT_GREY};">'
-                    f'{r["reason"]} <span style="float:right; color:{CI_GREY}; '
+                    f'{r["reason"]} <span style="float:right; color:{MARKET_COLOUR}; '
                     f'font-weight:bold;">{pct * 100:.0f}%</span></div>',
                     unsafe_allow_html=True,
                 )
@@ -440,6 +456,7 @@ else:
 # ---------------------------------------------------------------------------
 
 _section_divider("Why Customers Leave (Q31)")
+st.caption(get_question_text("Q31"))
 
 # For Q31, the base is departed customers
 departed_ins = df_mkt[(df_mkt["IsSwitcher"]) & (df_mkt["PreviousCompany"] == insurer)] if "PreviousCompany" in df_mkt.columns else pd.DataFrame()
@@ -468,7 +485,7 @@ if n_departed >= MIN_BASE_REASON:
         with col_mkt_q31:
             st.markdown(
                 f'<div style="font-family:{FONT}; font-size:12px; font-weight:bold; '
-                f'color:{CI_GREY}; margin-bottom:6px;">Market</div>',
+                f'color:{MARKET_COLOUR}; margin-bottom:6px;">Market</div>',
                 unsafe_allow_html=True,
             )
             for r in q31_comparison.get("market", []):
@@ -476,7 +493,7 @@ if n_departed >= MIN_BASE_REASON:
                 st.markdown(
                     f'<div style="font-family:{FONT}; font-size:12px; padding:3px 0; '
                     f'border-bottom:1px solid {CI_LIGHT_GREY};">'
-                    f'{r["reason"]} <span style="float:right; color:{CI_GREY}; '
+                    f'{r["reason"]} <span style="float:right; color:{MARKET_COLOUR}; '
                     f'font-weight:bold;">{pct * 100:.0f}%</span></div>',
                     unsafe_allow_html=True,
                 )
@@ -493,6 +510,8 @@ else:
 # ---------------------------------------------------------------------------
 
 _section_divider("Previous Insurer Satisfaction (Q40a / Q40b)")
+st.caption(get_question_text("Q40a"))
+st.caption(get_question_text("Q40b"))
 
 sentiment_ins = calc_departed_sentiment(df_mkt, insurer)
 
@@ -540,7 +559,7 @@ if sentiment_ins and sentiment_ins.get("n", 0) >= MIN_BASE_REASON:
                 "Market Satisfaction",
                 f"{mkt_sat:.2f}" if mkt_sat is not None else "\u2014",
                 "Q40a mean (1\u20135)",
-                CI_GREY,
+                MARKET_COLOUR,
             ),
             unsafe_allow_html=True,
         )

@@ -120,13 +120,13 @@ with col4:
 st.subheader("Confidence Thresholds")
 
 thresholds = pd.DataFrame([
-    {"Metric Type": "Retention / Shopping / Switching", "Threshold": "CI Width: Publishable", "Value": CI_WIDTH_PUBLISHABLE_RATE, "Description": "Max 95% posterior CI width for client output"},
-    {"Metric Type": "Retention / Shopping / Switching", "Threshold": "CI Width: Indicative", "Value": CI_WIDTH_INDICATIVE_RATE, "Description": "Max CI width for internal indicative results"},
-    {"Metric Type": "Reason Percentages", "Threshold": "CI Width: Publishable", "Value": CI_WIDTH_PUBLISHABLE_REASON, "Description": "Reason %s are noisier; wider threshold"},
-    {"Metric Type": "Reason Percentages", "Threshold": "CI Width: Indicative", "Value": CI_WIDTH_INDICATIVE_REASON, "Description": "Internal indicative for reason analysis"},
-    {"Metric Type": "Awareness Rates", "Threshold": "CI Width: Publishable", "Value": CI_WIDTH_PUBLISHABLE_AWARENESS, "Description": "Same as binary rate metrics at insurer level"},
-    {"Metric Type": "Awareness Rates", "Threshold": "CI Width: Indicative", "Value": CI_WIDTH_INDICATIVE_AWARENESS, "Description": "Internal indicative for awareness"},
-    {"Metric Type": "NPS (Q40b)", "Threshold": "Minimum n", "Value": float(NPS_MIN_N), "Description": "NPS uses n floor, not CI width"},
+    {"Metric Type": "Retention / Shopping / Switching", "Threshold": "Confidence Interval Width: Publishable", "Value": CI_WIDTH_PUBLISHABLE_RATE, "Description": "Max 95% posterior confidence interval width for client output"},
+    {"Metric Type": "Retention / Shopping / Switching", "Threshold": "Confidence Interval Width: Indicative", "Value": CI_WIDTH_INDICATIVE_RATE, "Description": "Max confidence interval width for internal indicative results"},
+    {"Metric Type": "Reason Percentages", "Threshold": "Confidence Interval Width: Publishable", "Value": CI_WIDTH_PUBLISHABLE_REASON, "Description": "Reason %s are noisier; wider threshold"},
+    {"Metric Type": "Reason Percentages", "Threshold": "Confidence Interval Width: Indicative", "Value": CI_WIDTH_INDICATIVE_REASON, "Description": "Internal indicative for reason analysis"},
+    {"Metric Type": "Awareness Rates", "Threshold": "Confidence Interval Width: Publishable", "Value": CI_WIDTH_PUBLISHABLE_AWARENESS, "Description": "Same as binary rate metrics at insurer level"},
+    {"Metric Type": "Awareness Rates", "Threshold": "Confidence Interval Width: Indicative", "Value": CI_WIDTH_INDICATIVE_AWARENESS, "Description": "Internal indicative for awareness"},
+    {"Metric Type": "NPS (Q40b)", "Threshold": "Minimum n", "Value": float(NPS_MIN_N), "Description": "NPS uses n floor, not confidence interval width"},
     {"Metric Type": "All metrics", "Threshold": "Absolute n floor", "Value": float(SYSTEM_FLOOR_N), "Description": "Floor below which no result shown (hardcoded)"},
 ])
 
@@ -159,7 +159,7 @@ for col, label, calc_fn in [
     ci_w = calc_ci_width(total, rate) if rate else None
     alert = ci_w is not None and ci_w > MARKET_CI_ALERT_THRESHOLD
     with col:
-        st.metric(f"Market {label} CI", f"{ci_w:.2f}pp" if ci_w else "N/A")
+        st.metric(f"Market {label} Confidence Interval", f"{ci_w:.0f}pp" if ci_w else "N/A")
         if alert:
             st.warning(f"Alert: > {MARKET_CI_ALERT_THRESHOLD}pp")
 
@@ -280,7 +280,7 @@ for ins in sorted(insurer_list):
     quality_rows.append({
         "Insurer": ins,
         "n": n,
-        "CI Width (pp)": round(ci_w, 1),
+        "Confidence Interval Width (pp)": round(ci_w, 0),
         "Confidence": f"{_CONF_ICONS.get(conf.label.value, '')} {conf.label.value}",
         "Smoothing Weight": f"{smoothed['weight']:.0%}",
         "Issues": ", ".join(issues) if issues else "\u2014",
@@ -304,8 +304,8 @@ if quality_rows:
             styles[n_idx] = f"background-color: {CI_YELLOW}; color: {CI_GREY}"
 
         # CI Width column highlighting
-        ci_idx = col_names.index("CI Width (pp)")
-        ci_val = row["CI Width (pp)"]
+        ci_idx = col_names.index("Confidence Interval Width (pp)")
+        ci_val = row["Confidence Interval Width (pp)"]
         if ci_val > 12.0:
             styles[ci_idx] = f"background-color: {CI_RED}; color: white"
         elif ci_val > 8.0:

@@ -127,7 +127,7 @@ def assess_confidence(
             n=n,
             can_show=False,
             message=(
-                f"CI width {ci_w:.1f}pp exceeds indicative threshold ({indicative:.0f}pp). "
+                f"Confidence interval width {ci_w:.0f}pp exceeds indicative threshold ({indicative:.0f}pp). "
                 f"Extend the time window or wait for more data."
             ),
         )

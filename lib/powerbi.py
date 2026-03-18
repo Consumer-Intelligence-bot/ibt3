@@ -20,9 +20,51 @@ from lib.config import (
 # Authentication — MSAL device flow
 # ---------------------------------------------------------------------------
 
+import json
+import os
+import time
+from pathlib import Path
+
+_TOKEN_FILE = Path.home() / ".ehubot" / "token.json"
+
+
+def _save_token(access_token: str, expires_at: float):
+    """Persist token + expiry to local file with restrictive permissions."""
+    try:
+        _TOKEN_FILE.parent.mkdir(parents=True, exist_ok=True)
+        _TOKEN_FILE.write_text(json.dumps({
+            "access_token": access_token,
+            "expires_at": expires_at,
+        }))
+        try:
+            os.chmod(_TOKEN_FILE, 0o600)
+        except OSError:
+            pass  # Windows or other platforms may not support chmod
+    except OSError:
+        pass  # Non-critical — token still works for this session
+
+
+def _load_saved_token() -> str | None:
+    """Load token from local file if it exists and hasn't expired."""
+    if not _TOKEN_FILE.exists():
+        return None
+    try:
+        data = json.loads(_TOKEN_FILE.read_text())
+        if data.get("expires_at", 0) > time.time() + 300:  # 5 min buffer
+            return data["access_token"]
+    except (json.JSONDecodeError, KeyError, OSError):
+        pass
+    return None
+
+
 @st.cache_resource(show_spinner=False)
 def get_token():
-    """Authenticate via MSAL device flow. Cached for session lifetime."""
+    """Authenticate via MSAL device flow. Checks local token cache first."""
+    # Check for saved token
+    saved = _load_saved_token()
+    if saved:
+        return saved
+
     app = msal.PublicClientApplication(
         CLIENT_ID,
         authority=f"https://login.microsoftonline.com/{TENANT_ID}",
@@ -36,6 +78,11 @@ def get_token():
     if "access_token" not in token:
         st.error("Authentication failed.")
         st.stop()
+
+    # Persist token for refresh survival
+    expires_in = token.get("expires_in", 3600)
+    _save_token(token["access_token"], time.time() + expires_in)
+
     return token["access_token"]
 
 

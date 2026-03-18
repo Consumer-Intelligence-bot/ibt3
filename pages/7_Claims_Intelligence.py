@@ -338,7 +338,7 @@ if stars is not None:
     }
 
     rank_text = f"Ranked {rank} of {total_insurers}" if rank else ""
-    ci_text = f"95% CI: {ci_lo:.2f} \u2013 {ci_hi:.2f}" if ci_lo and ci_hi else ""
+    ci_text = f"95% Confidence Interval: {ci_lo:.2f} \u2013 {ci_hi:.2f}" if ci_lo and ci_hi else ""
 
     st.markdown(
         f'<div style="text-align:center; font-family:{FONT};">'
@@ -402,7 +402,7 @@ fig.add_trace(go.Bar(
     hovertemplate=(
         "<b>%{y}</b><br>"
         "Satisfaction: %{x:.2f}<br>"
-        "95% CI: [%{customdata[0]:.2f}, %{customdata[1]:.2f}]<br>"
+        "95% Confidence Interval: [%{customdata[0]:.2f}, %{customdata[1]:.2f}]<br>"
         "n=%{customdata[2]:,}"
         "<extra></extra>"
     ),

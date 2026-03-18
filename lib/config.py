@@ -52,6 +52,9 @@ CI_VIOLET = CI_MAGENTA
 CI_DARK = CI_GREY
 CI_LGREY = CI_LIGHT_GREY
 
+# Distinct purple for market reference lines/bars (visually distinct from CI_MAGENTA)
+CI_MARKET_PURPLE = "#6B1D6B"
+
 # Bump chart colour sequence (Spec Section 11.3)
 BUMP_COLOURS = [
     CI_MAGENTA, CI_BLUE, CI_GREEN, CI_RED, CI_YELLOW,
@@ -61,7 +64,7 @@ BUMP_COLOURS = [
 
 # Visual rules
 INSURER_COLOUR = CI_MAGENTA
-MARKET_COLOUR = CI_GREY
+MARKET_COLOUR = CI_MARKET_PURPLE
 POSITIVE_GAP_COLOUR = CI_GREEN
 NEGATIVE_GAP_COLOUR = CI_RED
 NEUTRAL_GAP_THRESHOLD = 1.0  # percentage points

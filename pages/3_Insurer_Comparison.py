@@ -20,6 +20,7 @@ from lib.config import (
     CI_LIGHT_GREY,
     CI_MAGENTA,
     CI_RED,
+    MARKET_COLOUR,
     MIN_BASE_PUBLISHABLE,
 )
 from lib.state import format_year_month, render_global_filters, get_ss_data
@@ -77,6 +78,7 @@ def _pct(n, d):
 mkt_existing = df_mkt[~df_mkt["IsNewToMarket"]]
 mkt_retained = mkt_existing[~mkt_existing["IsSwitcher"]]
 mkt_retention_rate = _pct(len(mkt_retained), len(mkt_existing)) if len(mkt_existing) > 0 else 0.5
+mkt_shopping_rate = calc_shopping_rate(mkt_existing)
 
 # Discover all insurers from PreviousCompany (renewals base)
 all_insurers = (
@@ -86,6 +88,10 @@ all_insurers = (
     .unique()
     .tolist()
 )
+
+# Filter out "Other" when toggle is off
+if not filters.get("include_other", False):
+    all_insurers = [i for i in all_insurers if i.lower() != "other"]
 
 rows = []
 for ins in sorted(all_insurers):
@@ -106,7 +112,7 @@ for ins in sorted(all_insurers):
     shopping_rate = calc_shopping_rate(ins_existing)
 
     # Net flow
-    nf = calc_net_flow(df_mkt, ins)
+    nf = calc_net_flow(df_mkt, ins, base=n_renewals)
 
     # Trend (uses calc_trend with market_rate)
     trend = calc_trend(ins_existing, mkt_retention_rate)
@@ -130,6 +136,7 @@ for ins in sorted(all_insurers):
             "raw_retention": bay["raw_rate"],
             "shopping_rate": shopping_rate,
             "net_flow": nf["net"],
+            "net_flow_pct": nf["net_pct"],
             "gained": nf["gained"],
             "lost": nf["lost"],
             "trend_direction": trend["direction"],
@@ -161,10 +168,16 @@ fig = go.Figure()
 # Sort ascending for horizontal bar (top of chart = highest)
 df_chart = df_comp.sort_values("retention", ascending=True).reset_index(drop=True)
 
+selected_insurer = st.session_state.get("selected_insurer", "")
+
 bar_colours = [
     CI_GREEN if r["retention"] >= mkt_retention_rate else CI_RED
     for _, r in df_chart.iterrows()
 ]
+
+# Highlight selected brand with distinct border
+bar_line_widths = [3 if r["insurer"] == selected_insurer else 0 for _, r in df_chart.iterrows()]
+bar_line_colours = [CI_MAGENTA if r["insurer"] == selected_insurer else "rgba(0,0,0,0)" for _, r in df_chart.iterrows()]
 
 error_lower = [(r["retention"] - r["ci_lower"]) for _, r in df_chart.iterrows()]
 error_upper = [(r["ci_upper"] - r["retention"]) for _, r in df_chart.iterrows()]
@@ -175,6 +188,8 @@ fig.add_trace(
         x=df_chart["retention"],
         orientation="h",
         marker_color=bar_colours,
+        marker_line_width=bar_line_widths,
+        marker_line_color=bar_line_colours,
         error_x=dict(
             type="data",
             symmetric=False,
@@ -184,13 +199,13 @@ fig.add_trace(
             thickness=1.5,
             width=3,
         ),
-        text=[f"{v * 100:.1f}%" for v in df_chart["retention"]],
+        text=[f"{v * 100:.0f}%" for v in df_chart["retention"]],
         textposition="outside",
         textfont=dict(family=FONT, size=11),
         hovertemplate=(
             "<b>%{y}</b><br>"
             "Retention: %{x:.1%}<br>"
-            "95% CI: [%{customdata[0]:.1%}, %{customdata[1]:.1%}]<br>"
+            "95% Confidence Interval: [%{customdata[0]:.0%}, %{customdata[1]:.0%}]<br>"
             "n=%{customdata[2]:,}"
             "<extra></extra>"
         ),
@@ -208,11 +223,11 @@ fig.add_trace(
 fig.add_vline(
     x=mkt_retention_rate,
     line_dash="dash",
-    line_color=CI_GREY,
+    line_color=MARKET_COLOUR,
     line_width=1.5,
     annotation_text=f"Market avg: {mkt_retention_rate * 100:.1f}%",
     annotation_position="top",
-    annotation_font=dict(family=FONT, size=10, color=CI_GREY),
+    annotation_font=dict(family=FONT, size=10, color=MARKET_COLOUR),
 )
 
 chart_height = max(350, len(df_chart) * 32 + 80)
@@ -300,17 +315,22 @@ def _net_flow_colour(net):
     return ""
 
 
-def _net_flow_label(net):
-    if net > 0:
-        return f"+{net:,}"
-    return f"{net:,}"
+def _net_flow_label(net, pct=None):
+    sign = "+" if net > 0 else ""
+    if pct is not None:
+        pct_sign = "+" if pct > 0 else ""
+        return f"{pct_sign}{pct:.1%} ({sign}{net:,})"
+    return f"{sign}{net:,}"
 
 
 # Build styled HTML table for richer formatting than st.dataframe
 table_rows = []
 for _, r in df_comp.iterrows():
     is_low = r["confidence_label"] in ("LOW", "INSUFFICIENT")
+    is_selected = r["insurer"] == selected_insurer
     row_style = "font-style: italic; opacity: 0.75;" if is_low else ""
+    if is_selected:
+        row_style += f" background-color: rgba(152, 29, 151, 0.08); font-weight: bold;"
 
     retention_style = _colour_vs_market(r["retention"], mkt_retention_rate)
     net_style = _net_flow_colour(r["net_flow"])
@@ -337,7 +357,7 @@ for _, r in df_comp.iterrows():
         f"<td style='padding: 8px 12px; border-bottom: 1px solid {CI_LIGHT_GREY}; text-align: right;'>"
         f"{_fmt_pct(r['shopping_rate'])}</td>"
         f"<td style='padding: 8px 12px; border-bottom: 1px solid {CI_LIGHT_GREY}; text-align: right; {net_style}'>"
-        f"{_net_flow_label(r['net_flow'])}</td>"
+        f"{_net_flow_label(r['net_flow'], r.get('net_flow_pct'))}</td>"
         f"<td style='padding: 8px 12px; border-bottom: 1px solid {CI_LIGHT_GREY}; text-align: center; "
         f"color: {trend_colour}; font-size: 18px;'>{trend}</td>"
         f"<td style='padding: 8px 12px; border-bottom: 1px solid {CI_LIGHT_GREY}; text-align: center;'>"
@@ -361,13 +381,24 @@ html_table = f"""
     <th style="{header_style} text-align: right;">Retention</th>
     <th style="{header_style} text-align: right;">Shopping Rate</th>
     <th style="{header_style} text-align: right;">Net Flow</th>
-    <th style="{header_style} text-align: center;">Trend</th>
+    <th style="{header_style} text-align: center;" title="Compares Bayesian-smoothed rates between the earlier and more recent halves of the selected period. Arrows show direction of change.">Trend &#x2139;&#xFE0F;</th>
     <th style="{header_style} text-align: center;">Confidence</th>
 </tr>
 </thead>
 <tbody>
 {"".join(table_rows)}
 </tbody>
+<tfoot>
+<tr style="background-color: rgba(152, 29, 151, 0.08); font-weight: bold;">
+    <td style="padding: 8px 12px; border-top: 2px solid {MARKET_COLOUR}; color: {MARKET_COLOUR};">Market</td>
+    <td style="padding: 8px 12px; border-top: 2px solid {MARKET_COLOUR}; text-align: right;">{len(mkt_existing):,}</td>
+    <td style="padding: 8px 12px; border-top: 2px solid {MARKET_COLOUR}; text-align: right; color: {MARKET_COLOUR};">{_fmt_pct(mkt_retention_rate)}</td>
+    <td style="padding: 8px 12px; border-top: 2px solid {MARKET_COLOUR}; text-align: right;">{_fmt_pct(mkt_shopping_rate)}</td>
+    <td style="padding: 8px 12px; border-top: 2px solid {MARKET_COLOUR}; text-align: right;">&mdash;</td>
+    <td style="padding: 8px 12px; border-top: 2px solid {MARKET_COLOUR}; text-align: center;">&mdash;</td>
+    <td style="padding: 8px 12px; border-top: 2px solid {MARKET_COLOUR}; text-align: center;">&mdash;</td>
+</tr>
+</tfoot>
 </table>
 </div>
 """
@@ -396,14 +427,15 @@ st.markdown(
 # ---- Interactive sort (alternative dataframe view) ----
 with st.expander("Sortable data view"):
     df_display = df_comp[
-        ["insurer", "n_renewals", "retention", "shopping_rate", "net_flow", "trend_direction", "confidence_label"]
+        ["insurer", "n_renewals", "retention", "shopping_rate", "net_flow", "net_flow_pct", "trend_direction", "confidence_label"]
     ].copy()
-    df_display.columns = ["Insurer", "Renewals", "Retention", "Shopping Rate", "Net Flow", "Trend", "Confidence"]
+    df_display.columns = ["Insurer", "Renewals", "Retention", "Shopping Rate", "Net Flow", "Net Flow %", "Trend", "Confidence"]
     df_display["Retention"] = df_display["Retention"].apply(lambda v: f"{v * 100:.1f}%")
     df_display["Shopping Rate"] = df_display["Shopping Rate"].apply(
         lambda v: f"{v * 100:.1f}%" if v is not None else "\u2014"
     )
-    df_display["Net Flow"] = df_display["Net Flow"].apply(_net_flow_label)
+    df_display["Net Flow"] = df_display.apply(lambda r: _net_flow_label(r["Net Flow"], r["Net Flow %"]), axis=1)
+    df_display = df_display.drop(columns=["Net Flow %"])
     df_display["Trend"] = df_display["Trend"].apply(lambda v: v if v else "\u2014")
     st.dataframe(df_display, use_container_width=True, hide_index=True)
 
