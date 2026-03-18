@@ -8,13 +8,13 @@ import os
 # ---------------------------------------------------------------------------
 # Azure / Power BI credentials
 # ---------------------------------------------------------------------------
-TENANT_ID = "21c877f6-eb38-45b3-82dd-a27ccad676ce"
-CLIENT_ID = "9cd99ce2-4c31-46e0-bb7c-eeb8e12e73d6"
+TENANT_ID = os.getenv("AZURE_TENANT_ID", "21c877f6-eb38-45b3-82dd-a27ccad676ce")
+CLIENT_ID = os.getenv("AZURE_CLIENT_ID", "9cd99ce2-4c31-46e0-bb7c-eeb8e12e73d6")
 SCOPE = ["https://analysis.windows.net/powerbi/api/Dataset.Read.All"]
 
 # Motor insurance fabric instance
-MOTOR_WORKSPACE_ID = "db6f5221-fa36-48f7-8c14-259a1f570bc5"
-MOTOR_DATASET_ID = "646c070f-5b4f-4ded-b0f9-4ae8a8b8a7ad"
+MOTOR_WORKSPACE_ID = os.getenv("MOTOR_WORKSPACE_ID", "db6f5221-fa36-48f7-8c14-259a1f570bc5")
+MOTOR_DATASET_ID = os.getenv("MOTOR_DATASET_ID", "646c070f-5b4f-4ded-b0f9-4ae8a8b8a7ad")
 
 # Home insurance fabric instance
 HOME_WORKSPACE_ID = os.getenv(
