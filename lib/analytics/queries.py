@@ -169,8 +169,34 @@ def top_reason(
     Returns list of dicts sorted by rank1_count descending, limited to top_n.
     """
     ranked = query_ranked(df, question, respondent_ids)
+
+    # If no ranked columns exist, fall back to multi-code mention counts.
+    # This handles questions like Q31 (multi-select, no ranking).
     if ranked.empty:
-        return []
+        mentions = count_mentions(df, question, respondent_ids)
+        if mentions.empty:
+            return []
+        # For multi-code, use respondent_count as the denominator
+        n_respondents = respondent_count(df, question, respondent_ids)
+        if n_respondents == 0:
+            return []
+        combined = pd.DataFrame({
+            "rank1_count": mentions,       # treat each mention as "rank 1"
+            "total_mentions": mentions,
+        })
+        combined["rank1_pct"] = combined["rank1_count"] / n_respondents
+        combined["mention_pct"] = combined["total_mentions"] / n_respondents
+        combined = combined.sort_values("rank1_count", ascending=False).head(top_n)
+        return [
+            {
+                "reason": reason,
+                "rank1_count": int(row["rank1_count"]),
+                "total_mentions": int(row["total_mentions"]),
+                "rank1_pct": row["rank1_pct"],
+                "mention_pct": row["mention_pct"],
+            }
+            for reason, row in combined.iterrows()
+        ]
 
     n_respondents = ranked["UniqueID"].nunique()
     rank1 = ranked[ranked["Rank"] == 1]
