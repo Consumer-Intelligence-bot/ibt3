@@ -76,7 +76,13 @@ def _load_product_data(token: str, product: str, start_month: int, end_month: in
 
         wide = pivot_questions_to_wide(df_q)
         if not wide.empty:
-            df = df.merge(wide, left_on="UniqueID", right_index=True, how="left")
+            # Drop columns that already exist on MainData to avoid overwriting
+            existing = set(df.columns)
+            overlap = [c for c in wide.columns if c in existing]
+            if overlap:
+                wide = wide.drop(columns=overlap)
+            if not wide.empty:
+                df = df.merge(wide, left_on="UniqueID", right_index=True, how="left")
 
     return df
 

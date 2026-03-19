@@ -19,7 +19,7 @@ log = logging.getLogger(__name__)
 SINGLE_CODE = {
     "Q3", "Q4", "Q5", "Q6", "Q6a", "Q7", "Q9a", "Q15", "Q20a", "Q20b",
     "Q21", "Q29", "Q30", "Q34a", "Q34b", "Q35", "Q36", "Q37",
-    "Q39", "Q40", "Q41", "Q42", "Q43", "Q43a", "Q49", "Q50", "Q51",
+    "Q39", "Q41", "Q42", "Q43", "Q43a", "Q49", "Q50", "Q51",
     "Q51a", "Q57", "Q58", "Q59", "Q60", "Q61", "Q62",
 }
 
@@ -32,7 +32,7 @@ RANKED = {"Q8", "Q13a", "Q18", "Q19", "Q33", "Q44", "Q55"}
 
 GRID = {"Q46", "Q53"}
 
-NPS_SCALE = {"Q11d", "Q40a", "Q40b", "Q47", "Q48", "Q52"}
+NPS_SCALE = {"Q11d", "Q40", "Q40a", "Q40b", "Q47", "Q48", "Q52"}
 
 ALL_KNOWN = SINGLE_CODE | MULTI_CODE | RANKED | GRID | NPS_SCALE
 
