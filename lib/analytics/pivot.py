@@ -123,7 +123,7 @@ def _pivot_multi(df: pd.DataFrame, result: pd.DataFrame) -> None:
         pivoted = deduped.pivot(index="UniqueID", columns="_col", values="_val")
     except ValueError:
         pivoted = deduped.groupby(["UniqueID", "_col"])["_val"].first().unstack()
-    pivoted = pivoted.fillna(False)
+    pivoted = pivoted.fillna(False).infer_objects(copy=False)
     merged = result.merge(pivoted, on="UniqueID", how="left")
     for col in pivoted.columns:
         result[col] = merged[col].fillna(False).values

@@ -147,7 +147,7 @@ def run_dax(token: str, dax: str, *, silent: bool = False,
 
 # Known table name variants to probe when metadata queries fail.
 _MAIN_TABLE_CANDIDATES = ["MainData_Motor", "MainData_Home", "MainData"]
-_OTHER_TABLE_CANDIDATES = ["AllOtherData_Motor", "AllOtherData_Home", "AllOtherData"]
+_OTHER_TABLE_CANDIDATES = ["AllOtherData_Motor", "AllOtherData_Home", "AllOtherData", "OtherData"]
 
 
 def _probe_table_exists_simple(token: str, table_name: str, *,
