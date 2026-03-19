@@ -221,11 +221,14 @@ def _pivot_grid(df: pd.DataFrame, result: pd.DataFrame) -> None:
 
 
 def _pivot_q1_spontaneous(df: pd.DataFrame, result: pd.DataFrame) -> None:
-    """Q1 spontaneous awareness: normalise free text and create boolean brand columns.
+    """Q1 spontaneous awareness: normalise free text, preserving mention position.
 
-    Q1_1 through Q1_10 contain typed brand names. These are normalised via
-    the three-tier brand matching pipeline (lookup -> fuzzy -> LLM), then
-    pivoted into boolean columns Q1_{brand} matching the Q2 convention.
+    Creates two sets of columns:
+      - Q1_pos{row}{a|b} = normalised brand name (text), preserving rank/position
+      - Q1_{brand} = True/False (boolean), for awareness-level calculations
+
+    The position columns enable TOMA (pos 1), top-3, and mean position metrics.
+    The boolean columns enable standard awareness rate calculations.
     """
     subset = df[df["QuestionNumber"].isin(Q1_SPONTANEOUS)]
     if subset.empty:
@@ -244,28 +247,49 @@ def _pivot_q1_spontaneous(df: pd.DataFrame, result: pd.DataFrame) -> None:
     from lib.analytics.brand_match import normalise_q1_brands
 
     matched = normalise_q1_brands(subset, canonical_brands=q2_brands)
-
-    # Filter to successfully matched brands
     matched = matched[matched["Brand"].notna()].copy()
     if matched.empty:
         log.info("Q1 spontaneous: no brands matched after normalisation")
         return
 
-    # Create boolean columns: Q1_{brand} = True for each respondent/brand pair
-    matched["_col"] = "Q1_" + matched["Brand"]
+    # --- Position columns: Q1_pos{row}{slot} = brand name ---
+    # Map Q1 sub-questions to position column names
+    _pos_col_map = {
+        "Q1_1": "Q1_pos1a", "Q1_2": "Q1_pos1b",
+        "Q1_3": "Q1_pos2a", "Q1_4": "Q1_pos2b",
+        "Q1_5": "Q1_pos3a", "Q1_6": "Q1_pos3b",
+        "Q1_7": "Q1_pos4a", "Q1_8": "Q1_pos4b",
+        "Q1_9": "Q1_pos5a", "Q1_10": "Q1_pos5b",
+    }
+    matched["_pos_col"] = matched["QuestionNumber"].map(_pos_col_map)
+    pos_data = matched[matched["_pos_col"].notna()][["UniqueID", "_pos_col", "Brand"]].copy()
+    pos_deduped = pos_data.drop_duplicates(subset=["UniqueID", "_pos_col"])
+
+    if not pos_deduped.empty:
+        try:
+            pos_pivoted = pos_deduped.pivot(index="UniqueID", columns="_pos_col", values="Brand")
+        except ValueError:
+            pos_pivoted = pos_deduped.groupby(["UniqueID", "_pos_col"])["Brand"].first().unstack()
+        merged_pos = result.merge(pos_pivoted, on="UniqueID", how="left")
+        for col in pos_pivoted.columns:
+            result[col] = merged_pos[col].values
+
+    # --- Boolean columns: Q1_{brand} = True/False ---
+    matched["_bool_col"] = "Q1_" + matched["Brand"]
     matched["_val"] = True
-    deduped = matched.drop_duplicates(subset=["UniqueID", "_col"])
+    bool_deduped = matched.drop_duplicates(subset=["UniqueID", "_bool_col"])
 
     try:
-        pivoted = deduped.pivot(index="UniqueID", columns="_col", values="_val")
+        bool_pivoted = bool_deduped.pivot(index="UniqueID", columns="_bool_col", values="_val")
     except ValueError:
-        pivoted = deduped.groupby(["UniqueID", "_col"])["_val"].first().unstack()
-    pivoted = pivoted.fillna(False).infer_objects(copy=False)
+        bool_pivoted = bool_deduped.groupby(["UniqueID", "_bool_col"])["_val"].first().unstack()
+    bool_pivoted = bool_pivoted.fillna(False).infer_objects(copy=False)
 
-    merged_q1 = result.merge(pivoted, on="UniqueID", how="left")
-    for col in pivoted.columns:
-        result[col] = merged_q1[col].fillna(False).values
+    merged_bool = result.merge(bool_pivoted, on="UniqueID", how="left")
+    for col in bool_pivoted.columns:
+        result[col] = merged_bool[col].fillna(False).values
 
-    n_brands = len(pivoted.columns)
+    n_brands = len(bool_pivoted.columns)
     n_matched = matched["UniqueID"].nunique()
-    log.info("Q1 spontaneous: %d brands, %d respondents matched", n_brands, n_matched)
+    log.info("Q1 spontaneous: %d brands, %d respondents, %d position cols",
+             n_brands, n_matched, len(pos_pivoted.columns) if not pos_deduped.empty else 0)

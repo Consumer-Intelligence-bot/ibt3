@@ -3,13 +3,17 @@ Spontaneous (unprompted) brand awareness analytics from Q1 data.
 
 Q1 is a grid question where respondents type brand names:
   - Rows 1-5 = mention order (1 = first mentioned / TOMA)
-  - Column 1 & Column 2 per row = two mention slots at same rank
+  - Column a & b per row = two mention slots at same rank
+
+After pivot, the data lives as:
+  - Q1_pos{row}{a|b} columns: normalised brand name (text)
+  - Q1_{brand} columns: boolean mention flags
 
 Metrics:
-  - TOMA: % mentioning brand in row 1 (first to mind)
+  - TOMA: % mentioning brand at position 1 (first to mind)
   - Total Mention: % mentioning brand at any position
-  - Top-3: % mentioning brand in rows 1-3
-  - Mean Position: average row where brand appears (lower = more salient)
+  - Top-3: % mentioning brand at positions 1-3
+  - Mean Position: average position where brand appears (lower = more salient)
 """
 from __future__ import annotations
 
@@ -18,15 +22,40 @@ import pandas as pd
 
 from lib.config import SYSTEM_FLOOR_N
 
-
-# Map Q1 sub-questions to row numbers (mention rank)
-_Q1_ROW_MAP = {
-    "Q1_1": 1, "Q1_2": 1,   # Row 1 (TOMA)
-    "Q1_3": 2, "Q1_4": 2,   # Row 2
-    "Q1_5": 3, "Q1_6": 3,   # Row 3
-    "Q1_7": 4, "Q1_8": 4,   # Row 4
-    "Q1_9": 5, "Q1_10": 5,  # Row 5
+# Position columns created by pivot: Q1_pos{row}{slot}
+_POS_COLS = {
+    1: ["Q1_pos1a", "Q1_pos1b"],
+    2: ["Q1_pos2a", "Q1_pos2b"],
+    3: ["Q1_pos3a", "Q1_pos3b"],
+    4: ["Q1_pos4a", "Q1_pos4b"],
+    5: ["Q1_pos5a", "Q1_pos5b"],
 }
+
+
+def _get_available_pos_cols(df: pd.DataFrame) -> dict[int, list[str]]:
+    """Return {position: [col_names]} for columns that exist on df."""
+    return {
+        pos: [c for c in cols if c in df.columns]
+        for pos, cols in _POS_COLS.items()
+        if any(c in df.columns for c in cols)
+    }
+
+
+def _extract_mentions(df: pd.DataFrame, pos_cols: dict[int, list[str]]) -> pd.DataFrame:
+    """Extract (UniqueID, Brand, position) triples from the position columns."""
+    parts = []
+    for pos, cols in pos_cols.items():
+        for col in cols:
+            chunk = df[["UniqueID", col]].copy()
+            chunk = chunk.rename(columns={col: "Brand"})
+            chunk["Brand"] = chunk["Brand"].astype(str).str.strip()
+            chunk = chunk[chunk["Brand"].notna() & ~chunk["Brand"].isin(["", "nan", "None", "False"])]
+            if not chunk.empty:
+                chunk["position"] = pos
+                parts.append(chunk)
+    if not parts:
+        return pd.DataFrame(columns=["UniqueID", "Brand", "position"])
+    return pd.concat(parts, ignore_index=True)
 
 
 def calc_spontaneous_metrics(
@@ -39,53 +68,37 @@ def calc_spontaneous_metrics(
     Returns DataFrame with columns:
       brand, month, toma, mention, top3, mean_position, n_total, n_toma, n_mention, n_top3
     """
-    q1_cols = [c for c in df_main.columns if c.startswith("Q1_") and not c.startswith("Q1_{")]
-    if not q1_cols:
+    pos_cols = _get_available_pos_cols(df_main)
+    if not pos_cols:
         return pd.DataFrame()
 
+    all_pos_col_names = [c for cols in pos_cols.values() for c in cols]
     months = sorted(df_main[time_col].dropna().unique())
     rows = []
 
     for month in months:
         month_data = df_main[df_main[time_col] == month]
+
         # Denominator: respondents who mentioned at least one brand
-        answered = month_data[q1_cols].any(axis=1)
+        answered = month_data[all_pos_col_names].apply(
+            lambda row: any(
+                pd.notna(v) and str(v).strip() not in ("", "nan", "None", "False")
+                for v in row
+            ), axis=1
+        )
         n_total = int(answered.sum())
         if n_total < SYSTEM_FLOOR_N:
             continue
 
-        # Collect all brand mentions with their row positions
-        mentions = []
-        for col in q1_cols:
-            if col not in month_data.columns:
-                continue
-            vals = month_data[["UniqueID", col]].dropna(subset=[col])
-            vals = vals[vals[col].astype(str).str.strip() != ""]
-            vals = vals[vals[col].astype(str) != "False"]
-            vals = vals[vals[col].astype(str) != "nan"]
-            if vals.empty:
-                continue
-            vals = vals.rename(columns={col: "Brand"})
-            vals["Brand"] = vals["Brand"].astype(str).str.strip()
-            vals["row"] = _Q1_ROW_MAP.get(col, 99)
-            mentions.append(vals)
-
-        if not mentions:
+        mentions = _extract_mentions(month_data, pos_cols)
+        if mentions.empty:
             continue
 
-        all_mentions = pd.concat(mentions, ignore_index=True)
-        # Remove rows where Brand is boolean False (from Q1 boolean columns)
-        all_mentions = all_mentions[~all_mentions["Brand"].isin(["False", "True", "nan", ""])]
-
-        if all_mentions.empty:
-            continue
-
-        # Group by brand
-        for brand, brand_data in all_mentions.groupby("Brand"):
+        for brand, brand_data in mentions.groupby("Brand"):
             unique_respondents = brand_data["UniqueID"].nunique()
-            toma_respondents = brand_data[brand_data["row"] == 1]["UniqueID"].nunique()
-            top3_respondents = brand_data[brand_data["row"] <= 3]["UniqueID"].nunique()
-            mean_pos = brand_data.groupby("UniqueID")["row"].min().mean()
+            toma_respondents = brand_data[brand_data["position"] == 1]["UniqueID"].nunique()
+            top3_respondents = brand_data[brand_data["position"] <= 3]["UniqueID"].nunique()
+            mean_pos = brand_data.groupby("UniqueID")["position"].min().mean()
 
             rows.append({
                 "brand": brand,
@@ -106,17 +119,16 @@ def calc_spontaneous_metrics(
     return pd.DataFrame(rows)
 
 
-def calc_toma_share(metrics: pd.DataFrame, top_n: int = 8) -> pd.DataFrame:
+def calc_toma_share(metrics: pd.DataFrame, top_n: int = 8):
     """
     TOMA share over time for stacked area chart.
 
-    Returns DataFrame with months as rows, brand names as columns,
-    values = TOMA % share. Includes "Other" column.
+    Returns (DataFrame, top_brands_list) or (empty DataFrame, []).
+    DataFrame has months as rows, brand names + "Other" as columns, values = TOMA %.
     """
     if metrics.empty:
-        return pd.DataFrame()
+        return pd.DataFrame(), []
 
-    # Identify top brands by average TOMA
     brand_avg = metrics.groupby("brand")["toma"].mean().sort_values(ascending=False)
     top_brands = brand_avg.head(top_n).index.tolist()
 
@@ -137,15 +149,15 @@ def calc_toma_share(metrics: pd.DataFrame, top_n: int = 8) -> pd.DataFrame:
     return pd.DataFrame(rows), top_brands
 
 
-def calc_toma_ranks(metrics: pd.DataFrame, top_n: int = 8) -> pd.DataFrame:
+def calc_toma_ranks(metrics: pd.DataFrame, top_n: int = 8):
     """
     TOMA rank by month for bump chart.
 
-    Returns DataFrame with months as rows, brand names as columns,
-    values = rank position (1 = highest TOMA).
+    Returns (DataFrame, top_brands_list) or (empty DataFrame, []).
+    DataFrame has months as rows, brand names as columns, values = rank.
     """
     if metrics.empty:
-        return pd.DataFrame()
+        return pd.DataFrame(), []
 
     brand_avg = metrics.groupby("brand")["toma"].mean().sort_values(ascending=False)
     top_brands = brand_avg.head(top_n).index.tolist()
@@ -175,27 +187,30 @@ def calc_decay_curve(
 
     Returns DataFrame with columns: position (1-5), pct.
     """
-    q1_cols = [c for c in df_main.columns if c.startswith("Q1_") and not c.startswith("Q1_{")]
-    if not q1_cols:
+    pos_cols = _get_available_pos_cols(df_main)
+    if not pos_cols:
         return pd.DataFrame()
 
     data = df_main.copy()
     if selected_months:
         data = data[data[time_col].isin(selected_months)]
 
-    answered = data[q1_cols].any(axis=1)
+    all_pos_col_names = [c for cols in pos_cols.values() for c in cols]
+    answered = data[all_pos_col_names].apply(
+        lambda row: any(
+            pd.notna(v) and str(v).strip() not in ("", "nan", "None", "False")
+            for v in row
+        ), axis=1
+    )
     n_total = int(answered.sum())
     if n_total == 0:
         return pd.DataFrame()
 
     rows = []
-    for pos in range(1, 6):
-        # Find Q1 sub-questions for this row
-        pos_cols = [c for c, r in _Q1_ROW_MAP.items() if r == pos and c in data.columns]
+    for pos, cols in sorted(pos_cols.items()):
         n_at_pos = 0
-        for col in pos_cols:
-            vals = data[col].astype(str).str.strip()
-            n_at_pos += (vals == brand).sum()
+        for col in cols:
+            n_at_pos += (data[col].astype(str).str.strip() == brand).sum()
         rows.append({"position": pos, "pct": round(n_at_pos / n_total * 100, 1)})
 
     return pd.DataFrame(rows)
