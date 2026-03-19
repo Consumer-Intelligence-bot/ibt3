@@ -423,7 +423,7 @@ with tab3:
             )
             apply_export_metadata(
                 fig_scatter, title="Salience Gap Analysis",
-                period=format_year_month(selected_month), question="Q1",
+                period=format_year_month(selected_month), base=n, question="Q1",
             )
             st.plotly_chart(fig_scatter, use_container_width=True)
         else:
