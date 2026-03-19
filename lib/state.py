@@ -291,22 +291,53 @@ def render_dual_period_selector() -> dict | None:
     st.sidebar.markdown("---")
     st.sidebar.subheader("Period Comparison")
 
+    # ---- Compute smart defaults ----
+    # Period B (current): last 3 months of available data
+    default_b_end = all_months[-1]
+    default_b_start_idx = max(0, len(all_months) - 3)
+    default_b_start = all_months[default_b_start_idx]
+
+    # Period A (baseline): same 3 months one year earlier, or earliest 3 months
+    b_start_y = default_b_start // 100
+    b_start_m = default_b_start % 100
+    b_end_y = default_b_end // 100
+    b_end_m = default_b_end % 100
+    target_a_start = (b_start_y - 1) * 100 + b_start_m
+    target_a_end = (b_end_y - 1) * 100 + b_end_m
+
+    # Find closest available months to the year-ago targets
+    months_before_b = [m for m in all_months if m < default_b_start]
+    if months_before_b:
+        # Try to find year-ago window
+        a_start_candidates = [m for m in months_before_b if m <= target_a_start]
+        a_end_candidates = [m for m in months_before_b if m <= target_a_end]
+        if a_start_candidates and a_end_candidates:
+            # Year-ago data exists — use closest matches
+            default_a_start = min(months_before_b, key=lambda m: abs(m - target_a_start))
+            default_a_end = min(months_before_b, key=lambda m: abs(m - target_a_end))
+            if default_a_start > default_a_end:
+                default_a_start, default_a_end = default_a_end, default_a_start
+        else:
+            # No year-ago data — use first 3 available months
+            default_a_start = months_before_b[0]
+            default_a_end = months_before_b[min(2, len(months_before_b) - 1)]
+    else:
+        default_a_start = all_months[0]
+        default_a_end = all_months[min(2, len(all_months) - 1)]
+
     # Period A — Comparison period (baseline)
     st.sidebar.markdown("**Comparison period** (baseline)")
-    default_a_end_idx = max(0, len(all_months) - 13)
-    default_a_start_idx = max(0, default_a_end_idx - 11)
 
     period_a_start, period_a_end = st.sidebar.select_slider(
         "Comparison period",
         options=all_months,
-        value=(all_months[default_a_start_idx], all_months[default_a_end_idx]),
+        value=(default_a_start, default_a_end),
         format_func=lambda x: month_labels.get(x, str(x)),
         key="period_a_slider",
     )
 
     # Period B — Current period
     st.sidebar.markdown("**Current period** (now)")
-    default_b_start_idx = min(default_a_end_idx + 1, len(all_months) - 1)
 
     # Filter months that come after Period A end
     b_options = [m for m in all_months if m > period_a_end]
@@ -314,10 +345,14 @@ def render_dual_period_selector() -> dict | None:
         st.sidebar.error("Current period must follow comparison period.")
         return None
 
+    # Clamp Period B defaults to available options
+    default_b_start_clamped = default_b_start if default_b_start in b_options else b_options[0]
+    default_b_end_clamped = default_b_end if default_b_end in b_options else b_options[-1]
+
     period_b_start, period_b_end = st.sidebar.select_slider(
         "Current period",
         options=b_options,
-        value=(b_options[0], b_options[-1]),
+        value=(default_b_start_clamped, default_b_end_clamped),
         format_func=lambda x: month_labels.get(x, str(x)),
         key="period_b_slider",
     )
