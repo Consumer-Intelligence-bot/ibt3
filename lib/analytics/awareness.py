@@ -13,7 +13,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from lib.analytics.bayesian import bayesian_smooth_rate
+from lib.analytics.bayesian import bayesian_change_test, bayesian_smooth_rate
 from lib.analytics.confidence import MetricType, assess_confidence
 from lib.config import (
     MIN_BASE_INDICATIVE,
@@ -482,3 +482,137 @@ def apply_movement_filters(
         mask = mask | comparison["brand"].isin(pinned)
 
     return comparison[mask].copy()
+
+
+# ---------------------------------------------------------------------------
+# Bayesian awareness movers (statistically valid change detection)
+# ---------------------------------------------------------------------------
+
+def calc_awareness_movers(
+    df_main: pd.DataFrame,
+    awareness_level: str,
+    period_a_months: list[int],
+    period_b_months: list[int],
+    min_evidence: str = "moderate",
+    top_n_each: int = 10,
+    time_col: str = "RenewalYearMonth",
+) -> pd.DataFrame:
+    """
+    Identify brands with genuine awareness movement using Bayesian change
+    detection. Monte Carlo samples from each period's Beta posterior are
+    compared to produce P(gain), P(loss), and a credible interval.
+
+    Small brands are naturally handled via shrinkage: uncertain estimates
+    are pulled toward zero change, so they only appear when the signal is
+    strong relative to the noise.
+
+    Parameters
+    ----------
+    min_evidence : str
+        Minimum evidence threshold: 'strong' (95%), 'moderate' (90%),
+        'weak' (80%), or 'any'.
+    top_n_each : int
+        Maximum gainers and losers to return.
+
+    Returns DataFrame with columns:
+        brand, rate_a, rate_b, change_pp, posterior_change_pp,
+        ci_lower_pp, ci_upper_pp, prob_gain, prob_loss,
+        significant, evidence_strength, direction,
+        n_mentions_a, n_mentions_b, n_total_a, n_total_b
+    """
+    q_code = _get_q_code(awareness_level)
+    if q_code is None:
+        return pd.DataFrame()
+
+    cols = _brand_cols(df_main, q_code)
+    if not cols:
+        return pd.DataFrame()
+
+    prefix = f"{q_code}_"
+
+    # Compute raw counts per brand per period
+    def _period_counts(months):
+        period = df_main[df_main[time_col].isin(months)]
+        answered = period[cols].any(axis=1)
+        n_total = int(answered.sum())
+        if n_total < SYSTEM_FLOOR_N:
+            return None, 0
+        counts = {}
+        for col in cols:
+            brand = col[len(prefix):]
+            k = int(period[col].sum())
+            if k > 0:
+                counts[brand] = k
+        return counts, n_total
+
+    counts_a, n_a = _period_counts(period_a_months)
+    counts_b, n_b = _period_counts(period_b_months)
+
+    if counts_a is None or counts_b is None:
+        return pd.DataFrame()
+
+    # Market prior: average rate across all brands
+    all_brands = set((counts_a or {}).keys()) | set((counts_b or {}).keys())
+    total_mentions = sum(counts_a.get(b, 0) + counts_b.get(b, 0) for b in all_brands)
+    total_trials = n_a + n_b
+    market_rate = total_mentions / (total_trials * max(1, len(all_brands)))
+
+    rows = []
+    for brand in sorted(all_brands):
+        k_a = counts_a.get(brand, 0)
+        k_b = counts_b.get(brand, 0)
+
+        test = bayesian_change_test(
+            successes_a=k_a, trials_a=n_a,
+            successes_b=k_b, trials_b=n_b,
+            prior_mean=market_rate,
+        )
+
+        rate_a = k_a / n_a if n_a > 0 else 0
+        rate_b = k_b / n_b if n_b > 0 else 0
+
+        rows.append({
+            "brand": brand,
+            "rate_a": rate_a,
+            "rate_b": rate_b,
+            "change_pp": (rate_b - rate_a) * 100,
+            "posterior_change_pp": test["posterior_mean_change"] * 100,
+            "ci_lower_pp": test["ci_lower"] * 100,
+            "ci_upper_pp": test["ci_upper"] * 100,
+            "prob_gain": test["prob_gain"],
+            "prob_loss": test["prob_loss"],
+            "significant": test["significant"],
+            "evidence_strength": test["evidence_strength"],
+            "direction": test["direction"],
+            "n_mentions_a": k_a,
+            "n_mentions_b": k_b,
+            "n_total_a": n_a,
+            "n_total_b": n_b,
+        })
+
+    if not rows:
+        return pd.DataFrame()
+
+    df = pd.DataFrame(rows)
+
+    # Filter by evidence threshold
+    thresholds = {"strong": 0.95, "moderate": 0.90, "weak": 0.80, "any": 0.0}
+    min_prob = thresholds.get(min_evidence, 0.90)
+    df["max_prob"] = df[["prob_gain", "prob_loss"]].max(axis=1)
+    eligible = df[df["max_prob"] >= min_prob].copy()
+
+    if eligible.empty:
+        return eligible
+
+    # Top N gainers and losers
+    gainers = (eligible[eligible["direction"] == "gain"]
+               .sort_values("prob_gain", ascending=False)
+               .head(top_n_each))
+    losers = (eligible[eligible["direction"] == "loss"]
+              .sort_values("prob_loss", ascending=False)
+              .head(top_n_each))
+
+    result = pd.concat([gainers, losers], ignore_index=True)
+    # Sort: strongest evidence first
+    result = result.sort_values("max_prob", ascending=False).reset_index(drop=True)
+    return result

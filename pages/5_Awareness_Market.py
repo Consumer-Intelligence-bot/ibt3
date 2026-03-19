@@ -16,6 +16,7 @@ import streamlit as st
 from lib.analytics.awareness import (
     Q1_GATING_MESSAGE,
     apply_movement_filters,
+    calc_awareness_movers,
     calc_awareness_rates,
     calc_dual_period_comparison,
     calc_most_improved_enriched,
@@ -299,95 +300,153 @@ if view == "Awareness level":
     )
 
 else:
-    # ---- Awareness Movement View ----
-    st.subheader(f"Awareness Movement — {filter_title}")
+    # ---- Bayesian Awareness Movement View ----
+    st.subheader("Awareness Movement — Bayesian Change Detection")
 
-    # Change 5: exclude brands with suppress or absent tier from movement view
-    movement_data = filtered[
-        filtered["combined_tier"].isin(["full", "indicative"])
-    ].copy()
+    # Sidebar controls for evidence-based filtering
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("Movement Detection")
+    evidence_level = st.sidebar.select_slider(
+        "Minimum evidence",
+        options=["any", "weak", "moderate", "strong"],
+        value="weak",
+        format_func=lambda x: {
+            "any": "Any (show all)",
+            "weak": "Weak (80%)",
+            "moderate": "Moderate (90%)",
+            "strong": "Strong (95%)",
+        }.get(x, x),
+        key="evidence_slider",
+    )
+    mover_direction = st.sidebar.radio(
+        "Direction", ["Both", "Gainers only", "Losers only"],
+        horizontal=True, key="mover_direction",
+    )
+    top_n_movers = st.sidebar.slider(
+        "Max brands per direction", 5, 30, 10, key="top_n_movers",
+    )
 
-    if movement_data.empty:
-        st.info("No brands with sufficient data in both periods to show movement.")
-    else:
-        # Sort by absolute rank movement (largest movers at top)
-        movement_data = movement_data.sort_values("abs_rank_movement", ascending=True)
-
-        # Colour coding (Change 4)
-        bar_colours = []
-        for mv in movement_data["rank_movement"]:
-            if mv > 0:
-                bar_colours.append(CI_GREEN)
-            elif mv < 0:
-                bar_colours.append(CI_RED)
-            else:
-                bar_colours.append(CI_GREY)
-
-        # Delta labels
-        delta_labels = []
-        for mv in movement_data["rank_movement"]:
-            if mv > 0:
-                delta_labels.append(f"↑{mv}")
-            elif mv < 0:
-                delta_labels.append(f"↓{abs(mv)}")
-            else:
-                delta_labels.append("—")
-
-        fig_mv = go.Figure()
-
-        fig_mv.add_trace(go.Bar(
-            y=movement_data["brand"],
-            x=movement_data["rank_movement"],
-            orientation="h",
-            marker_color=bar_colours,
-            text=delta_labels,
-            textposition="outside",
-            textfont=dict(size=11, family="Verdana"),
-            hovertemplate=(
-                "<b>%{y}</b><br>"
-                "Rank: %{customdata[0]} → %{customdata[1]}<br>"
-                "Movement: %{x} positions<br>"
-                "<extra></extra>"
-            ),
-            customdata=list(zip(
-                movement_data["rank_a"],
-                movement_data["rank_b"],
-            )),
-        ))
-
-        fig_mv.update_layout(
-            xaxis_title="Rank positions gained / lost",
-            height=max(400, len(movement_data) * 35),
-            margin=dict(l=180, r=60),
-            font=dict(family="Verdana"),
-            plot_bgcolor="white",
-            paper_bgcolor="white",
+    with st.spinner("Running Bayesian change detection..."):
+        movers = calc_awareness_movers(
+            df_main, level,
+            period_a_months, period_b_months,
+            min_evidence=evidence_level,
+            top_n_each=top_n_movers,
         )
 
-        # Add rank labels as annotations
-        for i, (_, row) in enumerate(movement_data.iterrows()):
-            # Change 5: indicative flag
-            suffix = ""
-            if row["combined_tier"] == "indicative":
-                suffix = " ⚠"
+    if movers.empty:
+        st.info(
+            "No statistically significant awareness changes detected. "
+            "This may indicate a stable market or insufficient sample size. "
+            "Try lowering the evidence threshold or widening the comparison period."
+        )
+    else:
+        # Filter by direction
+        if mover_direction == "Gainers only":
+            movers = movers[movers["direction"] == "gain"]
+        elif mover_direction == "Losers only":
+            movers = movers[movers["direction"] == "loss"]
 
-            fig_mv.add_annotation(
-                x=0,
-                y=row["brand"],
-                text=f"Rank {row['rank_a']} → {row['rank_b']}{suffix}",
-                showarrow=False,
-                font=dict(size=9, color=CI_GREY, family="Verdana"),
-                xanchor="left" if row["rank_movement"] < 0 else "right",
-                xshift=5 if row["rank_movement"] < 0 else -5,
+        if movers.empty:
+            st.info(f"No {mover_direction.lower().replace(' only', '')} detected at this threshold.")
+        else:
+            # Sort: gainers at top (positive change), losers at bottom
+            movers = movers.sort_values("posterior_change_pp", ascending=True)
+
+            # Colours and labels
+            bar_colours = [
+                CI_GREEN if d == "gain" else CI_RED
+                for d in movers["direction"]
+            ]
+            evidence_icons = {
+                "strong": "\u2605\u2605\u2605",
+                "moderate": "\u2605\u2605",
+                "weak": "\u2605",
+                "none": "",
+            }
+            hover_text = [
+                f"<b>{row['brand']}</b><br>"
+                f"Change: {row['posterior_change_pp']:+.1f}pp<br>"
+                f"95% CI: [{row['ci_lower_pp']:+.1f}, {row['ci_upper_pp']:+.1f}]pp<br>"
+                f"P(gain): {row['prob_gain']:.0%} | P(loss): {row['prob_loss']:.0%}<br>"
+                f"Evidence: {row['evidence_strength']}<br>"
+                f"Period A: {row['n_mentions_a']:,} / {row['n_total_a']:,} ({row['rate_a']:.1%})<br>"
+                f"Period B: {row['n_mentions_b']:,} / {row['n_total_b']:,} ({row['rate_b']:.1%})"
+                for _, row in movers.iterrows()
+            ]
+
+            fig_mv = go.Figure()
+
+            # Credible interval error bars
+            error_right = [
+                max(0, row["ci_upper_pp"] - row["posterior_change_pp"])
+                for _, row in movers.iterrows()
+            ]
+            error_left = [
+                max(0, row["posterior_change_pp"] - row["ci_lower_pp"])
+                for _, row in movers.iterrows()
+            ]
+
+            fig_mv.add_trace(go.Bar(
+                y=movers["brand"],
+                x=movers["posterior_change_pp"],
+                orientation="h",
+                marker_color=bar_colours,
+                error_x=dict(
+                    type="data",
+                    symmetric=False,
+                    array=error_right,
+                    arrayminus=error_left,
+                    color=CI_GREY,
+                    thickness=1.5,
+                    width=3,
+                ),
+                text=[
+                    f"{row['posterior_change_pp']:+.1f}pp  {evidence_icons.get(row['evidence_strength'], '')}"
+                    for _, row in movers.iterrows()
+                ],
+                textposition="outside",
+                textfont=dict(size=11, family="Verdana"),
+                hovertext=hover_text,
+                hoverinfo="text",
+            ))
+
+            # Zero reference line
+            fig_mv.add_vline(
+                x=0, line_dash="dot", line_color=CI_GREY, line_width=1,
             )
 
-        st.plotly_chart(fig_mv, use_container_width=True)
+            fig_mv.update_layout(
+                xaxis_title="Posterior mean change (pp) with 95% credible interval",
+                height=max(400, len(movers) * 35),
+                margin=dict(l=180, r=100),
+                font=dict(family="Verdana"),
+                plot_bgcolor="white",
+                paper_bgcolor="white",
+            )
 
-        # Change 5 legend
-        st.caption(
-            "⚠ = Indicative — low base. "
-            "Brands with insufficient data in either period are excluded."
-        )
+            # Add probability annotations
+            for _, row in movers.iterrows():
+                prob = row["prob_gain"] if row["direction"] == "gain" else row["prob_loss"]
+                fig_mv.add_annotation(
+                    x=0,
+                    y=row["brand"],
+                    text=f"P={prob:.0%}",
+                    showarrow=False,
+                    font=dict(size=9, color=CI_GREY, family="Verdana"),
+                    xanchor="right" if row["direction"] == "gain" else "left",
+                    xshift=-8 if row["direction"] == "gain" else 8,
+                )
+
+            st.plotly_chart(fig_mv, use_container_width=True)
+
+            # Legend
+            st.caption(
+                "Brands ranked by strength of statistical evidence for genuine awareness change. "
+                "The Bayesian method accounts for sample size, so smaller brands appear when "
+                "there is sufficient evidence. Error bars show 95% credible intervals. "
+                "\u2605\u2605\u2605 = strong (95%+), \u2605\u2605 = moderate (90%+), \u2605 = weak (80%+)."
+            )
 
 # ---- Multi-Brand Trend Line Chart (Spec Section 9.6) ----
 st.markdown("---")
