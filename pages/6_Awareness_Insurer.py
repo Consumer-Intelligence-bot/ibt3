@@ -76,16 +76,14 @@ else:
 
 # ---- Slopegraph panels (Spec 10.3) ----
 st.subheader("Awareness Funnel")
+spontaneous_slope = calc_awareness_slopegraph(df_main, insurer, "spontaneous")
 prompted_slope = calc_awareness_slopegraph(df_main, insurer, "prompted")
 consideration_slope = calc_awareness_slopegraph(df_main, insurer, "consideration")
 
 col1, col2, col3 = st.columns(3)
 
-with col1:
-    st.markdown("**Spontaneous (Q1)**")
-    st.info(Q1_GATING_MESSAGE)
-
 for col, title, data, colour in [
+    (col1, "Spontaneous (Q1)", spontaneous_slope, CI_MAGENTA),
     (col2, "Prompted (Q2)", prompted_slope, CI_BLUE),
     (col3, "Consideration (Q27)", consideration_slope, CI_GREEN),
 ]:
@@ -127,6 +125,7 @@ if prompted_slope and consideration_slope:
 # ---- Trend chart with market bands (Spec 10.4) ----
 st.subheader("Awareness Trend vs Market")
 
+spontaneous_rates = calc_awareness_rates(df_main, "spontaneous")
 prompted_rates = calc_awareness_rates(df_main, "prompted")
 consideration_rates = calc_awareness_rates(df_main, "consideration")
 prompted_bands = calc_awareness_market_bands(df_main, "prompted")
@@ -153,6 +152,7 @@ for bands_df, band_colour, band_label in [
 
 # Insurer lines
 for level, rates_df, colour, label in [
+    ("spontaneous", spontaneous_rates, CI_MAGENTA, "Spontaneous"),
     ("prompted", prompted_rates, CI_BLUE, "Prompted"),
     ("consideration", consideration_rates, CI_GREEN, "Consideration"),
 ]:
