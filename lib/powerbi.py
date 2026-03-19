@@ -484,19 +484,36 @@ def load_ss_questions(_token, start_month: int, end_month: int,
                       main_table: str = MAIN_TABLE, other_table: str = OTHER_TABLE, *,
                       workspace_id: str = WORKSPACE_ID,
                       dataset_id: str = DATASET_ID):
-    """Fetch AllOtherData EAV table for Shopping & Switching analysis."""
-    if _check_required_columns(
-        _token, other_table, {"UniqueID", "QuestionNumber", "Answer"}, "S&S questions",
+    """Fetch AllOtherData EAV table for Shopping & Switching analysis.
+
+    Fetches all columns needed by pivot.py: UniqueID, QuestionNumber, Answer,
+    plus Ranking (for ranked Qs), Scale (for NPS/grid), and Subject (for grid).
+    """
+    available = discover_columns(
+        _token, other_table,
         workspace_id=workspace_id, dataset_id=dataset_id,
-    ) is None:
+    )
+    if not available:
+        st.warning(f"S&S questions: could not discover columns for '{other_table}'.")
         return pd.DataFrame()
+    required = {"UniqueID", "QuestionNumber", "Answer"}
+    missing = required - available
+    if missing:
+        st.warning(f"S&S questions: missing columns in '{other_table}': {missing}")
+        return pd.DataFrame()
+
+    # Build column list: always fetch core columns, add optional ones if present
+    core = ["UniqueID", "QuestionNumber", "Answer"]
+    optional = ["Ranking", "Scale", "Subject"]
+    cols = core + [c for c in optional if c in available]
+    select_expr = ", ".join(f"'{other_table}'[{c}]" for c in cols)
+
     dax = f"""
         EVALUATE
         CALCULATETABLE(
-            SUMMARIZECOLUMNS(
-                '{other_table}'[UniqueID],
-                '{other_table}'[QuestionNumber],
-                '{other_table}'[Answer]
+            SELECTCOLUMNS(
+                '{other_table}',
+                {select_expr}
             ),
             '{main_table}'[RenewalYearMonth] >= {start_month},
             '{main_table}'[RenewalYearMonth] <= {end_month}

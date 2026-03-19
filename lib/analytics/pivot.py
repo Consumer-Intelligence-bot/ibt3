@@ -136,9 +136,10 @@ def _pivot_ranked(df: pd.DataFrame, result: pd.DataFrame) -> None:
         return
     subset = subset.copy()
 
-    # Derive rank from Rank column or row order
-    if "Rank" in subset.columns:
-        subset["_rank"] = pd.to_numeric(subset["Rank"], errors="coerce").fillna(0).astype(int)
+    # Derive rank from Ranking/Rank column or row order
+    rank_col = "Ranking" if "Ranking" in subset.columns else ("Rank" if "Rank" in subset.columns else None)
+    if rank_col is not None:
+        subset["_rank"] = pd.to_numeric(subset[rank_col], errors="coerce").fillna(0).astype(int)
     else:
         subset["_rank"] = subset.groupby(["UniqueID", "QuestionNumber"]).cumcount() + 1
 
