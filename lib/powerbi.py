@@ -488,6 +488,9 @@ def load_ss_questions(_token, start_month: int, end_month: int,
 
     Fetches all columns needed by pivot.py: UniqueID, QuestionNumber, Answer,
     plus Ranking (for ranked Qs), Scale (for NPS/grid), and Subject (for grid).
+
+    The Power BI REST API caps results at 100K rows per query, so we batch
+    questions into groups to avoid truncation.
     """
     available = discover_columns(
         _token, other_table,
@@ -508,15 +511,42 @@ def load_ss_questions(_token, start_month: int, end_month: int,
     cols = core + [c for c in optional if c in available]
     select_expr = ", ".join(f"'{other_table}'[{c}]" for c in cols)
 
-    dax = f"""
-        EVALUATE
-        CALCULATETABLE(
-            SELECTCOLUMNS(
-                '{other_table}',
-                {select_expr}
-            ),
-            '{main_table}'[RenewalYearMonth] >= {start_month},
-            '{main_table}'[RenewalYearMonth] <= {end_month}
+    # Batch questions to stay under the 100K row API limit.
+    # Import known questions from pivot; skip hidden/derived fields.
+    from lib.analytics.pivot import ALL_KNOWN
+    question_list = sorted(ALL_KNOWN)
+
+    # Split into batches of 5 questions (large multi-code Qs like Q2 can
+    # have 50K+ rows alone, so keep batches small).
+    batch_size = 5
+    batches = [question_list[i:i + batch_size]
+               for i in range(0, len(question_list), batch_size)]
+
+    frames = []
+    for batch in batches:
+        q_filter = " || ".join(
+            f"'{other_table}'[QuestionNumber] = \"{q}\""
+            for q in batch
         )
-    """
-    return run_dax(_token, dax, workspace_id=workspace_id, dataset_id=dataset_id)
+        dax = f"""
+            EVALUATE
+            CALCULATETABLE(
+                SELECTCOLUMNS(
+                    '{other_table}',
+                    {select_expr}
+                ),
+                {q_filter},
+                '{main_table}'[RenewalYearMonth] >= {start_month},
+                '{main_table}'[RenewalYearMonth] <= {end_month}
+            )
+        """
+        df_batch = run_dax(
+            _token, dax, silent=True,
+            workspace_id=workspace_id, dataset_id=dataset_id,
+        )
+        if not df_batch.empty:
+            frames.append(df_batch)
+
+    if not frames:
+        return pd.DataFrame()
+    return pd.concat(frames, ignore_index=True)
