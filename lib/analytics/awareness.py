@@ -23,6 +23,7 @@ from lib.config import (
 
 # Maps awareness level names to Q-codes
 AWARENESS_LEVELS = {
+    "spontaneous": "Q1",
     "prompted": "Q2",
     "consideration": "Q27",
 }
@@ -32,8 +33,6 @@ Q1_GATING_MESSAGE = "Spontaneous awareness (Q1) is not available in the current 
 
 def _get_q_code(awareness_level: str) -> str | None:
     """Return Q-code for an awareness level, or None if gated."""
-    if awareness_level == "spontaneous":
-        return None
     return AWARENESS_LEVELS.get(awareness_level)
 
 

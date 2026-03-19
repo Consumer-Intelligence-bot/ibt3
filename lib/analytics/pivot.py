@@ -34,7 +34,11 @@ GRID = {"Q46", "Q53"}
 
 NPS_SCALE = {"Q11d", "Q40", "Q40a", "Q40b", "Q47", "Q48", "Q52"}
 
-ALL_KNOWN = SINGLE_CODE | MULTI_CODE | RANKED | GRID | NPS_SCALE
+# Q1 spontaneous awareness: free-text grid (Q1_1 through Q1_10).
+# Handled separately — needs brand name normalisation before pivoting.
+Q1_SPONTANEOUS = {f"Q1_{i}" for i in range(1, 11)}
+
+ALL_KNOWN = SINGLE_CODE | MULTI_CODE | RANKED | GRID | NPS_SCALE | Q1_SPONTANEOUS
 
 
 def pivot_questions_to_wide(df_questions: pd.DataFrame) -> pd.DataFrame:
@@ -79,6 +83,9 @@ def pivot_questions_to_wide(df_questions: pd.DataFrame) -> pd.DataFrame:
 
     # --- Grid: Q{n}_{subject} = numeric value ---
     _pivot_grid(df, result)
+
+    # --- Q1 spontaneous awareness: normalise free text → boolean brand columns ---
+    _pivot_q1_spontaneous(df, result)
 
     n_cols = len(result.columns) - 1  # minus UniqueID
     log.info("Pivoted %d EAV rows into %d wide columns for %d respondents",
@@ -211,3 +218,54 @@ def _pivot_grid(df: pd.DataFrame, result: pd.DataFrame) -> None:
         merged = result.merge(pivoted, on="UniqueID", how="left")
         for col in pivoted.columns:
             result[col] = merged[col].values
+
+
+def _pivot_q1_spontaneous(df: pd.DataFrame, result: pd.DataFrame) -> None:
+    """Q1 spontaneous awareness: normalise free text and create boolean brand columns.
+
+    Q1_1 through Q1_10 contain typed brand names. These are normalised via
+    the three-tier brand matching pipeline (lookup -> fuzzy -> LLM), then
+    pivoted into boolean columns Q1_{brand} matching the Q2 convention.
+    """
+    subset = df[df["QuestionNumber"].isin(Q1_SPONTANEOUS)]
+    if subset.empty:
+        return
+    subset = subset[subset["Answer"].notna() & (subset["Answer"] != "") & (subset["Answer"] != "nan")]
+    if subset.empty:
+        return
+
+    # Get canonical brand list from Q2 columns already on the result
+    q2_brands = [c[3:] for c in result.columns if c.startswith("Q2_")]
+    if not q2_brands:
+        log.warning("No Q2 brand columns found; cannot normalise Q1 spontaneous awareness")
+        return
+
+    # Run brand normalisation
+    from lib.analytics.brand_match import normalise_q1_brands
+
+    matched = normalise_q1_brands(subset, canonical_brands=q2_brands)
+
+    # Filter to successfully matched brands
+    matched = matched[matched["Brand"].notna()].copy()
+    if matched.empty:
+        log.info("Q1 spontaneous: no brands matched after normalisation")
+        return
+
+    # Create boolean columns: Q1_{brand} = True for each respondent/brand pair
+    matched["_col"] = "Q1_" + matched["Brand"]
+    matched["_val"] = True
+    deduped = matched.drop_duplicates(subset=["UniqueID", "_col"])
+
+    try:
+        pivoted = deduped.pivot(index="UniqueID", columns="_col", values="_val")
+    except ValueError:
+        pivoted = deduped.groupby(["UniqueID", "_col"])["_val"].first().unstack()
+    pivoted = pivoted.fillna(False).infer_objects(copy=False)
+
+    merged_q1 = result.merge(pivoted, on="UniqueID", how="left")
+    for col in pivoted.columns:
+        result[col] = merged_q1[col].fillna(False).values
+
+    n_brands = len(pivoted.columns)
+    n_matched = matched["UniqueID"].nunique()
+    log.info("Q1 spontaneous: %d brands, %d respondents matched", n_brands, n_matched)
