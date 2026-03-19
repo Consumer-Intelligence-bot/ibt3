@@ -512,31 +512,69 @@ def load_ss_questions(_token, start_month: int, end_month: int,
     select_expr = ", ".join(f"'{other_table}'[{c}]" for c in cols)
 
     # The Power BI REST API caps results at 100K rows per query.
-    # Multi-code questions like Q2 can have 70K+ rows alone, so we
-    # query each question individually to avoid silent truncation.
-    from lib.analytics.pivot import ALL_KNOWN
+    # Large multi-code questions (Q2, Q27) can have 500K+ rows across
+    # the full date range, so we query per-question AND per-quarter
+    # to stay safely under the limit.
+    from lib.analytics.pivot import ALL_KNOWN, MULTI_CODE
     question_list = sorted(ALL_KNOWN)
+
+    # Build quarterly date ranges
+    all_months = list(range(start_month, end_month + 1))
+    # Filter to valid YYYYMM values
+    all_months = [m for m in all_months if 1 <= m % 100 <= 12]
+    # Chunk into quarters (3 months each)
+    quarter_size = 3
+    quarters = []
+    for i in range(0, len(all_months), quarter_size):
+        chunk = all_months[i:i + quarter_size]
+        if chunk:
+            quarters.append((chunk[0], chunk[-1]))
+    if not quarters:
+        quarters = [(start_month, end_month)]
 
     frames = []
     for q in question_list:
-        dax = f"""
-            EVALUATE
-            CALCULATETABLE(
-                SELECTCOLUMNS(
-                    '{other_table}',
-                    {select_expr}
-                ),
-                '{other_table}'[QuestionNumber] = "{q}",
-                '{main_table}'[RenewalYearMonth] >= {start_month},
-                '{main_table}'[RenewalYearMonth] <= {end_month}
+        # Large multi-code questions need per-quarter splitting
+        if q in MULTI_CODE:
+            for q_start, q_end in quarters:
+                dax = f"""
+                    EVALUATE
+                    CALCULATETABLE(
+                        SELECTCOLUMNS(
+                            '{other_table}',
+                            {select_expr}
+                        ),
+                        '{other_table}'[QuestionNumber] = "{q}",
+                        '{main_table}'[RenewalYearMonth] >= {q_start},
+                        '{main_table}'[RenewalYearMonth] <= {q_end}
+                    )
+                """
+                df_q = run_dax(
+                    _token, dax, silent=True,
+                    workspace_id=workspace_id, dataset_id=dataset_id,
+                )
+                if not df_q.empty:
+                    frames.append(df_q)
+        else:
+            # Single-code, ranked, NPS, grid — fit in one query
+            dax = f"""
+                EVALUATE
+                CALCULATETABLE(
+                    SELECTCOLUMNS(
+                        '{other_table}',
+                        {select_expr}
+                    ),
+                    '{other_table}'[QuestionNumber] = "{q}",
+                    '{main_table}'[RenewalYearMonth] >= {start_month},
+                    '{main_table}'[RenewalYearMonth] <= {end_month}
+                )
+            """
+            df_q = run_dax(
+                _token, dax, silent=True,
+                workspace_id=workspace_id, dataset_id=dataset_id,
             )
-        """
-        df_q = run_dax(
-            _token, dax, silent=True,
-            workspace_id=workspace_id, dataset_id=dataset_id,
-        )
-        if not df_q.empty:
-            frames.append(df_q)
+            if not df_q.empty:
+                frames.append(df_q)
 
     if not frames:
         return pd.DataFrame()
