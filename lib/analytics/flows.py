@@ -116,3 +116,145 @@ def calc_departed_sentiment(
 def is_flow_cell_suppressed(count: int) -> bool:
     """True if flow cell count below threshold."""
     return count < MIN_BASE_FLOW_CELL
+
+
+def calc_flow_index(df: pd.DataFrame, insurer: str) -> dict:
+    """
+    Calculate over/under index for losses and gains vs market average.
+
+    For losses (insurer X losing to competitor Y):
+        insurer_share  = count(X → Y) / count(X → any)
+        market_share   = count(any → Y) / count(any → any)
+        index          = (insurer_share / market_share) * 100
+
+    For gains (insurer X winning from competitor Y):
+        insurer_share  = count(Y → X) / count(any → X)
+        market_share   = count(Y → any) / count(any → any)
+        index          = (insurer_share / market_share) * 100
+
+    Index of 100 = market average.
+    Index > 100  = over-indexing vs market.
+    Index < 100  = under-indexing vs market.
+
+    Rows where raw_count < MIN_BASE_FLOW_CELL are excluded entirely.
+    Rows where market_share == 0 are excluded (avoid division by zero).
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Full dataset (all insurers, all respondents). Must contain
+        IsSwitcher, CurrentCompany, PreviousCompany columns.
+    insurer : str
+        The selected insurer to analyse.
+
+    Returns
+    -------
+    dict with keys:
+        loss_index : pd.DataFrame
+            columns: competitor, raw_count, insurer_share,
+                     market_share, index
+            sorted descending by index
+        gain_index : pd.DataFrame
+            columns: competitor, raw_count, insurer_share,
+                     market_share, index
+            sorted descending by index
+        total_switchers : int
+            Total switchers in the dataset (for context)
+        insurer_lost : int
+            Total customers lost by selected insurer
+        insurer_gained : int
+            Total customers gained by selected insurer
+    """
+    _cols = ["competitor", "raw_count", "insurer_share", "market_share", "index"]
+    empty = pd.DataFrame(columns=_cols)
+
+    df = _exclude_q4_eq_q39(df)
+
+    # Work only with switchers
+    switchers = df[df["IsSwitcher"]].copy()
+
+    # Exclude null/empty PreviousCompany and CurrentCompany
+    switchers = switchers[
+        switchers["PreviousCompany"].notna() & (switchers["PreviousCompany"] != "")
+        & switchers["CurrentCompany"].notna() & (switchers["CurrentCompany"] != "")
+    ]
+
+    # Exclude vague/unknown categories
+    exclude_pattern = r"Don't Know|Can't Remember|Other"
+    switchers = switchers[
+        ~switchers["PreviousCompany"].str.contains(exclude_pattern, case=False, na=False)
+        & ~switchers["CurrentCompany"].str.contains(exclude_pattern, case=False, na=False)
+    ]
+
+    total_switchers = len(switchers)
+
+    if total_switchers == 0:
+        return {
+            "loss_index": empty,
+            "gain_index": empty,
+            "total_switchers": 0,
+            "insurer_lost": 0,
+            "insurer_gained": 0,
+        }
+
+    # --- LOSSES: insurer losing to competitors ---
+    lost = switchers[switchers["PreviousCompany"] == insurer]
+    insurer_lost = len(lost)
+
+    loss_rows = []
+    if insurer_lost > 0:
+        lost_to = lost["CurrentCompany"].value_counts()
+        market_to = switchers["CurrentCompany"].value_counts()
+
+        for competitor, raw_count in lost_to.items():
+            insurer_share = raw_count / insurer_lost
+            mkt_share = market_to.get(competitor, 0) / total_switchers
+            if mkt_share == 0:
+                continue
+            loss_rows.append({
+                "competitor": competitor,
+                "raw_count": raw_count,
+                "insurer_share": insurer_share,
+                "market_share": mkt_share,
+                "index": (insurer_share / mkt_share) * 100,
+            })
+
+    loss_df = pd.DataFrame(loss_rows, columns=_cols)
+    if not loss_df.empty:
+        loss_df = loss_df[loss_df["raw_count"] >= MIN_BASE_FLOW_CELL]
+        loss_df = loss_df.sort_values("index", ascending=False).reset_index(drop=True)
+
+    # --- GAINS: insurer winning from competitors ---
+    gained = switchers[switchers["CurrentCompany"] == insurer]
+    insurer_gained = len(gained)
+
+    gain_rows = []
+    if insurer_gained > 0:
+        won_from = gained["PreviousCompany"].value_counts()
+        market_from = switchers["PreviousCompany"].value_counts()
+
+        for competitor, raw_count in won_from.items():
+            insurer_share = raw_count / insurer_gained
+            mkt_share = market_from.get(competitor, 0) / total_switchers
+            if mkt_share == 0:
+                continue
+            gain_rows.append({
+                "competitor": competitor,
+                "raw_count": raw_count,
+                "insurer_share": insurer_share,
+                "market_share": mkt_share,
+                "index": (insurer_share / mkt_share) * 100,
+            })
+
+    gain_df = pd.DataFrame(gain_rows, columns=_cols)
+    if not gain_df.empty:
+        gain_df = gain_df[gain_df["raw_count"] >= MIN_BASE_FLOW_CELL]
+        gain_df = gain_df.sort_values("index", ascending=False).reset_index(drop=True)
+
+    return {
+        "loss_index": loss_df,
+        "gain_index": gain_df,
+        "total_switchers": total_switchers,
+        "insurer_lost": insurer_lost,
+        "insurer_gained": insurer_gained,
+    }
