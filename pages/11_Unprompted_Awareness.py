@@ -8,7 +8,7 @@ Four views:
   4. Data Explorer — sortable table
 """
 
-import numpy as np
+import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
@@ -20,56 +20,70 @@ from lib.analytics.spontaneous import (
     calc_toma_ranks,
     calc_toma_share,
 )
-from lib.config import CI_GREY, CI_LIGHT_GREY, CI_MAGENTA, BUMP_COLOURS
+from lib.chart_export import apply_export_metadata
+from lib.config import (
+    BUMP_COLOURS,
+    CI_GREEN,
+    CI_GREY,
+    CI_LIGHT_GREY,
+    CI_MAGENTA,
+    CI_RED,
+    MARKET_COLOUR,
+)
 from lib.state import format_year_month, get_ss_data, render_global_filters
 
 FONT = "Verdana, Geneva, sans-serif"
-NAVY = "#1A2B4A"
-GOLD = "#B8933A"
 
-# Brand colours for the top insurers
-BRAND_COLOURS = {
-    "Admiral": "#1A3668", "Aviva": "#FFDD00", "Direct Line": "#E31837",
-    "Churchill": "#00A651", "LV": "#00563F", "Hastings": "#00B2A9",
-    "Esure": "#6B2D8B", "AXA": "#003399", "NFU Mutual": "#8B6914",
-    "Saga": "#C4A000", "AA": "#FFB800", "RAC": "#FF6B00",
-    "Tesco": "#00BCD4", "Swinton": "#8BC34A", "Allianz": "#9C27B0",
-    "Halifax": "#006B3F", "1st Central": "#FF5722",
-    "Sheilas' Wheels": "#E91E63", "Co-op": "#0071CE",
-}
+
+# ---------------------------------------------------------------------------
+# Helpers (consistent with other pages)
+# ---------------------------------------------------------------------------
+
+def _card_html(title, value, subtitle="", colour=CI_MAGENTA):
+    return (
+        f'<div style="background:white; border:1px solid {CI_LIGHT_GREY}; border-top:4px solid {colour}; '
+        f'border-radius:4px; padding:16px 20px; text-align:center; font-family:{FONT};">'
+        f'<div style="font-size:12px; color:{CI_GREY}; margin-bottom:6px;">{title}</div>'
+        f'<div style="font-size:28px; font-weight:bold; color:{colour};">{value}</div>'
+        f'<div style="font-size:11px; color:{CI_GREY}; margin-top:4px;">{subtitle}</div>'
+        f"</div>"
+    )
+
+
+def _section_divider(title):
+    st.markdown(
+        f'<div style="font-family:{FONT}; font-size:15px; font-weight:bold; color:{CI_GREY}; '
+        f'border-bottom:2px solid {CI_LIGHT_GREY}; padding-bottom:8px; margin:28px 0 16px 0;">'
+        f"{title}</div>",
+        unsafe_allow_html=True,
+    )
 
 
 def _brand_colour(brand: str, idx: int = 0) -> str:
-    return BRAND_COLOURS.get(brand, BUMP_COLOURS[idx % len(BUMP_COLOURS)])
+    return BUMP_COLOURS[idx % len(BUMP_COLOURS)]
 
 
 # ---------------------------------------------------------------------------
 # Page setup
 # ---------------------------------------------------------------------------
 
-st.markdown(
-    f'<div style="display:flex; align-items:center; gap:12px; margin-bottom:4px;">'
-    f'<div style="width:36px; height:36px; border-radius:8px; background:{NAVY}; '
-    f'display:flex; align-items:center; justify-content:center; '
-    f'color:{GOLD}; font-size:16px; font-weight:800;">CI</div>'
-    f'<div>'
-    f'<h1 style="font-size:22px; font-weight:800; color:{NAVY}; margin:0; letter-spacing:-0.3px;">'
-    f'Unprompted Brand Awareness</h1>'
-    f'<p style="font-size:12px; color:#888; margin:0;">Q1: Spontaneous brand recall (free text)</p>'
-    f'</div></div>',
-    unsafe_allow_html=True,
-)
+st.header("Unprompted Brand Awareness")
 
 filters = render_global_filters()
 df_motor, dimensions = get_ss_data()
 
 if df_motor.empty:
-    st.warning("No S&S data loaded.")
+    st.warning("No S&S data loaded. Check Power BI connection.")
     st.stop()
 
 product = filters["product"]
 selected_months = filters["selected_months"]
 df_main = apply_filters(df_motor, product=product, selected_months=selected_months)
+
+n = len(df_main)
+if n == 0:
+    st.warning("No data for selected filters.")
+    st.stop()
 
 # Check for Q1 data
 q1_cols = [c for c in df_main.columns if c.startswith("Q1_") and not c.startswith("Q1_{")]
@@ -87,17 +101,55 @@ if metrics.empty:
 
 # Period label
 months_in_data = sorted(metrics["month"].unique())
-period_label = f"{format_year_month(months_in_data[0])} to {format_year_month(months_in_data[-1])}"
+min_ym = months_in_data[0]
+max_ym = months_in_data[-1]
+period_label = f"{format_year_month(min_ym)} to {format_year_month(max_ym)}"
 
+# Active period banner
 st.markdown(
-    f'<div style="background:#F2F2F2; border-left:4px solid {NAVY}; '
-    f'padding:10px 16px; margin-bottom:16px; font-family:{FONT}; font-size:14px; color:#333;">'
-    f'<b>Period:</b> {period_label} &nbsp;|&nbsp; '
-    f'<b>Product:</b> {product} &nbsp;|&nbsp; '
+    f'<div style="background:#F2F2F2; border-left:4px solid {CI_MAGENTA}; '
+    f'padding:10px 16px; margin-bottom:16px; font-family:{FONT}; font-size:14px; '
+    f'color:#333;">'
+    f'<b>Active period:</b> {period_label} &nbsp;|&nbsp; '
+    f'<b>Product:</b> {product or "All"} &nbsp;|&nbsp; '
+    f'<b>Base:</b> n\u2009=\u2009{n:,} &nbsp;|&nbsp; '
     f'<b>Brands detected:</b> {metrics["brand"].nunique()}'
     f'</div>',
     unsafe_allow_html=True,
 )
+
+# Summary KPIs
+latest_month = metrics["month"].max()
+latest = metrics[metrics["month"] == latest_month]
+if not latest.empty:
+    top_brand = latest.loc[latest["toma"].idxmax()]
+    avg_mention = latest["mention"].mean()
+    n_brands = latest["brand"].nunique()
+
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.markdown(
+            _card_html("Top of Mind Leader", top_brand["brand"],
+                       f"TOMA: {top_brand['toma']:.1%}", CI_MAGENTA),
+            unsafe_allow_html=True,
+        )
+    with col2:
+        st.markdown(
+            _card_html("Brands Tracked", f"{n_brands}", "", CI_GREY),
+            unsafe_allow_html=True,
+        )
+    with col3:
+        st.markdown(
+            _card_html("Avg Mention Rate", f"{avg_mention:.1%}",
+                       f"Across {n_brands} brands", MARKET_COLOUR),
+            unsafe_allow_html=True,
+        )
+    with col4:
+        st.markdown(
+            _card_html("Data Period", format_year_month(latest_month),
+                       f"n = {int(top_brand['n_total']):,}", CI_GREY),
+            unsafe_allow_html=True,
+        )
 
 # ---------------------------------------------------------------------------
 # Tabs
@@ -114,9 +166,8 @@ tab1, tab2, tab3, tab4 = st.tabs([
 with tab1:
     col_area, col_bump = st.columns(2)
 
-    # -- TOMA Share stacked area --
     with col_area:
-        st.markdown(f'<h3 style="font-size:15px; font-weight:700; color:{NAVY}; margin:0 0 6px;">TOMA Share Over Time</h3>', unsafe_allow_html=True)
+        _section_divider("TOMA Share Over Time")
         st.caption("Top-of-mind awareness as % of all first mentions")
 
         share_result = calc_toma_share(metrics, top_n=8)
@@ -124,12 +175,10 @@ with tab1:
             share_df, top_brands = share_result
             fig_area = go.Figure()
 
-            for brand in reversed(top_brands + ["Other"]):
+            for i, brand in enumerate(reversed(top_brands + ["Other"])):
                 if brand not in share_df.columns:
                     continue
-                colour = _brand_colour(brand, top_brands.index(brand) if brand in top_brands else 99)
-                if brand == "Other":
-                    colour = "#cccccc"
+                colour = CI_LIGHT_GREY if brand == "Other" else _brand_colour(brand, len(top_brands) - 1 - i)
                 fig_area.add_trace(go.Scatter(
                     x=[format_year_month(m) for m in share_df["month"]],
                     y=share_df[brand],
@@ -142,17 +191,23 @@ with tab1:
                 ))
 
             fig_area.update_layout(
-                yaxis_title="TOMA Share %", height=380,
-                font=dict(family=FONT), plot_bgcolor="white", paper_bgcolor="white",
-                legend=dict(font_size=10), margin=dict(l=50, r=10, t=10, b=50),
+                yaxis_title="TOMA Share %", yaxis_ticksuffix="%",
+                height=400, font=dict(family=FONT),
+                plot_bgcolor="white", paper_bgcolor="white",
+                legend=dict(font_size=10, orientation="h", yanchor="top", y=-0.12),
+                margin=dict(l=60, r=20, t=20, b=80),
+            )
+            apply_export_metadata(
+                fig_area, title="TOMA Share Over Time",
+                period=period_label, base=n, question="Q1",
+                subtitle="Top-of-mind awareness as % of all first mentions",
             )
             st.plotly_chart(fig_area, use_container_width=True)
         else:
             st.info("Insufficient data for TOMA share chart.")
 
-    # -- TOMA Bump Chart --
     with col_bump:
-        st.markdown(f'<h3 style="font-size:15px; font-weight:700; color:{NAVY}; margin:0 0 6px;">TOMA Rank (Bump Chart)</h3>', unsafe_allow_html=True)
+        _section_divider("TOMA Rank (Bump Chart)")
         st.caption("Rank position by top-of-mind share each month")
 
         rank_result = calc_toma_ranks(metrics, top_n=8)
@@ -175,9 +230,14 @@ with tab1:
 
             fig_bump.update_layout(
                 yaxis=dict(autorange="reversed", title="Rank", dtick=1),
-                height=380, font=dict(family=FONT),
+                height=400, font=dict(family=FONT),
                 plot_bgcolor="white", paper_bgcolor="white",
-                legend=dict(font_size=10), margin=dict(l=50, r=10, t=10, b=50),
+                legend=dict(font_size=10, orientation="h", yanchor="top", y=-0.12),
+                margin=dict(l=60, r=20, t=20, b=80),
+            )
+            apply_export_metadata(
+                fig_bump, title="TOMA Rank — Bump Chart",
+                period=period_label, base=n, question="Q1",
             )
             st.plotly_chart(fig_bump, use_container_width=True)
         else:
@@ -189,79 +249,118 @@ with tab1:
 
 with tab2:
     all_brands = sorted(metrics["brand"].unique().tolist())
-    # Default to brand with highest average TOMA
     brand_avg = metrics.groupby("brand")["toma"].mean().sort_values(ascending=False)
     default_brand = brand_avg.index[0] if not brand_avg.empty else all_brands[0]
 
-    selected = st.selectbox("Select brand", all_brands, index=all_brands.index(default_brand) if default_brand in all_brands else 0, key="q1_brand")
+    selected = st.selectbox(
+        "Select brand", all_brands,
+        index=all_brands.index(default_brand) if default_brand in all_brands else 0,
+        key="q1_brand",
+    )
 
     brand_data = metrics[metrics["brand"] == selected].sort_values("month")
 
     if brand_data.empty:
         st.info(f"No data for {selected}.")
     else:
-        latest = brand_data.iloc[-1]
-        prev = brand_data.iloc[-2] if len(brand_data) >= 2 else None
+        latest_b = brand_data.iloc[-1]
+        prev_b = brand_data.iloc[-2] if len(brand_data) >= 2 else None
 
         # KPI cards
         col1, col2, col3, col4 = st.columns(4)
+        toma_delta = (latest_b["toma"] - prev_b["toma"]) * 100 if prev_b is not None else None
+        mention_delta = (latest_b["mention"] - prev_b["mention"]) * 100 if prev_b is not None else None
+
         with col1:
-            delta = f"{(latest['toma'] - prev['toma']) * 100:+.1f}pp" if prev is not None else None
-            st.metric("TOMA", f"{latest['toma']:.1%}", delta=delta)
+            sub = f"{toma_delta:+.1f}pp vs prev" if toma_delta is not None else ""
+            st.markdown(
+                _card_html("TOMA", f"{latest_b['toma']:.1%}", sub, CI_MAGENTA),
+                unsafe_allow_html=True,
+            )
         with col2:
-            delta = f"{(latest['mention'] - prev['mention']) * 100:+.1f}pp" if prev is not None else None
-            st.metric("Total Awareness", f"{latest['mention']:.1%}", delta=delta)
+            sub = f"{mention_delta:+.1f}pp vs prev" if mention_delta is not None else ""
+            st.markdown(
+                _card_html("Total Awareness", f"{latest_b['mention']:.1%}", sub, MARKET_COLOUR),
+                unsafe_allow_html=True,
+            )
         with col3:
-            st.metric("Top-3 Rate", f"{latest['top3']:.1%}")
+            st.markdown(
+                _card_html("Top-3 Rate", f"{latest_b['top3']:.1%}", "", CI_GREEN),
+                unsafe_allow_html=True,
+            )
         with col4:
-            st.metric("Mean Position", f"{latest['mean_position']:.1f}")
+            st.markdown(
+                _card_html("Mean Position", f"{latest_b['mean_position']:.1f}", "Lower = more salient", CI_GREY),
+                unsafe_allow_html=True,
+            )
 
         col_trend, col_decay = st.columns(2)
 
-        # Trend chart
         with col_trend:
-            st.markdown(f'<h3 style="font-size:15px; font-weight:700; color:{NAVY}; margin:0 0 6px;">Awareness Trends</h3>', unsafe_allow_html=True)
+            _section_divider("Awareness Trends")
             st.caption("TOMA, total mention, and top-3 rates over time")
 
             fig_trend = go.Figure()
             x = [format_year_month(m) for m in brand_data["month"]]
-            fig_trend.add_trace(go.Scatter(x=x, y=brand_data["mention"] * 100, name="Total Awareness",
-                                            mode="lines+markers", line=dict(color=_brand_colour(selected), width=2.5),
-                                            marker=dict(size=4)))
-            fig_trend.add_trace(go.Scatter(x=x, y=brand_data["top3"] * 100, name="Top-3 Rate",
-                                            mode="lines+markers", line=dict(color=GOLD, width=2, dash="dash"),
-                                            marker=dict(size=4)))
-            fig_trend.add_trace(go.Scatter(x=x, y=brand_data["toma"] * 100, name="TOMA",
-                                            mode="lines+markers", line=dict(color=NAVY, width=2.5),
-                                            marker=dict(size=4)))
+            fig_trend.add_trace(go.Scatter(
+                x=x, y=brand_data["mention"] * 100, name="Total Awareness",
+                mode="lines+markers", line=dict(color=CI_MAGENTA, width=2.5),
+                marker=dict(size=5, color=CI_MAGENTA),
+                hovertemplate="Total: %{y:.1f}%<br>%{x}<extra></extra>",
+            ))
+            fig_trend.add_trace(go.Scatter(
+                x=x, y=brand_data["top3"] * 100, name="Top-3 Rate",
+                mode="lines+markers", line=dict(color=CI_GREEN, width=2, dash="dash"),
+                marker=dict(size=5, color=CI_GREEN),
+                hovertemplate="Top-3: %{y:.1f}%<br>%{x}<extra></extra>",
+            ))
+            fig_trend.add_trace(go.Scatter(
+                x=x, y=brand_data["toma"] * 100, name="TOMA",
+                mode="lines+markers", line=dict(color=MARKET_COLOUR, width=2.5),
+                marker=dict(size=5, color=MARKET_COLOUR),
+                hovertemplate="TOMA: %{y:.1f}%<br>%{x}<extra></extra>",
+            ))
             fig_trend.update_layout(
-                yaxis_title="Rate %", height=300, font=dict(family=FONT),
+                yaxis_title="Rate %", yaxis_ticksuffix="%",
+                height=340, font=dict(family=FONT),
                 plot_bgcolor="white", paper_bgcolor="white",
                 legend=dict(orientation="h", yanchor="top", y=-0.15, font_size=10),
-                margin=dict(l=50, r=10, t=10, b=60),
+                margin=dict(l=60, r=20, t=20, b=70),
+            )
+            apply_export_metadata(
+                fig_trend, title=f"{selected} — Awareness Trends",
+                period=period_label, base=int(latest_b["n_total"]), question="Q1",
             )
             st.plotly_chart(fig_trend, use_container_width=True)
 
-        # Decay curve
         with col_decay:
-            st.markdown(f'<h3 style="font-size:15px; font-weight:700; color:{NAVY}; margin:0 0 6px;">Mention Decay Curve</h3>', unsafe_allow_html=True)
+            _section_divider("Mention Decay Curve")
             st.caption("% of respondents mentioning at each position slot")
 
             decay = calc_decay_curve(df_main, selected, selected_months)
             if not decay.empty:
-                colours = [NAVY if p == 1 else GOLD if p <= 3 else "rgba(26,43,74,0.25)" for p in decay["position"]]
+                colours = [
+                    CI_MAGENTA if p == 1 else CI_GREEN if p <= 3 else CI_LIGHT_GREY
+                    for p in decay["position"]
+                ]
                 fig_decay = go.Figure(go.Bar(
                     x=decay["position"], y=decay["pct"],
                     marker_color=colours,
                     text=[f"{v:.1f}%" for v in decay["pct"]],
                     textposition="outside",
+                    textfont=dict(family=FONT, size=11),
                     hovertemplate="Position %{x}: %{y:.1f}%<extra></extra>",
                 ))
                 fig_decay.update_layout(
-                    xaxis_title="Mention Position", yaxis_title="% of respondents",
-                    height=300, font=dict(family=FONT),
+                    xaxis_title="Mention Position", xaxis_dtick=1,
+                    yaxis_title="% of respondents", yaxis_ticksuffix="%",
+                    height=340, font=dict(family=FONT),
                     plot_bgcolor="white", paper_bgcolor="white",
-                    margin=dict(l=50, r=10, t=10, b=60),
+                    margin=dict(l=60, r=20, t=20, b=70),
+                )
+                apply_export_metadata(
+                    fig_decay, title=f"{selected} — Mention Decay Curve",
+                    period=period_label, base=int(latest_b["n_total"]), question="Q1",
                 )
                 st.plotly_chart(fig_decay, use_container_width=True)
             else:
@@ -280,21 +379,24 @@ with tab3:
 
     col_scatter, col_radar = st.columns(2)
 
-    # Salience gap scatter
     with col_scatter:
-        st.markdown(f'<h3 style="font-size:15px; font-weight:700; color:{NAVY}; margin:0 0 6px;">Salience Gap Analysis</h3>', unsafe_allow_html=True)
+        _section_divider("Salience Gap Analysis")
         st.caption("X = total awareness, Y = TOMA. Above diagonal = punching above weight.")
 
         gap = calc_salience_gap(metrics, selected_month)
         if not gap.empty:
+            # Only show top 15 brands for readability
+            gap = gap.sort_values("mention_pct", ascending=False).head(15)
+
             fig_scatter = go.Figure()
             for i, (_, row) in enumerate(gap.iterrows()):
                 fig_scatter.add_trace(go.Scatter(
                     x=[row["mention_pct"] * 100], y=[row["toma_pct"] * 100],
                     mode="markers+text",
-                    marker=dict(size=12, color=_brand_colour(row["brand"], i)),
+                    marker=dict(size=10, color=_brand_colour(row["brand"], i),
+                                line=dict(width=1, color="white")),
                     text=[row["brand"]], textposition="top center",
-                    textfont=dict(size=9, color=CI_GREY),
+                    textfont=dict(size=9, color=CI_GREY, family=FONT),
                     name=row["brand"],
                     hovertemplate=(
                         f"<b>{row['brand']}</b><br>"
@@ -305,27 +407,30 @@ with tab3:
                     showlegend=False,
                 ))
 
-            # Reference diagonal
             max_val = max(gap["mention_pct"].max() * 100, gap["toma_pct"].max() * 100) + 5
             fig_scatter.add_trace(go.Scatter(
                 x=[0, max_val], y=[0, max_val],
-                mode="lines", line=dict(color=CI_GREY, dash="dot", width=1),
+                mode="lines", line=dict(color=CI_LIGHT_GREY, dash="dot", width=1),
                 showlegend=False, hoverinfo="skip",
             ))
 
             fig_scatter.update_layout(
-                xaxis_title="Total Awareness %", yaxis_title="TOMA %",
-                height=400, font=dict(family=FONT),
+                xaxis_title="Total Awareness %", xaxis_ticksuffix="%",
+                yaxis_title="TOMA %", yaxis_ticksuffix="%",
+                height=420, font=dict(family=FONT),
                 plot_bgcolor="white", paper_bgcolor="white",
-                margin=dict(l=50, r=10, t=10, b=60),
+                margin=dict(l=60, r=20, t=20, b=60),
+            )
+            apply_export_metadata(
+                fig_scatter, title="Salience Gap Analysis",
+                period=format_year_month(selected_month), question="Q1",
             )
             st.plotly_chart(fig_scatter, use_container_width=True)
         else:
             st.info("No data for selected month.")
 
-    # Radar chart (top 5)
     with col_radar:
-        st.markdown(f'<h3 style="font-size:15px; font-weight:700; color:{NAVY}; margin:0 0 6px;">Top 5 Radar</h3>', unsafe_allow_html=True)
+        _section_divider("Top 5 Radar")
         st.caption("Normalised awareness metrics for top 5 brands")
 
         month_data = metrics[metrics["month"] == selected_month]
@@ -333,30 +438,35 @@ with tab3:
             top5 = month_data.sort_values("toma", ascending=False).head(5)
             categories = ["TOMA", "Total Awareness", "Top-3 Rate"]
             max_vals = {
-                "TOMA": top5["toma"].max(),
-                "Total Awareness": top5["mention"].max(),
-                "Top-3 Rate": top5["top3"].max(),
+                "TOMA": max(top5["toma"].max(), 0.001),
+                "Total Awareness": max(top5["mention"].max(), 0.001),
+                "Top-3 Rate": max(top5["top3"].max(), 0.001),
             }
 
             fig_radar = go.Figure()
             for i, (_, row) in enumerate(top5.iterrows()):
                 vals = [
-                    row["toma"] / max_vals["TOMA"] * 100 if max_vals["TOMA"] > 0 else 0,
-                    row["mention"] / max_vals["Total Awareness"] * 100 if max_vals["Total Awareness"] > 0 else 0,
-                    row["top3"] / max_vals["Top-3 Rate"] * 100 if max_vals["Top-3 Rate"] > 0 else 0,
+                    row["toma"] / max_vals["TOMA"] * 100,
+                    row["mention"] / max_vals["Total Awareness"] * 100,
+                    row["top3"] / max_vals["Top-3 Rate"] * 100,
                 ]
+                colour = _brand_colour(row["brand"], i)
                 fig_radar.add_trace(go.Scatterpolar(
-                    r=vals + [vals[0]],  # close the polygon
+                    r=vals + [vals[0]],
                     theta=categories + [categories[0]],
                     name=row["brand"],
-                    line=dict(color=_brand_colour(row["brand"], i), width=2),
-                    fill="toself", fillcolor=_brand_colour(row["brand"], i),
-                    opacity=0.15,
+                    line=dict(color=colour, width=2),
+                    fill="toself", fillcolor=colour,
+                    opacity=0.12,
                 ))
 
             fig_radar.update_layout(
-                polar=dict(radialaxis=dict(visible=True, range=[0, 105], tickfont_size=9)),
-                height=400, font=dict(family=FONT),
+                polar=dict(
+                    radialaxis=dict(visible=True, range=[0, 105],
+                                    tickfont=dict(size=9, color=CI_GREY)),
+                    angularaxis=dict(tickfont=dict(size=11, color=CI_GREY)),
+                ),
+                height=420, font=dict(family=FONT),
                 legend=dict(font_size=10),
                 margin=dict(l=60, r=60, t=30, b=30),
             )
@@ -369,6 +479,8 @@ with tab3:
 # ---------------------------------------------------------------------------
 
 with tab4:
+    _section_divider("Spontaneous Awareness Data")
+
     explorer_month = st.selectbox(
         "Month", month_options, index=len(month_options) - 1,
         format_func=lambda m: format_year_month(m), key="explorer_month",
@@ -381,16 +493,26 @@ with tab4:
         display["mention"] = (display["mention"] * 100).round(1)
         display["top3"] = (display["top3"] * 100).round(1)
         display["mean_position"] = display["mean_position"].round(1)
-        display.columns = ["Brand", "TOMA %", "Total Awareness %", "Top-3 %", "Mean Position", "TOMA n", "Mention n", "Base n"]
+        display.columns = [
+            "Brand", "TOMA %", "Total Awareness %", "Top-3 %",
+            "Mean Position", "TOMA n", "Mention n", "Base n",
+        ]
         display = display.sort_values("TOMA %", ascending=False).reset_index(drop=True)
 
         st.dataframe(display, use_container_width=True, hide_index=True)
-        st.caption(f"Base: {int(month_data['n_total'].iloc[0]):,} respondents who mentioned at least one brand")
+        st.caption(
+            f"Base: {int(month_data['n_total'].iloc[0]):,} respondents who mentioned at least one brand | "
+            f"Source: Q1 spontaneous recall"
+        )
     else:
         st.info("No data for selected month.")
 
+# ---------------------------------------------------------------------------
 # Footer
+# ---------------------------------------------------------------------------
+
 st.caption(
-    f"Q1: Spontaneous brand awareness (free text) | {period_label} | "
-    f"{metrics['brand'].nunique()} brands | {product}"
+    f"Data period: {period_label} | n = {n:,} | "
+    f"Q1: Spontaneous brand awareness (free text) | "
+    f"\u00a9 Consumer Intelligence 2026"
 )
