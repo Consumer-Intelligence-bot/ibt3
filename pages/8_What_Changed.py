@@ -21,7 +21,7 @@ st.caption("Anomaly detection across all eligible insurers")
 
 # ---- Global filters ----
 filters = render_global_filters()
-df_motor, df_questions, dimensions = get_ss_data()
+df_motor, dimensions = get_ss_data()
 
 if df_motor.empty:
     st.warning("No S&S data loaded.")

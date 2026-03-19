@@ -18,8 +18,6 @@ from lib.config import MIN_BASE_PUBLISHABLE
 def scan_anomalies(
     df_current: pd.DataFrame,
     df_previous: pd.DataFrame,
-    df_questions_current: pd.DataFrame | None = None,
-    df_questions_previous: pd.DataFrame | None = None,
 ) -> list[dict]:
     """
     Run anomaly scan rules across all eligible insurers.

@@ -109,7 +109,7 @@ def _period_label(selected_months):
 # ---------------------------------------------------------------------------
 
 filters = render_global_filters()
-df_motor, df_questions, dimensions = get_ss_data()
+df_motor, dimensions = get_ss_data()
 
 if df_motor.empty:
     st.warning("No S&S data loaded. Check Power BI connection.")
@@ -405,7 +405,7 @@ _section_divider("Why Customers Stay (Q18)")
 st.caption(get_question_text("Q18"))
 
 if n_ins >= MIN_BASE_REASON:
-    q18_comparison = calc_reason_comparison(df_mkt, df_questions, "Q18", insurer, top_n=5)
+    q18_comparison = calc_reason_comparison(df_mkt, "Q18", insurer, top_n=5)
     if q18_comparison:
         col_ins_r, col_mkt_r = st.columns(2)
         with col_ins_r:
@@ -459,7 +459,7 @@ departed_ins = df_mkt[(df_mkt["IsSwitcher"]) & (df_mkt["PreviousCompany"] == ins
 n_departed = len(departed_ins)
 
 if n_departed >= MIN_BASE_REASON:
-    q31_comparison = calc_reason_comparison(df_mkt, df_questions, "Q31", insurer, top_n=5)
+    q31_comparison = calc_reason_comparison(df_mkt, "Q31", insurer, top_n=5)
     if q31_comparison:
         col_ins_q31, col_mkt_q31 = st.columns(2)
         with col_ins_q31:
@@ -736,11 +736,11 @@ if len(destinations) > 0:
     narrative_metrics["top_destinations"] = [str(d) for d in destinations.index[:3]]
 
 # Reasons
-q18_ins = calc_reason_ranking(df_mkt, df_questions, "Q18", insurer, top_n=3)
+q18_ins = calc_reason_ranking(df_mkt, "Q18", insurer, top_n=3)
 if q18_ins:
     narrative_metrics["stay_reasons"] = [r["reason"] for r in q18_ins]
 
-q31_ins = calc_reason_ranking(df_mkt, df_questions, "Q31", insurer, top_n=3)
+q31_ins = calc_reason_ranking(df_mkt, "Q31", insurer, top_n=3)
 if q31_ins:
     narrative_metrics["leave_reasons"] = [r["reason"] for r in q31_ins]
 

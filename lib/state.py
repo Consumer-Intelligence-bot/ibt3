@@ -12,6 +12,7 @@ import streamlit as st
 
 from lib.analytics.demographics import apply_filters
 from lib.analytics.dimensions import get_all_dimensions
+from lib.analytics.pivot import pivot_questions_to_wide
 from lib.analytics.transforms import transform
 from lib.config import (
     MAIN_TABLE, OTHER_TABLE,
@@ -53,16 +54,17 @@ def format_year_month(ym) -> str:
 def _load_product_data(token: str, product: str, start_month: int, end_month: int,
                        main_table: str, other_table: str,
                        workspace_id: str, dataset_id: str):
-    """Load and transform data for a single product from its fabric instance."""
+    """Load and transform data for a single product, with wide question columns merged in."""
     df_raw = load_ss_maindata(
         token, start_month, end_month, main_table,
         workspace_id=workspace_id, dataset_id=dataset_id,
     )
     if df_raw.empty:
-        return pd.DataFrame(), pd.DataFrame()
+        return pd.DataFrame()
 
     df = transform(df_raw, product)
 
+    # Load EAV question data, pivot to wide, and merge onto main
     df_q = load_ss_questions(
         token, start_month, end_month, main_table, other_table,
         workspace_id=workspace_id, dataset_id=dataset_id,
@@ -72,7 +74,11 @@ def _load_product_data(token: str, product: str, start_month: int, end_month: in
         df_q["Answer"] = df_q["Answer"].astype(str).str.strip()
         df_q["Product"] = product
 
-    return df, df_q
+        wide = pivot_questions_to_wide(df_q)
+        if not wide.empty:
+            df = df.merge(wide, left_on="UniqueID", right_index=True, how="left")
+
+    return df
 
 
 def init_ss_data(token: str, start_month: int, end_month: int,
@@ -80,14 +86,14 @@ def init_ss_data(token: str, start_month: int, end_month: int,
                  home_main_table: str = MAIN_TABLE, home_other_table: str = OTHER_TABLE):
     """Load S&S data from Power BI for all products, transform, and store in session state."""
     # Load motor data
-    df_motor, df_q_motor = _load_product_data(
+    df_motor = _load_product_data(
         token, "Motor", start_month, end_month,
         main_table, other_table,
         MOTOR_WORKSPACE_ID, MOTOR_DATASET_ID,
     )
 
     # Load home data
-    df_home, df_q_home = _load_product_data(
+    df_home = _load_product_data(
         token, "Home", start_month, end_month,
         home_main_table, home_other_table,
         HOME_WORKSPACE_ID, HOME_DATASET_ID,
@@ -100,21 +106,12 @@ def init_ss_data(token: str, start_month: int, end_month: int,
     else:
         df_all = pd.DataFrame()
 
-    q_frames = [df for df in [df_q_motor, df_q_home] if not df.empty]
-    if q_frames:
-        df_questions = pd.concat(q_frames, ignore_index=True)
-    else:
-        df_questions = pd.DataFrame()
-
     st.session_state["df_motor"] = df_all
-    st.session_state["df_questions"] = df_questions
 
     if not df_all.empty:
         st.session_state["dimensions"] = get_all_dimensions(df_all)
         # Persist to local DB for refresh survival
         save_dataframe(df_all, "df_motor")
-        if not df_questions.empty:
-            save_dataframe(df_questions, "df_questions")
         # Store time window so we can detect stale cache on reload
         save_metadata("start_month", str(start_month))
         save_metadata("end_month", str(end_month))
@@ -141,19 +138,19 @@ def load_from_db(start_month: int, end_month: int) -> bool:
     if df_all.empty:
         return False
 
-    df_questions = load_dataframe("df_questions")
-
     st.session_state["df_motor"] = df_all
-    st.session_state["df_questions"] = df_questions
     st.session_state["dimensions"] = get_all_dimensions(df_all)
     return True
 
 
 def get_ss_data():
-    """Get S&S dataframes from session state."""
+    """Get S&S dataframes from session state.
+
+    Returns (df_motor, dimensions). All question data is merged into df_motor
+    as wide columns — there is no separate df_questions table.
+    """
     return (
         st.session_state.get("df_motor", pd.DataFrame()),
-        st.session_state.get("df_questions", pd.DataFrame()),
         st.session_state.get("dimensions", {}),
     )
 

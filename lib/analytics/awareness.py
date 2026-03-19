@@ -1,12 +1,12 @@
 """
-Brand awareness analytics using EAV data.
+Brand awareness analytics using wide-format question data.
 
 Supports:
-  - Prompted awareness (Q2) — multi-select brand mentions
-  - Consideration (Q27) — multi-select brand mentions
+  - Prompted awareness (Q2) — multi-select boolean columns Q2_{brand}
+  - Consideration (Q27) — multi-select boolean columns Q27_{brand}
   - Spontaneous (Q1) — GATED: not available in current data wave
 
-All functions accept df_main (MainData) and df_questions (AllOtherData EAV).
+All functions accept df_main (the single wide DataFrame with question columns).
 """
 from __future__ import annotations
 
@@ -20,7 +20,6 @@ from lib.config import (
     MIN_BASE_PUBLISHABLE,
     SYSTEM_FLOOR_N,
 )
-from lib.analytics.queries import count_mentions, query_multi
 
 # Maps awareness level names to Q-codes
 AWARENESS_LEVELS = {
@@ -38,9 +37,14 @@ def _get_q_code(awareness_level: str) -> str | None:
     return AWARENESS_LEVELS.get(awareness_level)
 
 
+def _brand_cols(df: pd.DataFrame, q_code: str) -> list[str]:
+    """Return boolean column names for a multi-code question."""
+    prefix = f"{q_code}_"
+    return [c for c in df.columns if c.startswith(prefix)]
+
+
 def calc_awareness_rates(
     df_main: pd.DataFrame,
-    df_questions: pd.DataFrame,
     awareness_level: str,
     time_col: str = "RenewalYearMonth",
 ) -> pd.DataFrame:
@@ -51,36 +55,36 @@ def calc_awareness_rates(
       brand, month, rate, ci_lower, ci_upper, ci_width, n_mentions, n_total, rank
     """
     q_code = _get_q_code(awareness_level)
-    if q_code is None or df_questions.empty:
+    if q_code is None:
         return pd.DataFrame()
 
-    mentions = query_multi(df_questions, q_code)
-    if mentions.empty:
+    cols = _brand_cols(df_main, q_code)
+    if not cols:
         return pd.DataFrame()
 
-    mentions = mentions.merge(
-        df_main[["UniqueID", time_col]].drop_duplicates(),
-        on="UniqueID",
-        how="left",
-    )
-
+    prefix = f"{q_code}_"
     months = sorted(df_main[time_col].dropna().unique())
     rows = []
 
     for month in months:
-        total_respondents = len(df_main[df_main[time_col] == month])
+        month_data = df_main[df_main[time_col] == month]
+        total_respondents = len(month_data)
         if total_respondents < SYSTEM_FLOOR_N:
             continue
 
-        month_mentions = mentions[mentions[time_col] == month]
-        brand_counts = month_mentions.groupby("Answer")["UniqueID"].nunique()
+        # Compute market rate across all brands for Bayesian prior
+        total_mentions = sum(int(month_data[col].sum()) for col in cols)
+        n_brands_with_data = sum(1 for col in cols if month_data[col].sum() > 0)
+        market_rate = total_mentions / (total_respondents * max(1, n_brands_with_data))
 
-        market_rate = brand_counts.sum() / (total_respondents * max(1, len(brand_counts)))
-
-        for brand, n_mentions in brand_counts.items():
+        for col in cols:
+            brand = col[len(prefix):]
+            n_mentions = int(month_data[col].sum())
+            if n_mentions == 0:
+                continue
             rate = n_mentions / total_respondents
             smoothed = bayesian_smooth_rate(
-                successes=int(n_mentions),
+                successes=n_mentions,
                 trials=total_respondents,
                 prior_mean=market_rate,
             )
@@ -92,7 +96,7 @@ def calc_awareness_rates(
                 "ci_lower": smoothed["ci_lower"],
                 "ci_upper": smoothed["ci_upper"],
                 "ci_width": (smoothed["ci_upper"] - smoothed["ci_lower"]) * 100,
-                "n_mentions": int(n_mentions),
+                "n_mentions": n_mentions,
                 "n_total": total_respondents,
                 "weight": smoothed["weight"],
             })
@@ -107,7 +111,6 @@ def calc_awareness_rates(
 
 def calc_awareness_bump(
     df_main: pd.DataFrame,
-    df_questions: pd.DataFrame,
     awareness_level: str,
 ) -> pd.DataFrame:
     """
@@ -117,7 +120,7 @@ def calc_awareness_bump(
     Spec 9.4: brands are excluded entirely if they lack eligible data in any
     month of the selected period — ensures continuous lines with no gaps.
     """
-    rates = calc_awareness_rates(df_main, df_questions, awareness_level)
+    rates = calc_awareness_rates(df_main, awareness_level)
     if rates.empty:
         return pd.DataFrame()
 
@@ -129,7 +132,6 @@ def calc_awareness_bump(
 
 def calc_awareness_slopegraph(
     df_main: pd.DataFrame,
-    df_questions: pd.DataFrame,
     brand: str,
     awareness_level: str,
 ) -> dict | None:
@@ -139,7 +141,7 @@ def calc_awareness_slopegraph(
     Returns dict with insurer and market rates at start and end of period.
     If start or end month is suppressed for this brand, uses nearest eligible month.
     """
-    rates = calc_awareness_rates(df_main, df_questions, awareness_level)
+    rates = calc_awareness_rates(df_main, awareness_level)
     if rates.empty:
         return None
 
@@ -178,16 +180,15 @@ def calc_awareness_slopegraph(
 
 def calc_awareness_market_bands(
     df_main: pd.DataFrame,
-    df_questions: pd.DataFrame,
     awareness_level: str,
 ) -> pd.DataFrame:
     """
-    25th–75th percentile band per month across eligible brands.
+    25th-75th percentile band per month across eligible brands.
 
     Returns DataFrame: month, p25, median, p75.
     Used as context band on Page 6 trend chart.
     """
-    rates = calc_awareness_rates(df_main, df_questions, awareness_level)
+    rates = calc_awareness_rates(df_main, awareness_level)
     if rates.empty:
         return pd.DataFrame()
 
@@ -201,7 +202,6 @@ def calc_awareness_market_bands(
 
 def calc_awareness_summary(
     df_main: pd.DataFrame,
-    df_questions: pd.DataFrame,
     awareness_level: str,
 ) -> dict | None:
     """
@@ -210,7 +210,7 @@ def calc_awareness_summary(
     Returns: n_brands, top_brand_rate, top_brand_name, mean_rate,
              most_improved_name, most_improved_change, period_start, period_end
     """
-    rates = calc_awareness_rates(df_main, df_questions, awareness_level)
+    rates = calc_awareness_rates(df_main, awareness_level)
     if rates.empty:
         return None
 
@@ -245,12 +245,11 @@ def calc_awareness_summary(
 
 
 # ---------------------------------------------------------------------------
-# Dual-period awareness comparison (Changes 1–5)
+# Dual-period awareness comparison (Changes 1-5)
 # ---------------------------------------------------------------------------
 
 def _aggregate_period(
     df_main: pd.DataFrame,
-    df_questions: pd.DataFrame,
     awareness_level: str,
     months: list[int],
     time_col: str = "RenewalYearMonth",
@@ -263,59 +262,59 @@ def _aggregate_period(
       confidence_tier ('full' | 'indicative' | 'suppress')
     """
     q_code = _get_q_code(awareness_level)
-    if q_code is None or df_questions.empty:
+    if q_code is None:
         return pd.DataFrame()
 
-    mentions = query_multi(df_questions, q_code)
-    if mentions.empty:
+    cols = _brand_cols(df_main, q_code)
+    if not cols:
         return pd.DataFrame()
 
-    mentions = mentions.merge(
-        df_main[["UniqueID", time_col]].drop_duplicates(),
-        on="UniqueID",
-        how="left",
-    )
-
-    period_main = df_main[df_main[time_col].isin(months)]
-    period_mentions = mentions[mentions[time_col].isin(months)]
-
-    total_respondents = period_main["UniqueID"].nunique()
+    prefix = f"{q_code}_"
+    period_data = df_main[df_main[time_col].isin(months)]
+    total_respondents = period_data["UniqueID"].nunique()
     if total_respondents < SYSTEM_FLOOR_N:
         return pd.DataFrame()
 
-    brand_counts = period_mentions.groupby("Answer")["UniqueID"].nunique()
-    market_rate = brand_counts.sum() / (total_respondents * max(1, len(brand_counts)))
+    # Count mentions per brand across the whole period
+    brand_counts = {}
+    for col in cols:
+        brand = col[len(prefix):]
+        n = int(period_data[col].sum())
+        if n > 0:
+            brand_counts[brand] = n
+
+    if not brand_counts:
+        return pd.DataFrame()
+
+    total_mentions = sum(brand_counts.values())
+    market_rate = total_mentions / (total_respondents * max(1, len(brand_counts)))
+
+    # Confidence tier (Change 5)
+    if total_respondents >= MIN_BASE_PUBLISHABLE:
+        tier = "full"
+    elif total_respondents >= MIN_BASE_INDICATIVE:
+        tier = "indicative"
+    else:
+        tier = "suppress"
 
     rows = []
     for brand, n_mentions in brand_counts.items():
         rate = n_mentions / total_respondents
         smoothed = bayesian_smooth_rate(
-            successes=int(n_mentions),
+            successes=n_mentions,
             trials=total_respondents,
             prior_mean=market_rate,
         )
         ci_width = (smoothed["ci_upper"] - smoothed["ci_lower"]) * 100
-
-        # Confidence tier (Change 5)
-        if total_respondents >= MIN_BASE_PUBLISHABLE:
-            tier = "full"
-        elif total_respondents >= MIN_BASE_INDICATIVE:
-            tier = "indicative"
-        else:
-            tier = "suppress"
-
         rows.append({
             "brand": brand,
             "rate": smoothed["posterior_mean"],
             "raw_rate": rate,
-            "n_mentions": int(n_mentions),
+            "n_mentions": n_mentions,
             "n_total": total_respondents,
             "ci_width": ci_width,
             "confidence_tier": tier,
         })
-
-    if not rows:
-        return pd.DataFrame()
 
     result = pd.DataFrame(rows)
     result["rank"] = result["rate"].rank(ascending=False, method="min").astype(int)
@@ -324,7 +323,6 @@ def _aggregate_period(
 
 def calc_dual_period_comparison(
     df_main: pd.DataFrame,
-    df_questions: pd.DataFrame,
     awareness_level: str,
     period_a_months: list[int],
     period_b_months: list[int],
@@ -336,8 +334,8 @@ def calc_dual_period_comparison(
       brand, rate_a, rate_b, rate_change_pp, rank_a, rank_b, rank_movement,
       n_total_a, n_total_b, tier_a, tier_b, combined_tier
     """
-    agg_a = _aggregate_period(df_main, df_questions, awareness_level, period_a_months)
-    agg_b = _aggregate_period(df_main, df_questions, awareness_level, period_b_months)
+    agg_a = _aggregate_period(df_main, awareness_level, period_a_months)
+    agg_b = _aggregate_period(df_main, awareness_level, period_b_months)
 
     if agg_a.empty or agg_b.empty:
         return pd.DataFrame()

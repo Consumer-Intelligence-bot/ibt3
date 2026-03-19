@@ -69,7 +69,7 @@ st.markdown(
 st.header("Admin / Governance")
 st.caption("Internal page \u2014 not visible to clients")
 
-df_motor, df_questions, dimensions = get_ss_data()
+df_motor, dimensions = get_ss_data()
 
 if df_motor.empty:
     st.warning("No S&S data loaded.")
@@ -165,14 +165,11 @@ for col, label, calc_fn in [
 
 # ---- QC Flags: Q4=Q39 ----
 st.subheader("QC Flags: Q4=Q39")
-if not df_questions.empty and "RenewalYearMonth" in df_motor.columns:
-    switchers = df_motor[df_motor["IsSwitcher"]][["UniqueID", "RenewalYearMonth"]].copy()
+if "Q4" in df_motor.columns and "Q39" in df_motor.columns and "RenewalYearMonth" in df_motor.columns:
+    switchers = df_motor[df_motor["IsSwitcher"]][["UniqueID", "RenewalYearMonth", "Q4", "Q39"]].copy()
     if not switchers.empty:
-        q4 = df_questions[df_questions["QuestionNumber"] == "Q4"][["UniqueID", "Answer"]].rename(columns={"Answer": "Q4"})
-        q39 = df_questions[df_questions["QuestionNumber"] == "Q39"][["UniqueID", "Answer"]].rename(columns={"Answer": "Q39"})
-        merged = switchers.merge(q4, on="UniqueID", how="left").merge(q39, on="UniqueID", how="left")
-        merged["flagged"] = merged["Q4"] == merged["Q39"]
-        by_month = merged.groupby("RenewalYearMonth").agg(
+        switchers["flagged"] = switchers["Q4"] == switchers["Q39"]
+        by_month = switchers.groupby("RenewalYearMonth").agg(
             total=("UniqueID", "count"), flagged=("flagged", "sum"),
         ).reset_index()
         by_month["flag_rate"] = by_month["flagged"] / by_month["total"]

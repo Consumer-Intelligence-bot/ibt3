@@ -1,126 +1,159 @@
 """
-EAV query helpers for AllOtherData.
+Wide-format query helpers.
 
-AllOtherData is in long format: one row per answer per respondent.
-Columns: UniqueID, QuestionNumber, Answer (and optionally Rank for ranked Qs).
+After the EAV-to-wide migration, all question data lives as columns on
+the main DataFrame. These helpers provide the same clean interface used
+by analytics modules, but read from wide columns instead of scanning
+the 1.9M-row EAV table.
 
-These helpers provide a clean interface for analytics modules so they never
-need to know about the underlying EAV structure.
+Column naming conventions (set by pivot.py):
+  - Single-code:  Q{n}            → Answer text
+  - Multi-code:   Q{n}_{answer}   → True / False
+  - Ranked:       Q{n}_rank{i}    → Answer text
+  - NPS/Scale:    Q{n}            → Numeric value
+  - Grid:         Q{n}_{subject}  → Numeric value
 """
 from __future__ import annotations
 
 import pandas as pd
 
 
-def _filter_question(
-    df_questions: pd.DataFrame,
-    question: str,
-    respondent_ids: pd.Series | list | None = None,
-) -> pd.DataFrame:
-    """Filter AllOtherData to a single question, optionally restricted to respondent IDs."""
-    mask = df_questions["QuestionNumber"] == question
-    if respondent_ids is not None:
-        if isinstance(respondent_ids, pd.Series):
-            ids = set(respondent_ids.astype(str))
-        else:
-            ids = set(str(r) for r in respondent_ids)
-        mask = mask & df_questions["UniqueID"].isin(ids)
-    subset = df_questions.loc[mask].copy()
-    subset = subset[subset["Answer"].notna() & (subset["Answer"].astype(str).str.strip() != "")]
-    return subset
+def _resolve_ids(respondent_ids) -> set[str] | None:
+    """Normalise respondent_ids to a set of strings, or None."""
+    if respondent_ids is None:
+        return None
+    if isinstance(respondent_ids, pd.Series):
+        return set(respondent_ids.astype(str))
+    return set(str(r) for r in respondent_ids)
 
 
 def query_single(
-    df_questions: pd.DataFrame,
+    df: pd.DataFrame,
     question: str,
     respondent_ids: pd.Series | list | None = None,
 ) -> pd.Series:
     """
     Single-code question (one answer per respondent).
 
+    Reads column *question* directly from the wide DataFrame.
     Returns a Series indexed by UniqueID with the answer value.
-    If a respondent has multiple rows (shouldn't happen for single-code), keeps the first.
     """
-    subset = _filter_question(df_questions, question, respondent_ids)
-    if subset.empty:
+    if question not in df.columns:
         return pd.Series(dtype=str, name=question)
-    return subset.drop_duplicates(subset="UniqueID", keep="first").set_index("UniqueID")["Answer"]
+
+    data = df[["UniqueID", question]].copy()
+    ids = _resolve_ids(respondent_ids)
+    if ids is not None:
+        data = data[data["UniqueID"].isin(ids)]
+
+    data = data[data[question].notna() & (data[question].astype(str).str.strip() != "")]
+    return data.drop_duplicates(subset="UniqueID", keep="first").set_index("UniqueID")[question]
 
 
 def query_multi(
-    df_questions: pd.DataFrame,
+    df: pd.DataFrame,
     question: str,
     respondent_ids: pd.Series | list | None = None,
 ) -> pd.DataFrame:
     """
     Multi-select question (multiple answers per respondent).
 
-    Returns a DataFrame with columns: UniqueID, Answer.
-    One row per selection per respondent.
+    Finds all boolean columns matching ``Q{n}_*`` and melts them back
+    into (UniqueID, Answer) rows where the value is True.
     """
-    subset = _filter_question(df_questions, question, respondent_ids)
-    if subset.empty:
+    prefix = f"{question}_"
+    cols = [c for c in df.columns if c.startswith(prefix)]
+    if not cols:
         return pd.DataFrame(columns=["UniqueID", "Answer"])
-    return subset[["UniqueID", "Answer"]].reset_index(drop=True)
+
+    data = df[["UniqueID"] + cols].copy()
+    ids = _resolve_ids(respondent_ids)
+    if ids is not None:
+        data = data[data["UniqueID"].isin(ids)]
+
+    melted = data.melt(id_vars="UniqueID", value_vars=cols,
+                       var_name="_col", value_name="_sel")
+    melted = melted[melted["_sel"] == True]  # noqa: E712
+    melted["Answer"] = melted["_col"].str[len(prefix):]
+    return melted[["UniqueID", "Answer"]].reset_index(drop=True)
 
 
 def query_ranked(
-    df_questions: pd.DataFrame,
+    df: pd.DataFrame,
     question: str,
     respondent_ids: pd.Series | list | None = None,
 ) -> pd.DataFrame:
     """
     Ranked question (ordered answers per respondent).
 
-    Returns a DataFrame with columns: UniqueID, Answer, Rank.
-    Rank is 1-based; derived from the row order within each respondent's answers
-    (first row = rank 1, most important).
-
-    If the EAV table already has a Rank column, it is used directly.
+    Reads ``Q{n}_rank1`` through ``Q{n}_rank10`` and returns
+    (UniqueID, Answer, Rank).
     """
-    subset = _filter_question(df_questions, question, respondent_ids)
-    if subset.empty:
+    rank_cols = []
+    for i in range(1, 11):
+        col = f"{question}_rank{i}"
+        if col in df.columns:
+            rank_cols.append((i, col))
+    if not rank_cols:
         return pd.DataFrame(columns=["UniqueID", "Answer", "Rank"])
 
-    result = subset[["UniqueID", "Answer"]].copy()
+    data = df[["UniqueID"] + [c for _, c in rank_cols]].copy()
+    ids = _resolve_ids(respondent_ids)
+    if ids is not None:
+        data = data[data["UniqueID"].isin(ids)]
 
-    if "Rank" in subset.columns:
-        result["Rank"] = pd.to_numeric(subset["Rank"], errors="coerce").fillna(0).astype(int)
-    else:
-        result["Rank"] = result.groupby("UniqueID").cumcount() + 1
+    parts = []
+    for rank_val, col in rank_cols:
+        subset = data[data[col].notna() & (data[col].astype(str).str.strip() != "")][["UniqueID", col]].copy()
+        if subset.empty:
+            continue
+        subset["Rank"] = rank_val
+        subset = subset.rename(columns={col: "Answer"})
+        parts.append(subset)
 
-    return result.reset_index(drop=True)
+    if not parts:
+        return pd.DataFrame(columns=["UniqueID", "Answer", "Rank"])
+    return pd.concat(parts, ignore_index=True)
 
 
 def count_mentions(
-    df_questions: pd.DataFrame,
+    df: pd.DataFrame,
     question: str,
     respondent_ids: pd.Series | list | None = None,
 ) -> pd.Series:
     """
     Count how many respondents selected each answer value.
 
-    Useful for multi-select (Q2, Q9b, Q11, Q27) frequency tables.
-    Returns a Series indexed by answer value, sorted descending.
+    Works with multi-select boolean columns. Returns a Series indexed
+    by answer value, sorted descending.
     """
-    multi = query_multi(df_questions, question, respondent_ids)
+    multi = query_multi(df, question, respondent_ids)
     if multi.empty:
         return pd.Series(dtype=int)
     return multi["Answer"].value_counts()
 
 
 def respondent_count(
-    df_questions: pd.DataFrame,
+    df: pd.DataFrame,
     question: str,
     respondent_ids: pd.Series | list | None = None,
 ) -> int:
     """Count distinct respondents who answered this question."""
-    subset = _filter_question(df_questions, question, respondent_ids)
-    return subset["UniqueID"].nunique()
+    # Direct column (single/NPS)
+    if question in df.columns:
+        data = df[["UniqueID", question]].copy()
+        ids = _resolve_ids(respondent_ids)
+        if ids is not None:
+            data = data[data["UniqueID"].isin(ids)]
+        return data[data[question].notna()]["UniqueID"].nunique()
+
+    # Multi-code columns
+    multi = query_multi(df, question, respondent_ids)
+    return multi["UniqueID"].nunique()
 
 
 def top_reason(
-    df_questions: pd.DataFrame,
+    df: pd.DataFrame,
     question: str,
     respondent_ids: pd.Series | list | None = None,
     top_n: int = 5,
@@ -129,13 +162,13 @@ def top_reason(
     Ranked reason analysis.
 
     For each reason text, counts:
-      - rank1_count: times it was ranked #1 (TopReason)
+      - rank1_count: times it was ranked #1
       - total_mentions: times it appeared at any rank
       - rank1_pct: rank1_count / total respondents who answered
 
     Returns list of dicts sorted by rank1_count descending, limited to top_n.
     """
-    ranked = query_ranked(df_questions, question, respondent_ids)
+    ranked = query_ranked(df, question, respondent_ids)
     if ranked.empty:
         return []
 

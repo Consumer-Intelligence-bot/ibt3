@@ -126,7 +126,7 @@ if not st.session_state.get("data_loaded", False):
 with st.sidebar:
     if st.button("Clear cached data"):
         clear_data()
-        for key in ["df_motor", "df_questions", "dimensions", "data_loaded"]:
+        for key in ["df_motor", "dimensions", "data_loaded"]:
             st.session_state.pop(key, None)
         st.rerun()
 

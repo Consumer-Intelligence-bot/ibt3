@@ -42,7 +42,7 @@ st.header("Brand Awareness — Market View")
 
 # ---- Global filters ----
 filters = render_global_filters()
-df_motor, df_questions, dimensions = get_ss_data()
+df_motor, dimensions = get_ss_data()
 
 if df_motor.empty:
     st.warning("No S&S data loaded.")
@@ -87,7 +87,7 @@ if n_a < MIN_BASE_PUBLISHABLE or n_b < MIN_BASE_PUBLISHABLE:
 # ---- Compute dual-period comparison ----
 with st.spinner("Calculating awareness comparison..."):
     comparison = calc_dual_period_comparison(
-        df_main, df_questions, level,
+        df_main, level,
         period_a_months, period_b_months,
     )
 if comparison.empty:
@@ -395,7 +395,7 @@ st.subheader("Multi-Brand Awareness Trend")
 
 # Compute per-brand per-month awareness rates
 with st.spinner("Calculating awareness trends..."):
-    trend_rates = calc_awareness_rates(df_main, df_questions, level)
+    trend_rates = calc_awareness_rates(df_main, level)
 
 if not trend_rates.empty:
     # Filter options for trend chart

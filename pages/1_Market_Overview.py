@@ -25,7 +25,7 @@ st.header("Market Overview")
 
 # ---- Global filters (product + period affect all visuals) ----
 filters = render_global_filters()
-df_motor, df_questions, dimensions = get_ss_data()
+df_motor, dimensions = get_ss_data()
 
 if df_motor.empty:
     st.warning("No S&S data loaded. Check Power BI connection.")
@@ -140,8 +140,8 @@ with col_left:
             f"Insufficient shoppers ({n_shoppers}) for reason analysis "
             f"(minimum {MIN_BASE_REASON})."
         )
-    elif not df_questions.empty:
-        why = calc_reason_ranking(df_market, df_questions, "Q8", top_n=5)
+    else:
+        why = calc_reason_ranking(df_market, "Q8", top_n=5)
         if why:
             why_df = pd.DataFrame(why)
             fig_why = go.Figure(go.Bar(
@@ -171,14 +171,12 @@ with col_left:
             st.plotly_chart(fig_why, use_container_width=True)
         else:
             st.info("No Q8 data available.")
-    else:
-        st.info("Question data not available.")
 
 # -- Channel usage (Q9b) --
 with col_right:
     st.subheader("Shopping Channels (Q9b)")
     st.caption(get_question_text("Q9b"))
-    ch = calc_channel_usage(df_market, df_questions)
+    ch = calc_channel_usage(df_market)
     if ch is not None and len(ch) > 0:
         # Sort descending and take top channels
         ch = ch.sort_values(ascending=True)  # ascending for horizontal bar layout
@@ -213,7 +211,7 @@ with col_right:
 # ---- PCW Market Share (Q11) ----
 st.subheader("PCW Market Share (Q11)")
 st.caption(get_question_text("Q11"))
-pcw = calc_pcw_usage(df_market, df_questions)
+pcw = calc_pcw_usage(df_market)
 if pcw is not None and len(pcw) > 0:
     col_pcw, _ = st.columns([2, 1])
     with col_pcw:

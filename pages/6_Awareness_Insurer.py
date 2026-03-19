@@ -24,7 +24,7 @@ from lib.state import format_year_month, render_global_filters, get_ss_data
 st.header("Brand Awareness \u2014 Insurer View")
 
 filters = render_global_filters()
-df_motor, df_questions, dimensions = get_ss_data()
+df_motor, dimensions = get_ss_data()
 
 if df_motor.empty:
     st.warning("No S&S data loaded.")
@@ -40,7 +40,7 @@ selected_months = filters["selected_months"]
 df_main = apply_filters(df_motor, product=product, selected_months=selected_months)
 
 # ---- Confidence Banner (Spec 10.2) ----
-prompted_rates_all = calc_awareness_rates(df_main, df_questions, "prompted")
+prompted_rates_all = calc_awareness_rates(df_main, "prompted")
 insurer_months = prompted_rates_all[prompted_rates_all["brand"] == insurer] if not prompted_rates_all.empty else None
 
 if insurer_months is not None and not insurer_months.empty:
@@ -76,8 +76,8 @@ else:
 
 # ---- Slopegraph panels (Spec 10.3) ----
 st.subheader("Awareness Funnel")
-prompted_slope = calc_awareness_slopegraph(df_main, df_questions, insurer, "prompted")
-consideration_slope = calc_awareness_slopegraph(df_main, df_questions, insurer, "consideration")
+prompted_slope = calc_awareness_slopegraph(df_main, insurer, "prompted")
+consideration_slope = calc_awareness_slopegraph(df_main, insurer, "consideration")
 
 col1, col2, col3 = st.columns(3)
 
@@ -127,10 +127,10 @@ if prompted_slope and consideration_slope:
 # ---- Trend chart with market bands (Spec 10.4) ----
 st.subheader("Awareness Trend vs Market")
 
-prompted_rates = calc_awareness_rates(df_main, df_questions, "prompted")
-consideration_rates = calc_awareness_rates(df_main, df_questions, "consideration")
-prompted_bands = calc_awareness_market_bands(df_main, df_questions, "prompted")
-consideration_bands = calc_awareness_market_bands(df_main, df_questions, "consideration")
+prompted_rates = calc_awareness_rates(df_main, "prompted")
+consideration_rates = calc_awareness_rates(df_main, "consideration")
+prompted_bands = calc_awareness_market_bands(df_main, "prompted")
+consideration_bands = calc_awareness_market_bands(df_main, "consideration")
 
 fig = go.Figure()
 
@@ -188,10 +188,11 @@ st.caption(
 )
 
 # Compute co-awareness from prompted awareness (Q2)
-if not prompted_rates.empty and not df_questions.empty:
+q2_cols = [c for c in df_main.columns if c.startswith("Q2_")]
+if not prompted_rates.empty and q2_cols:
     from lib.analytics.queries import query_multi
 
-    q2_mentions = query_multi(df_questions, "Q2")
+    q2_mentions = query_multi(df_main, "Q2")
     if not q2_mentions.empty:
         # Find respondents aware of the selected insurer
         insurer_aware_ids = set(

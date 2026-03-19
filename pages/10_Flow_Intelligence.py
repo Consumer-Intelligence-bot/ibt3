@@ -261,7 +261,7 @@ with col2:
     )
 
 # Compute month-by-month index from full dataset
-df_all, _, _ = get_ss_data()
+df_all, _ = get_ss_data()
 
 if df_all.empty or "RenewalYearMonth" not in df_all.columns:
     st.info("Insufficient monthly data to show a meaningful trend for this pair.")
