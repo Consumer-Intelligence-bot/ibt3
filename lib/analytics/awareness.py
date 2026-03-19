@@ -156,7 +156,17 @@ def calc_awareness_slopegraph(
         return None
 
     start = brand_data.iloc[0]
-    end = brand_data.iloc[-1]
+
+    # Use the last month with an acceptable CI width as the end point.
+    # Trailing months often have thin data (incomplete fieldwork).
+    from lib.config import CI_WIDTH_INDICATIVE_AWARENESS
+    eligible_end = brand_data[brand_data["ci_width"] <= CI_WIDTH_INDICATIVE_AWARENESS]
+    if eligible_end.empty:
+        # Fall back to best available month (lowest CI width)
+        end = brand_data.loc[brand_data["ci_width"].idxmin()]
+    else:
+        end = eligible_end.iloc[-1]
+
     change = end["rate"] - start["rate"]
 
     # Market average at start and end months
