@@ -125,20 +125,22 @@ def init_ss_data(token: str, start_month: int, end_month: int,
         st.session_state["dimensions"] = {}
 
 
-def load_from_db(start_month: int, end_month: int) -> bool:
+def load_from_db(start_month: int | None = None, end_month: int | None = None) -> bool:
     """Attempt to load data from local DuckDB cache.
 
-    Returns True if data found and time window matches. If the cached data
-    covers a different time window, returns False so the caller re-fetches.
+    Always loads if cached data exists. The time window parameters are
+    optional — if provided and they don't match the cache, returns False.
+    If omitted, loads whatever is cached regardless of time window.
     """
     if not has_data("df_motor"):
         return False
 
-    # Check time window matches
-    cached_start = load_metadata("start_month")
-    cached_end = load_metadata("end_month")
-    if cached_start != str(start_month) or cached_end != str(end_month):
-        return False
+    # If time window specified, check it matches
+    if start_month is not None and end_month is not None:
+        cached_start = load_metadata("start_month")
+        cached_end = load_metadata("end_month")
+        if cached_start != str(start_month) or cached_end != str(end_month):
+            return False
 
     df_all = load_dataframe("df_motor")
     if df_all.empty:
@@ -146,6 +148,15 @@ def load_from_db(start_month: int, end_month: int) -> bool:
 
     st.session_state["df_motor"] = df_all
     st.session_state["dimensions"] = get_all_dimensions(df_all)
+
+    # Restore cached time window to session state
+    cached_start = load_metadata("start_month")
+    cached_end = load_metadata("end_month")
+    if cached_start:
+        st.session_state["cached_start_month"] = int(cached_start)
+    if cached_end:
+        st.session_state["cached_end_month"] = int(cached_end)
+
     return True
 
 

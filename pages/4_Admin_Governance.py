@@ -23,8 +23,11 @@ from lib.config import (
     CONFIDENCE_LEVEL, MARKET_CI_ALERT_THRESHOLD, MIN_BASE_FLOW_CELL,
     MIN_BASE_PUBLISHABLE, NPS_MIN_N, PRIOR_STRENGTH, SYSTEM_FLOOR_N,
     TREND_NOISE_THRESHOLD, CI_MAGENTA, CI_LIGHT_GREY,
+    MOTOR_WORKSPACE_ID, MOTOR_DATASET_ID,
+    HOME_WORKSPACE_ID, HOME_DATASET_ID,
 )
-from lib.state import format_year_month, get_ss_data
+from lib.db import clear_data, load_metadata
+from lib.state import format_year_month, get_ss_data, init_ss_data
 
 # ---------------------------------------------------------------------------
 # Page-level CSS: Verdana font, CI brand colours, table highlights
@@ -69,10 +72,76 @@ st.markdown(
 st.header("Admin / Governance")
 st.caption("Internal page \u2014 not visible to clients")
 
+# ---------------------------------------------------------------------------
+# Data Management — Refresh from Power BI
+# ---------------------------------------------------------------------------
+
+st.subheader("Data Management")
+
+cached_start = load_metadata("start_month")
+cached_end = load_metadata("end_month")
+cache_info = f"Cached period: {format_year_month(int(cached_start))} to {format_year_month(int(cached_end))}" if cached_start and cached_end else "No cached data"
+
+col_info, col_action = st.columns([3, 1])
+with col_info:
+    st.info(cache_info)
+with col_action:
+    refresh_clicked = st.button("Refresh from Power BI", type="primary")
+
+if refresh_clicked:
+    with st.spinner("Authenticating and pulling data from Power BI. This may take several minutes..."):
+        try:
+            from lib.powerbi import get_token, get_main_table, get_other_table, load_months
+
+            # Clear existing caches (Streamlit + DuckDB)
+            clear_data()
+            st.cache_data.clear()
+
+            token = get_token()
+
+            # Discover tables
+            main_table = get_main_table(token, workspace_id=MOTOR_WORKSPACE_ID, dataset_id=MOTOR_DATASET_ID)
+            other_table = get_other_table(token, workspace_id=MOTOR_WORKSPACE_ID, dataset_id=MOTOR_DATASET_ID)
+            home_main_table = get_main_table(token, workspace_id=HOME_WORKSPACE_ID, dataset_id=HOME_DATASET_ID)
+            home_other_table = get_other_table(token, workspace_id=HOME_WORKSPACE_ID, dataset_id=HOME_DATASET_ID)
+
+            # Discover months
+            motor_months = load_months(token, main_table, workspace_id=MOTOR_WORKSPACE_ID, dataset_id=MOTOR_DATASET_ID)
+            home_months = load_months(token, home_main_table, workspace_id=HOME_WORKSPACE_ID, dataset_id=HOME_DATASET_ID)
+            months = sorted(set(motor_months) | set(home_months))
+
+            if len(months) < 2:
+                st.error("Fewer than 2 data months available from Power BI.")
+            else:
+                start_month = months[max(0, len(months) - 12)]
+                end_month = months[-1]
+
+                # Store for Claims page
+                st.session_state["token"] = token
+                st.session_state["main_table"] = main_table
+                st.session_state["other_table"] = other_table
+                st.session_state["home_main_table"] = home_main_table
+                st.session_state["home_other_table"] = home_other_table
+                st.session_state["start_month"] = start_month
+                st.session_state["end_month"] = end_month
+
+                init_ss_data(token, start_month, end_month, main_table, other_table,
+                             home_main_table, home_other_table)
+                st.session_state["data_loaded"] = True
+                st.session_state["cached_start_month"] = start_month
+                st.session_state["cached_end_month"] = end_month
+
+                st.success(f"Data refreshed: {format_year_month(start_month)} to {format_year_month(end_month)}")
+                st.rerun()
+        except Exception as e:
+            st.error(f"Failed to refresh data: {e}")
+
+st.markdown("---")
+
 df_motor, dimensions = get_ss_data()
 
 if df_motor.empty:
-    st.warning("No S&S data loaded.")
+    st.warning("No S&S data loaded. Click **Refresh from Power BI** above to pull data.")
     st.stop()
 
 # ---- Summary KPIs (Spec 8.2) ----
