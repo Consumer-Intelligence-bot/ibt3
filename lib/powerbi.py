@@ -511,23 +511,14 @@ def load_ss_questions(_token, start_month: int, end_month: int,
     cols = core + [c for c in optional if c in available]
     select_expr = ", ".join(f"'{other_table}'[{c}]" for c in cols)
 
-    # Batch questions to stay under the 100K row API limit.
-    # Import known questions from pivot; skip hidden/derived fields.
+    # The Power BI REST API caps results at 100K rows per query.
+    # Multi-code questions like Q2 can have 70K+ rows alone, so we
+    # query each question individually to avoid silent truncation.
     from lib.analytics.pivot import ALL_KNOWN
     question_list = sorted(ALL_KNOWN)
 
-    # Split into batches of 5 questions (large multi-code Qs like Q2 can
-    # have 50K+ rows alone, so keep batches small).
-    batch_size = 5
-    batches = [question_list[i:i + batch_size]
-               for i in range(0, len(question_list), batch_size)]
-
     frames = []
-    for batch in batches:
-        q_filter = " || ".join(
-            f"'{other_table}'[QuestionNumber] = \"{q}\""
-            for q in batch
-        )
+    for q in question_list:
         dax = f"""
             EVALUATE
             CALCULATETABLE(
@@ -535,17 +526,17 @@ def load_ss_questions(_token, start_month: int, end_month: int,
                     '{other_table}',
                     {select_expr}
                 ),
-                {q_filter},
+                '{other_table}'[QuestionNumber] = "{q}",
                 '{main_table}'[RenewalYearMonth] >= {start_month},
                 '{main_table}'[RenewalYearMonth] <= {end_month}
             )
         """
-        df_batch = run_dax(
+        df_q = run_dax(
             _token, dax, silent=True,
             workspace_id=workspace_id, dataset_id=dataset_id,
         )
-        if not df_batch.empty:
-            frames.append(df_batch)
+        if not df_q.empty:
+            frames.append(df_q)
 
     if not frames:
         return pd.DataFrame()

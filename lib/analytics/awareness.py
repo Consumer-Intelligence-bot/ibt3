@@ -68,7 +68,13 @@ def calc_awareness_rates(
 
     for month in months:
         month_data = df_main[df_main[time_col] == month]
-        total_respondents = len(month_data)
+
+        # Denominator: respondents who answered this question (have at least
+        # one True in any brand column), NOT all MainData respondents.
+        # This matches the fieldwork base and avoids deflating rates when
+        # only a subset of respondents were shown the question.
+        answered_mask = month_data[cols].any(axis=1)
+        total_respondents = int(answered_mask.sum())
         if total_respondents < SYSTEM_FLOOR_N:
             continue
 
@@ -271,7 +277,9 @@ def _aggregate_period(
 
     prefix = f"{q_code}_"
     period_data = df_main[df_main[time_col].isin(months)]
-    total_respondents = period_data["UniqueID"].nunique()
+    # Denominator: respondents who answered this question
+    answered_mask = period_data[cols].any(axis=1)
+    total_respondents = int(answered_mask.sum())
     if total_respondents < SYSTEM_FLOOR_N:
         return pd.DataFrame()
 
