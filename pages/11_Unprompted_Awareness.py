@@ -167,9 +167,6 @@ with tab1:
     col_area, col_bump = st.columns(2)
 
     with col_area:
-        _section_divider("TOMA Share Over Time")
-        st.caption("Top-of-mind awareness as % of all first mentions")
-
         share_result = calc_toma_share(metrics, top_n=8)
         if share_result and not share_result[0].empty:
             share_df, top_brands = share_result
@@ -192,10 +189,12 @@ with tab1:
 
             fig_area.update_layout(
                 yaxis_title="TOMA Share %", yaxis_ticksuffix="%",
-                height=400, font=dict(family=FONT),
+                height=420, font=dict(family=FONT),
                 plot_bgcolor="white", paper_bgcolor="white",
-                legend=dict(font_size=10, orientation="h", yanchor="top", y=-0.12),
-                margin=dict(l=60, r=20, t=20, b=80),
+                legend=dict(font_size=9, orientation="h", yanchor="top", y=-0.22,
+                            xanchor="center", x=0.5),
+                margin=dict(l=60, r=20, t=50, b=40),
+                xaxis_tickangle=-45,
             )
             apply_export_metadata(
                 fig_area, title="TOMA Share Over Time",
@@ -207,9 +206,6 @@ with tab1:
             st.info("Insufficient data for TOMA share chart.")
 
     with col_bump:
-        _section_divider("TOMA Rank (Bump Chart)")
-        st.caption("Rank position by top-of-mind share each month")
-
         rank_result = calc_toma_ranks(metrics, top_n=8)
         if rank_result and not rank_result[0].empty:
             rank_df, top_brands_r = rank_result
@@ -230,10 +226,12 @@ with tab1:
 
             fig_bump.update_layout(
                 yaxis=dict(autorange="reversed", title="Rank", dtick=1),
-                height=400, font=dict(family=FONT),
+                height=420, font=dict(family=FONT),
                 plot_bgcolor="white", paper_bgcolor="white",
-                legend=dict(font_size=10, orientation="h", yanchor="top", y=-0.12),
-                margin=dict(l=60, r=20, t=20, b=80),
+                legend=dict(font_size=9, orientation="h", yanchor="top", y=-0.22,
+                            xanchor="center", x=0.5),
+                margin=dict(l=60, r=20, t=50, b=40),
+                xaxis_tickangle=-45,
             )
             apply_export_metadata(
                 fig_bump, title="TOMA Rank — Bump Chart",

@@ -42,7 +42,10 @@ def _get_available_pos_cols(df: pd.DataFrame) -> dict[int, list[str]]:
 
 
 def _extract_mentions(df: pd.DataFrame, pos_cols: dict[int, list[str]]) -> pd.DataFrame:
-    """Extract (UniqueID, Brand, position) triples from the position columns."""
+    """Extract (UniqueID, Brand, position) triples from the position columns.
+
+    Deduplicates so each respondent counts only once per brand per position.
+    """
     parts = []
     for pos, cols in pos_cols.items():
         for col in cols:
@@ -55,7 +58,10 @@ def _extract_mentions(df: pd.DataFrame, pos_cols: dict[int, list[str]]) -> pd.Da
                 parts.append(chunk)
     if not parts:
         return pd.DataFrame(columns=["UniqueID", "Brand", "position"])
-    return pd.concat(parts, ignore_index=True)
+    result = pd.concat(parts, ignore_index=True)
+    # Deduplicate: each respondent counts once per brand per position
+    result = result.drop_duplicates(subset=["UniqueID", "Brand", "position"])
+    return result
 
 
 def calc_spontaneous_metrics(

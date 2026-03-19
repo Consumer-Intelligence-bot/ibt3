@@ -37,9 +37,21 @@ def _get_q_code(awareness_level: str) -> str | None:
 
 
 def _brand_cols(df: pd.DataFrame, q_code: str) -> list[str]:
-    """Return boolean column names for a multi-code question."""
+    """Return boolean column names for a multi-code question.
+
+    Excludes position columns (Q1_pos*), survey artefacts ({SUB_*}),
+    and _Other columns.
+    """
     prefix = f"{q_code}_"
-    return [c for c in df.columns if c.startswith(prefix)]
+    return [
+        c for c in df.columns
+        if c.startswith(prefix)
+        and not c.startswith(f"{q_code}_pos")   # Q1_pos1a etc. (text, not bool)
+        and not c.startswith(f"{q_code}_{{")    # {SUB_Q...} artefacts
+        and c != f"{q_code}_Other"
+        and c != f"{q_code}_None of these"
+        and df[c].dtype == "bool"
+    ]
 
 
 def calc_awareness_rates(
