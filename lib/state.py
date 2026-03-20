@@ -196,11 +196,16 @@ def init_ss_data(token: str, start_month: int, end_month: int,
         log_fn=log_fn,
     )
 
-    # Load pet data
+    # Load pet data — wrapped in try/except so Motor/Home still save on failure
     df_pet = pd.DataFrame()
     if pet_quarters:
         _log("--- Loading Pet ---")
-        df_pet = _load_pet_data(token, pet_quarters, log_fn=log_fn)
+        try:
+            df_pet = _load_pet_data(token, pet_quarters, log_fn=log_fn)
+        except Exception as e:
+            _log(f"ERROR loading Pet data: {e}")
+            audit_log.exception("Pet data load failed")
+            df_pet = pd.DataFrame()
     else:
         _log("--- Pet: no quarters provided, skipping ---")
 

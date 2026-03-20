@@ -93,8 +93,12 @@ PET_MULTI_CODE = {
     "PET_QUOTED", "PET_POSITIVE_HEARD", "PET_NEGATIVE_HEARD",
     "PET_TRUST", "PET_BEST_VALUE", "PET_NEVER_CONSIDER",
     "PET_OTHER_INSURANCE", "PET_SHOP_CHANNELS", "PET_PCWS_USED",
-    "PET_SPONTANEOUS_AWARENESS",
 }
+
+# Free-text spontaneous awareness: excluded from multi-code pivot
+# because each unique text response would become its own boolean column,
+# causing a memory explosion. Needs brand normalisation like Motor/Home Q1.
+PET_SPONTANEOUS_AWARENESS = {"PET_SPONTANEOUS_AWARENESS"}
 
 # NPS/Scale: numeric answer
 PET_NPS_SCALE = set()  # Statement data handled separately
