@@ -26,7 +26,7 @@ from lib.config import (
     MOTOR_WORKSPACE_ID, MOTOR_DATASET_ID,
     HOME_WORKSPACE_ID, HOME_DATASET_ID,
 )
-from lib.db import clear_data, load_metadata
+from lib.db import clear_data, has_data, load_metadata
 from lib.state import format_year_month, get_ss_data, init_ss_data
 
 # ---------------------------------------------------------------------------
@@ -80,7 +80,12 @@ st.subheader("Data Management")
 
 cached_start = load_metadata("start_month")
 cached_end = load_metadata("end_month")
-cache_info = f"Cached period: {format_year_month(int(cached_start))} to {format_year_month(int(cached_end))}" if cached_start and cached_end else "No cached data"
+if cached_start and cached_end:
+    cache_info = f"Cached period: {format_year_month(int(cached_start))} to {format_year_month(int(cached_end))}"
+elif has_data("df_motor"):
+    cache_info = "Cached data available (period metadata missing)"
+else:
+    cache_info = "No cached data"
 
 col_info, col_action = st.columns([3, 1])
 with col_info:

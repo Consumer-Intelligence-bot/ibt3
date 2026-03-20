@@ -21,7 +21,7 @@ from lib.config import (
     PRODUCTS,
 )
 from lib.db import save_dataframe, load_dataframe, has_data, clear_data, save_metadata, load_metadata
-from lib.powerbi import load_months, load_ss_maindata, load_ss_questions
+from lib.powerbi import load_months, load_ss_maindata, load_ss_questions, load_q52, load_q53
 
 
 _MONTH_ABBR = [
@@ -124,6 +124,22 @@ def init_ss_data(token: str, start_month: int, end_month: int,
     else:
         st.session_state["dimensions"] = {}
 
+    # ---- Pull and cache Claims data (Q52/Q53) per product ----
+    for product_key, ws_id, ds_id, mt, ot in [
+        ("motor", MOTOR_WORKSPACE_ID, MOTOR_DATASET_ID, main_table, other_table),
+        ("home", HOME_WORKSPACE_ID, HOME_DATASET_ID, home_main_table, home_other_table),
+    ]:
+        q52 = load_q52(token, start_month, end_month, mt, ot,
+                        workspace_id=ws_id, dataset_id=ds_id)
+        q53 = load_q53(token, start_month, end_month, mt, ot,
+                        workspace_id=ws_id, dataset_id=ds_id)
+        if not q52.empty:
+            save_dataframe(q52, f"claims_q52_{product_key}")
+            st.session_state[f"claims_q52_{product_key}"] = q52
+        if not q53.empty:
+            save_dataframe(q53, f"claims_q53_{product_key}")
+            st.session_state[f"claims_q53_{product_key}"] = q53
+
 
 def load_from_db(start_month: int | None = None, end_month: int | None = None) -> bool:
     """Attempt to load data from local DuckDB cache.
@@ -156,6 +172,15 @@ def load_from_db(start_month: int | None = None, end_month: int | None = None) -
         st.session_state["cached_start_month"] = int(cached_start)
     if cached_end:
         st.session_state["cached_end_month"] = int(cached_end)
+
+    # Restore cached claims data
+    for product_key in ("motor", "home"):
+        for q_key in ("q52", "q53"):
+            table = f"claims_{q_key}_{product_key}"
+            if has_data(table):
+                df_claims = load_dataframe(table)
+                if not df_claims.empty:
+                    st.session_state[table] = df_claims
 
     return True
 

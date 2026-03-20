@@ -17,12 +17,9 @@ from lib.config import (
     CI_BLUE, CI_DARK, CI_GREEN, CI_GREY, CI_LGREY, CI_LIGHT_GREY,
     CI_MAGENTA, CI_RED, CI_VIOLET, CI_WHITE,
     MIN_BASE_INDICATIVE, SISTER_BRANDS, Z_95,
-    MOTOR_WORKSPACE_ID, MOTOR_DATASET_ID,
-    HOME_WORKSPACE_ID, HOME_DATASET_ID,
     PRODUCTS,
 )
 from lib.narrative import generate_claims_narrative
-from lib.powerbi import load_q52, load_q53
 from lib.state import format_month
 
 FONT = "Verdana, Geneva, sans-serif"
@@ -30,54 +27,35 @@ FONT = "Verdana, Geneva, sans-serif"
 # ---- Product selector ----
 product = st.sidebar.selectbox("Product", PRODUCTS, key="claims_product")
 
-_PRODUCT_FABRIC = {
-    "Motor": {
-        "workspace_id": MOTOR_WORKSPACE_ID,
-        "dataset_id": MOTOR_DATASET_ID,
-        "main_table_key": "main_table",
-        "other_table_key": "other_table",
-    },
-    "Home": {
-        "workspace_id": HOME_WORKSPACE_ID,
-        "dataset_id": HOME_DATASET_ID,
-        "main_table_key": "home_main_table",
-        "other_table_key": "home_other_table",
-    },
-}
-
 st.markdown(
     f'<h1 style="color:{CI_VIOLET}; margin-top:0; font-family:{FONT};">'
     f"Claims Intelligence | {product} Insurance</h1>",
     unsafe_allow_html=True,
 )
 
-# ---- Get shared state ----
-token = st.session_state.get("token")
+# ---- Get cached claims data ----
+product_key = product.lower()
+q52_key = f"claims_q52_{product_key}"
+q53_key = f"claims_q53_{product_key}"
+
+q52_df = st.session_state.get(q52_key, pd.DataFrame())
+q53_df = st.session_state.get(q53_key, pd.DataFrame())
+
 start_month = st.session_state.get("start_month")
 end_month = st.session_state.get("end_month")
 
-_fabric = _PRODUCT_FABRIC[product]
-main_table = st.session_state.get(_fabric["main_table_key"], "MainData")
-other_table = st.session_state.get(_fabric["other_table_key"], "AllOtherData")
-
-if not token or not start_month or not end_month:
-    st.warning("Please authenticate on the main page first.")
+if q52_df.empty:
+    st.warning(
+        "No claims data cached. Go to **Admin / Governance** and click "
+        "**Refresh from Power BI** to pull data."
+    )
     st.stop()
 
 # ---- Period label ----
-period_label = f"{format_month(start_month)} to {format_month(end_month)}"
-
-# ---- Load Claims data ----
-q52_df = load_q52(token, start_month, end_month, main_table, other_table,
-                  workspace_id=_fabric["workspace_id"],
-                  dataset_id=_fabric["dataset_id"])
-q53_df = load_q53(token, start_month, end_month, main_table, other_table,
-                  workspace_id=_fabric["workspace_id"],
-                  dataset_id=_fabric["dataset_id"])
-
-if q52_df.empty:
-    st.warning("No claims data returned for this period.")
-    st.stop()
+if start_month and end_month:
+    period_label = f"{format_month(start_month)} to {format_month(end_month)}"
+else:
+    period_label = "All cached data"
 
 for col in ["Q52_n", "Q52_mean", "Q52_std"]:
     if col in q52_df.columns:

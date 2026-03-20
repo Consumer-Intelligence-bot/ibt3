@@ -29,8 +29,8 @@ if threading.current_thread() is threading.main_thread() and not hasattr(
     signal.signal(signal.SIGINT, _graceful_shutdown)
     st._graceful_shutdown_registered = True
 
-from lib.config import CSS, MOTOR_WORKSPACE_ID, MOTOR_DATASET_ID, HOME_WORKSPACE_ID, HOME_DATASET_ID
-from lib.db import clear_data, has_data, load_metadata
+from lib.config import CSS
+from lib.db import has_data
 from lib.state import format_month, load_from_db
 
 st.set_page_config(
@@ -57,7 +57,10 @@ if not st.session_state.get("data_loaded", False):
             st.session_state["data_loaded"] = True
     # If no cache, we'll prompt the user to pull from Power BI via Admin page
 
-# ---- Resolve time window from cache or default ----
+# ---- Resolve time window from cache ----
+start_month = None
+end_month = None
+
 cached_start = st.session_state.get("cached_start_month")
 cached_end = st.session_state.get("cached_end_month")
 
@@ -65,23 +68,13 @@ if cached_start and cached_end:
     start_month = cached_start
     end_month = cached_end
 else:
-    # No cached data — try to discover months from Power BI
-    # (only if user has authenticated)
-    start_month = None
-    end_month = None
-    try:
-        from lib.powerbi import get_token, get_main_table, load_months
-        token = get_token()
-        main_table = get_main_table(token, workspace_id=MOTOR_WORKSPACE_ID,
-                                     dataset_id=MOTOR_DATASET_ID)
-        months = load_months(token, main_table, workspace_id=MOTOR_WORKSPACE_ID,
-                              dataset_id=MOTOR_DATASET_ID)
-        if len(months) >= 2:
+    # Derive from cached DataFrame if metadata was missing
+    df_motor = st.session_state.get("df_motor")
+    if df_motor is not None and not df_motor.empty and "RenewalYearMonth" in df_motor.columns:
+        months = sorted(df_motor["RenewalYearMonth"].dropna().unique().astype(int).tolist())
+        if months:
             start_month = months[max(0, len(months) - 12)]
             end_month = months[-1]
-            st.session_state["token"] = token
-    except Exception:
-        pass
 
 # ---- Store time window in session state ----
 if start_month and end_month:
