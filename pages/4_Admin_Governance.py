@@ -95,35 +95,65 @@ with col_action:
     refresh_clicked = st.button("Refresh from Power BI", type="primary")
 
 if refresh_clicked:
+    audit_container = st.container()
+    audit_container.subheader("Refresh Audit Log")
+    audit_lines = []
+
+    def _audit_log(msg):
+        """Append a timestamped line to the on-screen audit log."""
+        from datetime import datetime as _dt
+        ts = _dt.now().strftime("%H:%M:%S")
+        audit_lines.append(f"`{ts}` {msg}")
+        audit_container.code("\n".join(f"{ts} {m}" for ts, m in
+            [(l.split("`")[1], l.split("` ")[1]) for l in audit_lines]),
+            language="text")
+
     with st.spinner("Authenticating and pulling data from Power BI. This may take several minutes..."):
         try:
+            _audit_log("Starting refresh...")
             from lib.powerbi import get_token, get_main_table, get_other_table, load_months, load_pet_quarters
 
             # Clear existing caches (Streamlit + DuckDB)
+            _audit_log("Clearing DuckDB cache and Streamlit cache")
             clear_data()
             st.cache_data.clear()
 
+            _audit_log("Authenticating with Power BI (MSAL device flow)")
             token = get_token()
+            _audit_log("Auth OK — token acquired")
 
             # Discover tables
+            _audit_log("Discovering Motor tables...")
             main_table = get_main_table(token, workspace_id=MOTOR_WORKSPACE_ID, dataset_id=MOTOR_DATASET_ID)
             other_table = get_other_table(token, workspace_id=MOTOR_WORKSPACE_ID, dataset_id=MOTOR_DATASET_ID)
+            _audit_log(f"Motor tables: main={main_table}, other={other_table}")
+
+            _audit_log("Discovering Home tables...")
             home_main_table = get_main_table(token, workspace_id=HOME_WORKSPACE_ID, dataset_id=HOME_DATASET_ID)
             home_other_table = get_other_table(token, workspace_id=HOME_WORKSPACE_ID, dataset_id=HOME_DATASET_ID)
+            _audit_log(f"Home tables: main={home_main_table}, other={home_other_table}")
 
             # Discover months
+            _audit_log("Discovering available months...")
             motor_months = load_months(token, main_table, workspace_id=MOTOR_WORKSPACE_ID, dataset_id=MOTOR_DATASET_ID)
             home_months = load_months(token, home_main_table, workspace_id=HOME_WORKSPACE_ID, dataset_id=HOME_DATASET_ID)
             months = sorted(set(motor_months) | set(home_months))
+            _audit_log(f"Motor months: {len(motor_months)}, Home months: {len(home_months)}, Combined: {len(months)}")
+            if months:
+                _audit_log(f"Range: {months[0]} to {months[-1]}")
 
             # Discover Pet quarters
+            _audit_log("Discovering Pet quarters...")
             pet_quarters = load_pet_quarters(token, workspace_id=PET_WORKSPACE_ID, dataset_id=PET_DATASET_ID)
+            _audit_log(f"Pet quarters: {pet_quarters}")
 
             if len(months) < 2:
+                _audit_log("FAIL: fewer than 2 data months available")
                 st.error("Fewer than 2 data months available from Power BI.")
             else:
                 start_month = months[max(0, len(months) - 12)]
                 end_month = months[-1]
+                _audit_log(f"Loading window: {start_month} to {end_month} ({len([m for m in months if start_month <= m <= end_month])} months)")
 
                 # Store for Claims page
                 st.session_state["token"] = token
@@ -136,14 +166,18 @@ if refresh_clicked:
 
                 init_ss_data(token, start_month, end_month, main_table, other_table,
                              home_main_table, home_other_table,
-                             pet_quarters=pet_quarters)
+                             pet_quarters=pet_quarters,
+                             log_fn=_audit_log)
                 st.session_state["data_loaded"] = True
                 st.session_state["cached_start_month"] = start_month
                 st.session_state["cached_end_month"] = end_month
 
+                _audit_log("REFRESH COMPLETE — all data saved")
                 st.success(f"Data refreshed: {format_year_month(start_month)} to {format_year_month(end_month)}")
-                st.rerun()
         except Exception as e:
+            import traceback
+            _audit_log(f"EXCEPTION: {e}")
+            _audit_log(traceback.format_exc())
             st.error(f"Failed to refresh data: {e}")
 
 st.markdown("---")

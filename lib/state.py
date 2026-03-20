@@ -6,9 +6,13 @@ All pages read from st.session_state rather than loading data independently.
 """
 
 import datetime
+import logging
 
 import pandas as pd
 import streamlit as st
+
+audit_log = logging.getLogger("ehubot.audit")
+audit_log.setLevel(logging.DEBUG)
 
 from lib.analytics.demographics import apply_filters
 from lib.analytics.dimensions import get_all_dimensions
@@ -65,131 +69,182 @@ def format_quarter(yyyymm: int) -> str:
 
 def _load_product_data(token: str, product: str, start_month: int, end_month: int,
                        main_table: str, other_table: str,
-                       workspace_id: str, dataset_id: str):
+                       workspace_id: str, dataset_id: str,
+                       log_fn=None):
     """Load and transform data for a single product, with wide question columns merged in."""
+    def _log(msg):
+        audit_log.info("[%s] %s", product, msg)
+        if log_fn:
+            log_fn(f"[{product}] {msg}")
+
+    _log(f"Loading MainData ({main_table}) months {start_month}-{end_month}")
     df_raw = load_ss_maindata(
         token, start_month, end_month, main_table,
         workspace_id=workspace_id, dataset_id=dataset_id,
     )
+    _log(f"MainData returned {len(df_raw)} rows, {len(df_raw.columns)} cols")
     if df_raw.empty:
+        _log("EMPTY MainData — skipping product")
         return pd.DataFrame()
 
     df = transform(df_raw, product)
+    _log(f"After transform: {len(df)} rows, {len(df.columns)} cols")
 
     # Load EAV question data, pivot to wide, and merge onto main
+    _log(f"Loading OtherData ({other_table}) for EAV questions")
     df_q = load_ss_questions(
         token, start_month, end_month, main_table, other_table,
         workspace_id=workspace_id, dataset_id=dataset_id,
     )
+    _log(f"OtherData returned {len(df_q)} rows")
     if not df_q.empty:
         df_q["UniqueID"] = df_q["UniqueID"].astype(str)
         df_q["Answer"] = df_q["Answer"].astype(str).str.strip()
         df_q["Product"] = product
 
         wide = pivot_questions_to_wide(df_q)
+        _log(f"Pivot produced {len(wide)} rows, {len(wide.columns)} wide cols")
         if not wide.empty:
-            # Drop columns that already exist on MainData to avoid overwriting
             existing = set(df.columns)
             overlap = [c for c in wide.columns if c in existing]
             if overlap:
+                _log(f"Dropping {len(overlap)} overlapping cols: {overlap[:5]}")
                 wide = wide.drop(columns=overlap)
             if not wide.empty:
                 df = df.merge(wide, left_on="UniqueID", right_index=True, how="left")
+                _log(f"After merge: {len(df)} rows, {len(df.columns)} cols")
 
+    _log(f"DONE — {len(df)} rows")
     return df
 
 
-def _load_pet_data(token: str, pet_quarters: list[str]) -> pd.DataFrame:
+def _load_pet_data(token: str, pet_quarters: list[str], log_fn=None) -> pd.DataFrame:
     """Load and transform Pet insurance data from its own dataset."""
+    def _log(msg):
+        audit_log.info("[Pet] %s", msg)
+        if log_fn:
+            log_fn(f"[Pet] {msg}")
+
+    _log(f"Loading Pet MainData for quarters {pet_quarters}")
     df_raw = load_pet_maindata(
         token, pet_quarters,
         workspace_id=PET_WORKSPACE_ID, dataset_id=PET_DATASET_ID,
     )
+    _log(f"Pet MainData returned {len(df_raw)} rows")
     if df_raw.empty:
+        _log("EMPTY Pet MainData — skipping product")
         return pd.DataFrame()
 
     df = transform(df_raw, "Pet")
+    _log(f"After transform: {len(df)} rows, {len(df.columns)} cols")
 
-    # Load EAV question data, pivot to wide, and merge onto main
+    _log("Loading Pet OtherData for EAV questions")
     df_q = load_pet_questions(
         token, pet_quarters,
         workspace_id=PET_WORKSPACE_ID, dataset_id=PET_DATASET_ID,
     )
+    _log(f"Pet OtherData returned {len(df_q)} rows")
     if not df_q.empty:
         df_q["UniqueID"] = df_q["UniqueID"].astype(str)
         df_q["Answer"] = df_q["Answer"].astype(str).str.strip()
         df_q["Product"] = "Pet"
 
         wide = pivot_questions_to_wide(df_q, product="Pet")
+        _log(f"Pivot produced {len(wide)} rows, {len(wide.columns)} wide cols")
         if not wide.empty:
             existing = set(df.columns)
             overlap = [c for c in wide.columns if c in existing]
             if overlap:
+                _log(f"Dropping {len(overlap)} overlapping cols")
                 wide = wide.drop(columns=overlap)
             if not wide.empty:
                 df = df.merge(wide, left_on="UniqueID", right_index=True, how="left")
+                _log(f"After merge: {len(df)} rows, {len(df.columns)} cols")
 
+    _log(f"DONE — {len(df)} rows")
     return df
 
 
 def init_ss_data(token: str, start_month: int, end_month: int,
                  main_table: str = MAIN_TABLE, other_table: str = OTHER_TABLE,
                  home_main_table: str = MAIN_TABLE, home_other_table: str = OTHER_TABLE,
-                 pet_quarters: list[str] | None = None):
+                 pet_quarters: list[str] | None = None,
+                 log_fn=None):
     """Load S&S data from Power BI for all products, transform, and store in session state."""
+    def _log(msg):
+        audit_log.info(msg)
+        if log_fn:
+            log_fn(msg)
+
+    _log(f"=== REFRESH START: months {start_month}-{end_month} ===")
+
     # Load motor data
+    _log("--- Loading Motor ---")
     df_motor = _load_product_data(
         token, "Motor", start_month, end_month,
         main_table, other_table,
         MOTOR_WORKSPACE_ID, MOTOR_DATASET_ID,
+        log_fn=log_fn,
     )
 
     # Load home data
+    _log("--- Loading Home ---")
     df_home = _load_product_data(
         token, "Home", start_month, end_month,
         home_main_table, home_other_table,
         HOME_WORKSPACE_ID, HOME_DATASET_ID,
+        log_fn=log_fn,
     )
 
     # Load pet data
     df_pet = pd.DataFrame()
     if pet_quarters:
-        df_pet = _load_pet_data(token, pet_quarters)
+        _log("--- Loading Pet ---")
+        df_pet = _load_pet_data(token, pet_quarters, log_fn=log_fn)
+    else:
+        _log("--- Pet: no quarters provided, skipping ---")
 
     # Combine products
     frames = [df for df in [df_motor, df_home, df_pet] if not df.empty]
+    _log(f"Combining {len(frames)} non-empty product frames")
     if frames:
         df_all = pd.concat(frames, ignore_index=True)
     else:
         df_all = pd.DataFrame()
 
+    _log(f"Combined DataFrame: {len(df_all)} rows, {len(df_all.columns)} cols")
     st.session_state["df_motor"] = df_all
 
     if not df_all.empty:
         st.session_state["dimensions"] = get_all_dimensions(df_all)
-        # Persist to local DB for refresh survival
+        _log("Saving to DuckDB cache...")
         save_dataframe(df_all, "df_motor")
-        # Store time window so we can detect stale cache on reload
         save_metadata("start_month", str(start_month))
         save_metadata("end_month", str(end_month))
+        _log("DuckDB save complete")
     else:
         st.session_state["dimensions"] = {}
+        _log("WARNING: Combined DataFrame is EMPTY — nothing saved to DuckDB")
 
     # ---- Pull and cache Claims data (Q52/Q53) per product ----
     for product_key, ws_id, ds_id, mt, ot in [
         ("motor", MOTOR_WORKSPACE_ID, MOTOR_DATASET_ID, main_table, other_table),
         ("home", HOME_WORKSPACE_ID, HOME_DATASET_ID, home_main_table, home_other_table),
     ]:
+        _log(f"Loading Claims Q52/Q53 for {product_key}")
         q52 = load_q52(token, start_month, end_month, mt, ot,
                         workspace_id=ws_id, dataset_id=ds_id)
         q53 = load_q53(token, start_month, end_month, mt, ot,
                         workspace_id=ws_id, dataset_id=ds_id)
+        _log(f"  Q52 {product_key}: {len(q52)} rows, Q53 {product_key}: {len(q53)} rows")
         if not q52.empty:
             save_dataframe(q52, f"claims_q52_{product_key}")
             st.session_state[f"claims_q52_{product_key}"] = q52
         if not q53.empty:
             save_dataframe(q53, f"claims_q53_{product_key}")
             st.session_state[f"claims_q53_{product_key}"] = q53
+
+    _log(f"=== REFRESH COMPLETE: {len(df_all)} total rows ===")
 
 
 def load_from_db(start_month: int | None = None, end_month: int | None = None) -> bool:
@@ -199,7 +254,9 @@ def load_from_db(start_month: int | None = None, end_month: int | None = None) -
     optional — if provided and they don't match the cache, returns False.
     If omitted, loads whatever is cached regardless of time window.
     """
+    audit_log.info("load_from_db: checking DuckDB for cached data")
     if not has_data("df_motor"):
+        audit_log.info("load_from_db: no df_motor table in DuckDB — cache miss")
         return False
 
     # If time window specified, check it matches
@@ -207,12 +264,16 @@ def load_from_db(start_month: int | None = None, end_month: int | None = None) -
         cached_start = load_metadata("start_month")
         cached_end = load_metadata("end_month")
         if cached_start != str(start_month) or cached_end != str(end_month):
+            audit_log.info("load_from_db: time window mismatch (wanted %s-%s, cached %s-%s)",
+                           start_month, end_month, cached_start, cached_end)
             return False
 
     df_all = load_dataframe("df_motor")
     if df_all.empty:
+        audit_log.info("load_from_db: df_motor table exists but returned empty DataFrame")
         return False
 
+    audit_log.info("load_from_db: loaded %d rows, %d cols from DuckDB", len(df_all), len(df_all.columns))
     st.session_state["df_motor"] = df_all
     st.session_state["dimensions"] = get_all_dimensions(df_all)
 
@@ -223,6 +284,7 @@ def load_from_db(start_month: int | None = None, end_month: int | None = None) -
         st.session_state["cached_start_month"] = int(cached_start)
     if cached_end:
         st.session_state["cached_end_month"] = int(cached_end)
+    audit_log.info("load_from_db: period %s to %s", cached_start, cached_end)
 
     # Restore cached claims data
     for product_key in ("motor", "home"):
@@ -232,7 +294,9 @@ def load_from_db(start_month: int | None = None, end_month: int | None = None) -
                 df_claims = load_dataframe(table)
                 if not df_claims.empty:
                     st.session_state[table] = df_claims
+                    audit_log.info("load_from_db: restored %s (%d rows)", table, len(df_claims))
 
+    audit_log.info("load_from_db: cache restore complete")
     return True
 
 
