@@ -120,4 +120,19 @@ Several quality controls are applied before any data reaches the portal:
 - **Flow balance**: Total customers gained across all insurers must equal total customers lost
 """)
 
+# ---- Pet Insurance Notes ----
+st.subheader("Pet Insurance")
+st.markdown("""
+Pet insurance data uses a quarterly survey cadence (not monthly like Motor and Home).
+Quarterly periods are mapped to the last month of each quarter for time-series consistency
+(e.g. Q4 2024 is shown as December 2024).
+
+**Key differences from Motor/Home:**
+- Data is collected quarterly, not monthly. Each data point represents a full quarter of fieldwork.
+- Claims data (Q52/Q53) is not available for Pet.
+- Spontaneous awareness (Q1) is not available in the current survey wave (pre-2026).
+- The question set differs from Motor/Home. Some sections (e.g. shopping reasons, channel usage)
+  may show "No data available" when the corresponding Pet questions have not been mapped.
+""")
+
 st.caption("© Consumer Intelligence 2026 — IBT Portal Methodology")

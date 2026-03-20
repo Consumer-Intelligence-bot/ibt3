@@ -25,6 +25,7 @@ from lib.config import (
     TREND_NOISE_THRESHOLD, CI_MAGENTA, CI_LIGHT_GREY,
     MOTOR_WORKSPACE_ID, MOTOR_DATASET_ID,
     HOME_WORKSPACE_ID, HOME_DATASET_ID,
+    PET_WORKSPACE_ID, PET_DATASET_ID,
 )
 from lib.db import clear_data, has_data, load_metadata
 from lib.state import format_year_month, get_ss_data, init_ss_data
@@ -96,7 +97,7 @@ with col_action:
 if refresh_clicked:
     with st.spinner("Authenticating and pulling data from Power BI. This may take several minutes..."):
         try:
-            from lib.powerbi import get_token, get_main_table, get_other_table, load_months
+            from lib.powerbi import get_token, get_main_table, get_other_table, load_months, load_pet_quarters
 
             # Clear existing caches (Streamlit + DuckDB)
             clear_data()
@@ -115,6 +116,9 @@ if refresh_clicked:
             home_months = load_months(token, home_main_table, workspace_id=HOME_WORKSPACE_ID, dataset_id=HOME_DATASET_ID)
             months = sorted(set(motor_months) | set(home_months))
 
+            # Discover Pet quarters
+            pet_quarters = load_pet_quarters(token, workspace_id=PET_WORKSPACE_ID, dataset_id=PET_DATASET_ID)
+
             if len(months) < 2:
                 st.error("Fewer than 2 data months available from Power BI.")
             else:
@@ -131,7 +135,8 @@ if refresh_clicked:
                 st.session_state["end_month"] = end_month
 
                 init_ss_data(token, start_month, end_month, main_table, other_table,
-                             home_main_table, home_other_table)
+                             home_main_table, home_other_table,
+                             pet_quarters=pet_quarters)
                 st.session_state["data_loaded"] = True
                 st.session_state["cached_start_month"] = start_month
                 st.session_state["cached_end_month"] = end_month

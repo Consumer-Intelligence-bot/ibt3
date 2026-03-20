@@ -4,6 +4,7 @@ Slopegraph panels, trend lines with market percentile band,
 confidence banner, and co-awareness panel (Spec Sections 10.1-10.5).
 """
 
+import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
@@ -12,6 +13,7 @@ from lib.analytics.awareness import (
     calc_awareness_market_bands,
     calc_awareness_rates,
     calc_awareness_slopegraph,
+    set_awareness_product,
 )
 from lib.analytics.demographics import apply_filters
 from lib.chart_export import apply_export_metadata, confidence_tooltip
@@ -37,6 +39,7 @@ if not insurer:
 
 product = filters["product"]
 selected_months = filters["selected_months"]
+set_awareness_product(product)
 df_main = apply_filters(df_motor, product=product, selected_months=selected_months)
 
 # ---- Confidence Banner (Spec 10.2) ----
@@ -76,17 +79,19 @@ else:
 
 # ---- Slopegraph panels (Spec 10.3) ----
 st.subheader("Awareness Funnel")
-spontaneous_slope = calc_awareness_slopegraph(df_main, insurer, "spontaneous")
+spontaneous_slope = None if product == "Pet" else calc_awareness_slopegraph(df_main, insurer, "spontaneous")
 prompted_slope = calc_awareness_slopegraph(df_main, insurer, "prompted")
 consideration_slope = calc_awareness_slopegraph(df_main, insurer, "consideration")
 
-col1, col2, col3 = st.columns(3)
+# Build funnel panels based on product
+_funnel_panels = []
+if product != "Pet":
+    _funnel_panels.append(("Spontaneous (Q1)", spontaneous_slope, CI_MAGENTA))
+_funnel_panels.append(("Prompted", prompted_slope, CI_BLUE))
+_funnel_panels.append(("Consideration", consideration_slope, CI_GREEN))
+_funnel_cols = st.columns(len(_funnel_panels))
 
-for col, title, data, colour in [
-    (col1, "Spontaneous (Q1)", spontaneous_slope, CI_MAGENTA),
-    (col2, "Prompted (Q2)", prompted_slope, CI_BLUE),
-    (col3, "Consideration (Q27)", consideration_slope, CI_GREEN),
-]:
+for col, (title, data, colour) in zip(_funnel_cols, _funnel_panels):
     with col:
         st.markdown(f"**{title}**")
         if data and data.get("can_show"):
@@ -125,7 +130,7 @@ if prompted_slope and consideration_slope:
 # ---- Trend chart with market bands (Spec 10.4) ----
 st.subheader("Awareness Trend vs Market")
 
-spontaneous_rates = calc_awareness_rates(df_main, "spontaneous")
+spontaneous_rates = pd.DataFrame() if product == "Pet" else calc_awareness_rates(df_main, "spontaneous")
 prompted_rates = calc_awareness_rates(df_main, "prompted")
 consideration_rates = calc_awareness_rates(df_main, "consideration")
 prompted_bands = calc_awareness_market_bands(df_main, "prompted")
@@ -150,12 +155,14 @@ for bands_df, band_colour, band_label in [
             fillcolor=band_colour, name=band_label, hoverinfo="skip", showlegend=False,
         ))
 
-# Insurer lines
-for level, rates_df, colour, label in [
-    ("spontaneous", spontaneous_rates, CI_MAGENTA, "Spontaneous"),
-    ("prompted", prompted_rates, CI_BLUE, "Prompted"),
-    ("consideration", consideration_rates, CI_GREEN, "Consideration"),
-]:
+# Insurer lines (skip spontaneous for Pet)
+_trend_lines = []
+if product != "Pet":
+    _trend_lines.append(("spontaneous", spontaneous_rates, CI_MAGENTA, "Spontaneous"))
+_trend_lines.append(("prompted", prompted_rates, CI_BLUE, "Prompted"))
+_trend_lines.append(("consideration", consideration_rates, CI_GREEN, "Consideration"))
+
+for level, rates_df, colour, label in _trend_lines:
     if rates_df.empty:
         continue
     brand_data = rates_df[rates_df["brand"] == insurer].sort_values("month")

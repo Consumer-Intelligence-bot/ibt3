@@ -14,12 +14,14 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from lib.analytics.awareness import (
+    AWARENESS_LEVELS,
     Q1_GATING_MESSAGE,
     apply_movement_filters,
     calc_awareness_movers,
     calc_awareness_rates,
     calc_dual_period_comparison,
     calc_most_improved_enriched,
+    set_awareness_product,
 )
 from lib.analytics.demographics import apply_filters
 from lib.chart_export import apply_export_metadata
@@ -51,14 +53,19 @@ if df_motor.empty:
 
 product = filters["product"]
 selected_months = filters["selected_months"]
+set_awareness_product(product)
 
 # ---- Awareness level toggle ----
+# Build available levels based on product
+_product_levels = AWARENESS_LEVELS.get(product, AWARENESS_LEVELS["Motor"])
+_available_levels = [l for l in ["prompted", "consideration"] if l in _product_levels]
+
 level = st.radio(
     "Awareness level",
-    ["prompted", "consideration"],
+    _available_levels,
     format_func=lambda x: {
-        "prompted": "Prompted (Q2)",
-        "consideration": "Consideration (Q27)",
+        "prompted": f"Prompted ({_product_levels.get('prompted', 'Q2')})",
+        "consideration": f"Consideration ({_product_levels.get('consideration', 'Q27')})",
     }.get(x, x),
     horizontal=True,
 )

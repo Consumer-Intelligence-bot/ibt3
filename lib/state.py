@@ -18,10 +18,14 @@ from lib.config import (
     MAIN_TABLE, OTHER_TABLE,
     MOTOR_WORKSPACE_ID, MOTOR_DATASET_ID,
     HOME_WORKSPACE_ID, HOME_DATASET_ID,
+    PET_WORKSPACE_ID, PET_DATASET_ID,
     PRODUCTS,
 )
 from lib.db import save_dataframe, load_dataframe, has_data, clear_data, save_metadata, load_metadata
-from lib.powerbi import load_months, load_ss_maindata, load_ss_questions, load_q52, load_q53
+from lib.powerbi import (
+    load_months, load_ss_maindata, load_ss_questions, load_q52, load_q53,
+    load_pet_quarters, load_pet_maindata, load_pet_questions,
+)
 
 
 _MONTH_ABBR = [
@@ -49,6 +53,14 @@ def format_year_month(ym) -> str:
     if 1 <= m <= 12:
         return f"{_MONTH_ABBR[m]} {y}"
     return str(ym)
+
+
+def format_quarter(yyyymm: int) -> str:
+    """Convert YYYYMM (last month of quarter) to 'QN YYYY' label."""
+    y = yyyymm // 100
+    m = yyyymm % 100
+    q = (m - 1) // 3 + 1
+    return f"Q{q} {y}"
 
 
 def _load_product_data(token: str, product: str, start_month: int, end_month: int,
@@ -87,9 +99,43 @@ def _load_product_data(token: str, product: str, start_month: int, end_month: in
     return df
 
 
+def _load_pet_data(token: str, pet_quarters: list[str]) -> pd.DataFrame:
+    """Load and transform Pet insurance data from its own dataset."""
+    df_raw = load_pet_maindata(
+        token, pet_quarters,
+        workspace_id=PET_WORKSPACE_ID, dataset_id=PET_DATASET_ID,
+    )
+    if df_raw.empty:
+        return pd.DataFrame()
+
+    df = transform(df_raw, "Pet")
+
+    # Load EAV question data, pivot to wide, and merge onto main
+    df_q = load_pet_questions(
+        token, pet_quarters,
+        workspace_id=PET_WORKSPACE_ID, dataset_id=PET_DATASET_ID,
+    )
+    if not df_q.empty:
+        df_q["UniqueID"] = df_q["UniqueID"].astype(str)
+        df_q["Answer"] = df_q["Answer"].astype(str).str.strip()
+        df_q["Product"] = "Pet"
+
+        wide = pivot_questions_to_wide(df_q, product="Pet")
+        if not wide.empty:
+            existing = set(df.columns)
+            overlap = [c for c in wide.columns if c in existing]
+            if overlap:
+                wide = wide.drop(columns=overlap)
+            if not wide.empty:
+                df = df.merge(wide, left_on="UniqueID", right_index=True, how="left")
+
+    return df
+
+
 def init_ss_data(token: str, start_month: int, end_month: int,
                  main_table: str = MAIN_TABLE, other_table: str = OTHER_TABLE,
-                 home_main_table: str = MAIN_TABLE, home_other_table: str = OTHER_TABLE):
+                 home_main_table: str = MAIN_TABLE, home_other_table: str = OTHER_TABLE,
+                 pet_quarters: list[str] | None = None):
     """Load S&S data from Power BI for all products, transform, and store in session state."""
     # Load motor data
     df_motor = _load_product_data(
@@ -105,8 +151,13 @@ def init_ss_data(token: str, start_month: int, end_month: int,
         HOME_WORKSPACE_ID, HOME_DATASET_ID,
     )
 
+    # Load pet data
+    df_pet = pd.DataFrame()
+    if pet_quarters:
+        df_pet = _load_pet_data(token, pet_quarters)
+
     # Combine products
-    frames = [df for df in [df_motor, df_home] if not df.empty]
+    frames = [df for df in [df_motor, df_home, df_pet] if not df.empty]
     if frames:
         df_all = pd.concat(frames, ignore_index=True)
     else:

@@ -12,6 +12,7 @@ from lib.config import (
     TENANT_ID, CLIENT_ID, WORKSPACE_ID, DATASET_ID, SCOPE,
     MOTOR_WORKSPACE_ID, MOTOR_DATASET_ID,
     HOME_WORKSPACE_ID, HOME_DATASET_ID,
+    PET_WORKSPACE_ID, PET_DATASET_ID,
     MAIN_TABLE, OTHER_TABLE,
 )
 
@@ -579,3 +580,168 @@ def load_ss_questions(_token, start_month: int, end_month: int,
     if not frames:
         return pd.DataFrame()
     return pd.concat(frames, ignore_index=True)
+
+
+# ---------------------------------------------------------------------------
+# Pet insurance loaders
+# ---------------------------------------------------------------------------
+
+@st.cache_data(ttl=3600, show_spinner="Loading Pet quarters...")
+def load_pet_quarters(_token, *,
+                      workspace_id: str = PET_WORKSPACE_ID,
+                      dataset_id: str = PET_DATASET_ID) -> list[str]:
+    """Discover available Survey Quarter values in Pet main_data."""
+    dax = """
+        EVALUATE
+        DISTINCT(SELECTCOLUMNS('main_data', "q", 'main_data'[Survey Quarter]))
+        ORDER BY [q] ASC
+    """
+    df = run_dax(_token, dax, workspace_id=workspace_id, dataset_id=dataset_id)
+    if df.empty:
+        return []
+    return sorted(df["q"].dropna().unique().tolist())
+
+
+@st.cache_data(ttl=3600, show_spinner="Loading Pet main data...")
+def load_pet_maindata(_token, quarters: list[str], *,
+                      workspace_id: str = PET_WORKSPACE_ID,
+                      dataset_id: str = PET_DATASET_ID) -> pd.DataFrame:
+    """Fetch Pet main_data for specified quarters.
+
+    Pet main_data has ~60 wide columns already. We SELECT all columns
+    filtered by Survey Quarter using an IN-list.
+    """
+    if not quarters:
+        return pd.DataFrame()
+
+    # Build IN-list filter: {"2024 Q4", "2024 Q3", ...}
+    in_values = ", ".join(f'"{q}"' for q in quarters)
+
+    # Pet main_data may exceed 100K rows across all quarters.
+    # Batch per quarter to stay under the API limit.
+    frames = []
+    for q in quarters:
+        dax = f"""
+            EVALUATE
+            FILTER(
+                'main_data',
+                'main_data'[Survey Quarter] = "{q}"
+            )
+        """
+        df_q = run_dax(_token, dax, silent=True,
+                       workspace_id=workspace_id, dataset_id=dataset_id)
+        if not df_q.empty:
+            frames.append(df_q)
+
+    if not frames:
+        return pd.DataFrame()
+    return pd.concat(frames, ignore_index=True)
+
+
+@st.cache_data(ttl=3600, show_spinner="Loading Pet question data...")
+def load_pet_questions(_token, quarters: list[str], *,
+                       workspace_id: str = PET_WORKSPACE_ID,
+                       dataset_id: str = PET_DATASET_ID) -> pd.DataFrame:
+    """Load all 4 Pet EAV tables and normalise to standard format.
+
+    Returns DataFrame with columns: UniqueID, QuestionNumber, Answer,
+    plus optional Ranking and AnswerCode.
+    """
+    from lib.pet_questions import PET_QUESTION_ALIASES
+
+    if not quarters:
+        return pd.DataFrame()
+
+    # The 4 EAV tables and their column mappings
+    eav_tables = [
+        {
+            "table": "pet_data_new",
+            "id_col": "ResultSkey",
+            "question_col": "question",
+            "answer_col": "answer",
+            "extra_cols": [],
+        },
+        {
+            "table": "provider_data",
+            "id_col": "ResultSkey",
+            "question_col": "question",
+            "answer_col": "answer",
+            "extra_cols": ["answer_number"],
+        },
+        {
+            "table": "remaining_data",
+            "id_col": "ResultSkey",
+            "question_col": "question",
+            "answer_col": "answer",
+            "extra_cols": [],
+        },
+        {
+            "table": "statement_data",
+            "id_col": "ResultSkey",
+            "question_col": "statement",
+            "answer_col": "AnswerText",
+            "extra_cols": ["AnswerCode"],
+        },
+    ]
+
+    all_frames = []
+
+    for spec in eav_tables:
+        table = spec["table"]
+        id_col = spec["id_col"]
+        q_col = spec["question_col"]
+        a_col = spec["answer_col"]
+        extras = spec["extra_cols"]
+
+        # Build select columns
+        select_parts = [
+            f'"{id_col}", \'{table}\'[{id_col}]',
+            f'"{q_col}", \'{table}\'[{q_col}]',
+            f'"{a_col}", \'{table}\'[{a_col}]',
+        ]
+        for ec in extras:
+            select_parts.append(f'"{ec}", \'{table}\'[{ec}]')
+        select_expr = ", ".join(select_parts)
+
+        # Batch by quarter to respect 100K row limit
+        for q in quarters:
+            # Filter via main_data relationship or direct quarter column
+            # Pet EAV tables are related to main_data via ResultSkey,
+            # and main_data has Survey Quarter. Use CALCULATETABLE.
+            dax = f"""
+                EVALUATE
+                CALCULATETABLE(
+                    SELECTCOLUMNS(
+                        '{table}',
+                        {select_expr}
+                    ),
+                    'main_data'[Survey Quarter] = "{q}"
+                )
+            """
+            df_batch = run_dax(_token, dax, silent=True,
+                               workspace_id=workspace_id,
+                               dataset_id=dataset_id)
+            if not df_batch.empty:
+                # Normalise column names
+                rename_map = {
+                    id_col: "UniqueID",
+                    q_col: "QuestionRaw",
+                    a_col: "Answer",
+                }
+                if "answer_number" in df_batch.columns:
+                    rename_map["answer_number"] = "Ranking"
+                if "AnswerCode" in df_batch.columns:
+                    rename_map["AnswerCode"] = "Scale"
+                df_batch = df_batch.rename(columns=rename_map)
+
+                # Map full-text question names to short aliases
+                df_batch["QuestionNumber"] = df_batch["QuestionRaw"].map(
+                    PET_QUESTION_ALIASES
+                ).fillna(df_batch["QuestionRaw"])
+
+                df_batch["UniqueID"] = df_batch["UniqueID"].astype(str)
+                all_frames.append(df_batch)
+
+    if not all_frames:
+        return pd.DataFrame()
+    return pd.concat(all_frames, ignore_index=True)

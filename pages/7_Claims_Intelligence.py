@@ -33,6 +33,11 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+# ---- Pet guard: no claims data ----
+if product == "Pet":
+    st.info("Claims data is not available for Pet insurance.")
+    st.stop()
+
 # ---- Get cached claims data ----
 product_key = product.lower()
 q52_key = f"claims_q52_{product_key}"

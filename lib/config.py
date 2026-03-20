@@ -24,6 +24,14 @@ HOME_DATASET_ID = os.getenv(
     "HOME_DATASET_ID", "71b28688-1e7e-421b-bb28-ccd29518ad94"
 )
 
+# Pet insurance fabric instance
+PET_WORKSPACE_ID = os.getenv(
+    "PET_WORKSPACE_ID", "1c6e2798-9b81-4643-82a2-791780138db3"
+)
+PET_DATASET_ID = os.getenv(
+    "PET_DATASET_ID", "4a1347c3-547a-4360-ae1c-a7f48261c678"
+)
+
 # Legacy aliases (default to motor)
 WORKSPACE_ID = MOTOR_WORKSPACE_ID
 DATASET_ID = MOTOR_DATASET_ID
@@ -33,7 +41,7 @@ MAIN_TABLE = "MainData"
 OTHER_TABLE = "AllOtherData"
 
 # Product configuration
-PRODUCTS = ["Motor", "Home"]
+PRODUCTS = ["Motor", "Home", "Pet"]
 
 # ---------------------------------------------------------------------------
 # CI Brand colours (Spec Section 11.1)
@@ -121,6 +129,9 @@ SISTER_BRANDS = {
     "Privilege": ["Direct Line", "Churchill", "Green Flag"],
     "Aviva": ["Quotemehappy.com"],
     "Quotemehappy.com": ["Aviva"],
+    # Pet insurance sister brands
+    "Petplan": ["Allianz"],
+    "Allianz": ["Petplan"],
 }
 
 # Comparable insurer sets for competitor cross-referencing (Spec Section 13.3)

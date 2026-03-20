@@ -77,6 +77,11 @@ if df_motor.empty:
     st.stop()
 
 product = filters["product"]
+if product == "Pet":
+    st.info("Unprompted awareness is not available for Pet insurance (coming in 2026 survey).")
+    st.stop()
+
+product = filters["product"]
 selected_months = filters["selected_months"]
 df_main = apply_filters(df_motor, product=product, selected_months=selected_months)
 

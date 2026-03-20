@@ -41,7 +41,7 @@ Q1_SPONTANEOUS = {f"Q1_{i}" for i in range(1, 11)}
 ALL_KNOWN = SINGLE_CODE | MULTI_CODE | RANKED | GRID | NPS_SCALE | Q1_SPONTANEOUS
 
 
-def pivot_questions_to_wide(df_questions: pd.DataFrame) -> pd.DataFrame:
+def pivot_questions_to_wide(df_questions: pd.DataFrame, product: str = "Motor") -> pd.DataFrame:
     """
     Pivot EAV question data into a wide DataFrame indexed by UniqueID.
 
@@ -60,8 +60,21 @@ def pivot_questions_to_wide(df_questions: pd.DataFrame) -> pd.DataFrame:
     df["QuestionNumber"] = df["QuestionNumber"].astype(str).str.strip()
     df["Answer"] = df["Answer"].astype(str).str.strip()
 
+    # Select classification sets based on product
+    if product == "Pet":
+        from lib.pet_questions import PET_SINGLE_CODE, PET_MULTI_CODE, PET_NPS_SCALE, PET_ALL_KNOWN
+        single_set = PET_SINGLE_CODE
+        multi_set = PET_MULTI_CODE
+        nps_set = PET_NPS_SCALE
+        known_set = PET_ALL_KNOWN
+    else:
+        single_set = SINGLE_CODE
+        multi_set = MULTI_CODE
+        nps_set = NPS_SCALE
+        known_set = ALL_KNOWN
+
     # Filter to known question types only (skip hidden/derived fields)
-    df = df[df["QuestionNumber"].isin(ALL_KNOWN)]
+    df = df[df["QuestionNumber"].isin(known_set)]
     df = df[df["Answer"].notna() & (df["Answer"] != "") & (df["Answer"] != "nan")]
     if df.empty:
         return pd.DataFrame()
@@ -70,22 +83,25 @@ def pivot_questions_to_wide(df_questions: pd.DataFrame) -> pd.DataFrame:
     result = pd.DataFrame({"UniqueID": all_ids})
 
     # --- Single-code: one column per question, value = Answer ---
-    _pivot_single(df, result)
+    _pivot_single(df, result, question_set=single_set)
 
     # --- Multi-code: boolean columns Q{n}_{answer} ---
-    _pivot_multi(df, result)
+    _pivot_multi(df, result, question_set=multi_set)
 
     # --- Ranked: Q{n}_rank{i} = Answer ---
-    _pivot_ranked(df, result)
+    if product != "Pet":
+        _pivot_ranked(df, result)
 
     # --- NPS / Scale: one column per question, numeric value ---
-    _pivot_nps(df, result)
+    _pivot_nps(df, result, question_set=nps_set)
 
     # --- Grid: Q{n}_{subject} = numeric value ---
-    _pivot_grid(df, result)
+    if product != "Pet":
+        _pivot_grid(df, result)
 
     # --- Q1 spontaneous awareness: normalise free text → boolean brand columns ---
-    _pivot_q1_spontaneous(df, result)
+    if product != "Pet":
+        _pivot_q1_spontaneous(df, result)
 
     n_cols = len(result.columns) - 1  # minus UniqueID
     log.info("Pivoted %d EAV rows into %d wide columns for %d respondents",
@@ -98,9 +114,9 @@ def pivot_questions_to_wide(df_questions: pd.DataFrame) -> pd.DataFrame:
 # Per-type pivot helpers
 # ---------------------------------------------------------------------------
 
-def _pivot_single(df: pd.DataFrame, result: pd.DataFrame) -> None:
+def _pivot_single(df: pd.DataFrame, result: pd.DataFrame, question_set: set | None = None) -> None:
     """Single-code questions: one value per respondent."""
-    subset = df[df["QuestionNumber"].isin(SINGLE_CODE)]
+    subset = df[df["QuestionNumber"].isin(question_set or SINGLE_CODE)]
     if subset.empty:
         return
     deduped = subset.drop_duplicates(subset=["UniqueID", "QuestionNumber"], keep="first")
@@ -117,9 +133,9 @@ def _pivot_single(df: pd.DataFrame, result: pd.DataFrame) -> None:
             result[col] = merged[col].values
 
 
-def _pivot_multi(df: pd.DataFrame, result: pd.DataFrame) -> None:
+def _pivot_multi(df: pd.DataFrame, result: pd.DataFrame, question_set: set | None = None) -> None:
     """Multi-code questions: boolean column per answer option."""
-    subset = df[df["QuestionNumber"].isin(MULTI_CODE)]
+    subset = df[df["QuestionNumber"].isin(question_set or MULTI_CODE)]
     if subset.empty:
         return
     subset = subset.copy()
@@ -166,9 +182,9 @@ def _pivot_ranked(df: pd.DataFrame, result: pd.DataFrame) -> None:
         result[col] = merged[col].values
 
 
-def _pivot_nps(df: pd.DataFrame, result: pd.DataFrame) -> None:
+def _pivot_nps(df: pd.DataFrame, result: pd.DataFrame, question_set: set | None = None) -> None:
     """NPS/Scale questions: one numeric column per question."""
-    subset = df[df["QuestionNumber"].isin(NPS_SCALE)]
+    subset = df[df["QuestionNumber"].isin(question_set or NPS_SCALE)]
     if subset.empty:
         return
     subset = subset.copy()

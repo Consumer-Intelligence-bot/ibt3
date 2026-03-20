@@ -13,6 +13,16 @@ from __future__ import annotations
 import pandas as pd
 
 
+def _quarter_to_yyyymm(sq: str) -> int | None:
+    """Convert 'YYYY QN' to YYYYMM (last month of quarter). E.g. '2024 Q4' -> 202412."""
+    try:
+        year, q = sq.split(" Q")
+        month = int(q) * 3
+        return int(year) * 100 + month
+    except (ValueError, AttributeError):
+        return None
+
+
 def _derive_price_direction(row: pd.Series) -> str | None:
     change = row.get("Renewal premium change combined") or row.get("Renewal premium change") or ""
     s = str(change).lower().strip()
@@ -57,6 +67,20 @@ def transform(df: pd.DataFrame, product: str = "Motor") -> pd.DataFrame:
 
     # Product
     out["Product"] = product
+
+    # Pet-specific column renames and time conversion
+    if product == "Pet":
+        out = out.rename(columns={
+            "ResultSkey": "UniqueID",
+            "Who is your current pet insurance provider?": "CurrentCompany",
+            "Who was your previous pet insurance provider?": "PreviousCompany",
+            "Payment method": "PaymentType",
+            "Was the renewal price higher or lower than what you were paying previous year?": "Renewal premium change",
+            "Recommendation score": "NPS",
+        })
+        # Convert "2024 Q4" -> 202412
+        if "Survey Quarter" in out.columns:
+            out["RenewalYearMonth"] = out["Survey Quarter"].apply(_quarter_to_yyyymm)
 
     # Column aliases
     if "PreRenewalCompany" in out.columns and "PreviousCompany" not in out.columns:

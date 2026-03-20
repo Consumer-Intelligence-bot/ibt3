@@ -21,19 +21,32 @@ from lib.config import (
     SYSTEM_FLOOR_N,
 )
 
-# Maps awareness level names to Q-codes
+# Maps awareness level names to Q-codes, per product
 AWARENESS_LEVELS = {
-    "spontaneous": "Q1",
-    "prompted": "Q2",
-    "consideration": "Q27",
+    "Motor": {"spontaneous": "Q1", "prompted": "Q2", "consideration": "Q27"},
+    "Home": {"spontaneous": "Q1", "prompted": "Q2", "consideration": "Q27"},
+    "Pet": {"prompted": "PET_PROMPTED_AWARENESS", "consideration": "PET_CONSIDERATION"},
 }
 
+# Flat default for backward compatibility (Motor/Home)
+_DEFAULT_LEVELS = AWARENESS_LEVELS["Motor"]
+
 Q1_GATING_MESSAGE = "Spontaneous awareness (Q1) is not available in the current data wave."
+
+# Current product context for awareness functions
+_current_product = "Motor"
+
+
+def set_awareness_product(product: str) -> None:
+    """Set the product context for awareness calculations."""
+    global _current_product
+    _current_product = product
 
 
 def _get_q_code(awareness_level: str) -> str | None:
     """Return Q-code for an awareness level, or None if gated."""
-    return AWARENESS_LEVELS.get(awareness_level)
+    levels = AWARENESS_LEVELS.get(_current_product, _DEFAULT_LEVELS)
+    return levels.get(awareness_level)
 
 
 def _brand_cols(df: pd.DataFrame, q_code: str) -> list[str]:
