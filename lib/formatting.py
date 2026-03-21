@@ -19,7 +19,7 @@ def render_header():
     """Inject CSS and place CI logo in the sidebar. Call at the top of every page."""
     st.markdown(CSS, unsafe_allow_html=True)
     if _LOGO_BYTES:
-        st.logo(_LOGO_BYTES, link="/")
+        st.logo(_LOGO_BYTES)
 
 
 def fmt_pct(val, dp=1):
