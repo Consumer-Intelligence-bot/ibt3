@@ -1,9 +1,8 @@
 """
-Consumer Intelligence — Unified Streamlit Dashboard.
+Consumer Intelligence — IBT Customer Lifecycle Dashboard.
 
-Combines Claims Intelligence and Shopping & Switching Intelligence
-in a single multipage app. Data is cached locally in DuckDB and
-only re-pulled from Power BI when triggered from Admin / Governance.
+Router-based single-page app. Uses st.session_state["active_screen"]
+with conditional rendering (not st.tabs) for performance.
 """
 
 import signal
@@ -31,7 +30,7 @@ if threading.current_thread() is threading.main_thread() and not hasattr(
 
 from lib.db import has_data
 from lib.formatting import render_header
-from lib.state import format_month, load_from_db
+from lib.state import load_from_db
 
 st.set_page_config(
     page_title="Consumer Intelligence",
@@ -47,7 +46,6 @@ if not st.session_state.get("data_loaded", False):
             loaded = load_from_db()
         if loaded:
             st.session_state["data_loaded"] = True
-    # If no cache, we'll prompt the user to pull from Power BI via Admin page
 
 # ---- Resolve time window from cache ----
 start_month = None
@@ -60,7 +58,6 @@ if cached_start and cached_end:
     start_month = cached_start
     end_month = cached_end
 else:
-    # Derive from cached DataFrame if metadata was missing
     df_motor = st.session_state.get("df_motor")
     if df_motor is not None and not df_motor.empty and "RenewalYearMonth" in df_motor.columns:
         months = sorted(df_motor["RenewalYearMonth"].dropna().unique().astype(int).tolist())
@@ -68,36 +65,59 @@ else:
             start_month = months[max(0, len(months) - 12)]
             end_month = months[-1]
 
-# ---- Store time window in session state ----
 if start_month and end_month:
     st.session_state["start_month"] = start_month
     st.session_state["end_month"] = end_month
 
-# ---- Landing page content ----
+# ---- Header controls + tab bar ----
+from lib.components.header import render_global_controls, render_tab_bar
+
+filters = render_global_controls()
+
 data_loaded = st.session_state.get("data_loaded", False)
 
-if data_loaded:
-    df_motor = st.session_state.get("df_motor")
-    n_rows = len(df_motor) if df_motor is not None else 0
-    n_cols = len(df_motor.columns) if df_motor is not None else 0
-
-    period_text = ""
-    if start_month and end_month:
-        period_text = f"{format_month(start_month)} to {format_month(end_month)}"
-
-    st.markdown("## Welcome to the IBT Portal")
-    st.success(f"Data loaded: {n_rows:,} respondents, {n_cols} columns. Period: {period_text}")
-    st.markdown(
-        "Use the sidebar to navigate between pages. "
-        "To refresh data from Power BI, go to **Admin / Governance** and click **Refresh from Power BI**."
-    )
-else:
+if not data_loaded:
     st.markdown("## Welcome to the IBT Portal")
     st.warning(
-        "No cached data found. Go to **Admin / Governance** and click "
+        "No cached data found. Go to **Admin / Governance** (sidebar) and click "
         "**Refresh from Power BI** to pull data."
     )
-    st.markdown(
-        "Once data is loaded, it is stored locally and survives server restarts. "
-        "You only need to refresh when you want the latest survey data."
-    )
+    # Still show admin access
+    active = st.session_state.get("active_screen", "switching")
+    if active == "admin":
+        from screens.admin import render as render_admin
+        render_admin(filters)
+    st.stop()
+
+# ---- Tab bar (only shown when data is loaded) ----
+render_tab_bar()
+
+# ---- Route to active screen ----
+active = st.session_state.get("active_screen", "switching")
+
+if active == "switching":
+    from screens.switching import render as render_screen
+elif active == "reasons":
+    from screens.reasons import render as render_screen
+elif active == "shopping":
+    from screens.shopping import render as render_screen
+elif active == "channels":
+    from screens.channels import render as render_screen
+elif active == "pre_renewal":
+    from screens.pre_renewal import render as render_screen
+elif active == "awareness":
+    from screens.awareness import render as render_screen
+elif active == "claims":
+    from screens.claims import render as render_screen
+elif active == "satisfaction":
+    from screens.satisfaction import render as render_screen
+elif active == "admin":
+    from screens.admin import render as render_screen
+elif active == "methodology":
+    from screens.methodology import render as render_screen
+elif active == "comparison":
+    from screens.comparison import render as render_screen
+else:
+    from screens.switching import render as render_screen
+
+render_screen(filters)

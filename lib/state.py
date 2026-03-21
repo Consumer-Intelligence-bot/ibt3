@@ -454,6 +454,18 @@ def render_global_filters():
     }
 
 
+def navigate_to(screen: str, **kwargs):
+    """Navigate to a different screen, optionally setting cross-screen filters.
+
+    Usage:
+        navigate_to("switching", flow_filter={"from": "Admiral", "to": "Churchill"})
+    """
+    st.session_state["active_screen"] = screen
+    for key, value in kwargs.items():
+        st.session_state[key] = value
+    st.rerun()
+
+
 def render_dual_period_selector() -> dict | None:
     """
     Render dual period selector for the Brand Awareness tab (Change 1).
