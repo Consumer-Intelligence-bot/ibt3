@@ -24,9 +24,10 @@ from lib.config import (
     MARKET_COLOUR,
     MIN_BASE_PUBLISHABLE,
 )
-from lib.formatting import FONT
+from lib.formatting import FONT, render_header
 from lib.state import format_year_month, render_global_filters, get_ss_data
 
+render_header()
 st.header("Insurer Comparison")
 
 # ---- Filters (no insurer selector needed — this page shows ALL insurers) ----

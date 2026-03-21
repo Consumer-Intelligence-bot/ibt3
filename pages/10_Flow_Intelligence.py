@@ -20,7 +20,7 @@ from lib.config import (
     MIN_BASE_FLOW_CELL,
     MIN_BASE_PUBLISHABLE,
 )
-from lib.formatting import fmt_pct, section_divider, period_label, FONT
+from lib.formatting import fmt_pct, section_divider, period_label, FONT, render_header
 from lib.state import (
     format_year_month,
     get_filtered_data,
@@ -32,6 +32,7 @@ from lib.state import (
 # Page config
 # ---------------------------------------------------------------------------
 
+render_header()
 st.header("Flow Intelligence")
 
 _section_divider = section_divider

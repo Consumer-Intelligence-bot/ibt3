@@ -30,7 +30,7 @@ from lib.config import (
     CI_RED,
     MARKET_COLOUR,
 )
-from lib.formatting import FONT
+from lib.formatting import FONT, render_header
 from lib.state import format_year_month, get_ss_data, render_global_filters
 
 
@@ -66,6 +66,7 @@ def _brand_colour(brand: str, idx: int = 0) -> str:
 # Page setup
 # ---------------------------------------------------------------------------
 
+render_header()
 st.header("Unprompted Brand Awareness")
 
 filters = render_global_filters()

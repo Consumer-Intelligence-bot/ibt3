@@ -28,10 +28,10 @@ from lib.config import (
     PET_WORKSPACE_ID, PET_DATASET_ID,
 )
 from lib.db import clear_data, has_data, load_metadata
+from lib.formatting import render_header
 from lib.state import format_year_month, get_ss_data, init_ss_data
 
-# CSS is centralised in lib/config.py (injected by app.py)
-
+render_header()
 st.header("Admin / Governance")
 st.caption("Internal page \u2014 not visible to clients")
 

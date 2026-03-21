@@ -25,7 +25,7 @@ from lib.analytics.reasons import calc_reason_ranking, calc_reason_comparison
 from lib.analytics.suppression import check_suppression
 from lib.analytics.trends import calc_trend
 from lib.chart_export import apply_export_metadata, render_suppression_html, confidence_tooltip
-from lib.formatting import fmt_pct, section_divider, period_label, card_html, FONT
+from lib.formatting import fmt_pct, section_divider, period_label, card_html, FONT, render_header
 from lib.config import (
     CI_GREEN,
     CI_GREY,
@@ -47,6 +47,7 @@ from lib.state import format_year_month, render_global_filters, get_ss_data
 # Page config
 # ---------------------------------------------------------------------------
 
+render_header()
 st.header("Insurer Diagnostic")
 
 # ---------------------------------------------------------------------------

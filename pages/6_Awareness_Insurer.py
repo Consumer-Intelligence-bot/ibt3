@@ -21,8 +21,10 @@ from lib.config import (
     BUMP_COLOURS, CI_BLUE, CI_GREEN, CI_GREY, CI_LIGHT_GREY,
     CI_MAGENTA, CI_RED, MIN_BASE_PUBLISHABLE,
 )
+from lib.formatting import render_header
 from lib.state import format_year_month, render_global_filters, get_ss_data
 
+render_header()
 st.header("Brand Awareness \u2014 Insurer View")
 
 filters = render_global_filters()

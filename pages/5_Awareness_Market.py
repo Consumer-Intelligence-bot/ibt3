@@ -34,6 +34,7 @@ from lib.config import (
     MARKET_COLOUR,
     MIN_BASE_PUBLISHABLE,
 )
+from lib.formatting import render_header
 from lib.state import (
     format_year_month,
     render_dual_period_selector,
@@ -41,6 +42,7 @@ from lib.state import (
     get_ss_data,
 )
 
+render_header()
 st.header("Brand Awareness — Market View")
 
 # ---- Global filters ----

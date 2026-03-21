@@ -6,11 +6,9 @@ in a single multipage app. Data is cached locally in DuckDB and
 only re-pulled from Power BI when triggered from Admin / Governance.
 """
 
-import base64
 import signal
 import sys
 import threading
-from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -31,32 +29,16 @@ if threading.current_thread() is threading.main_thread() and not hasattr(
     signal.signal(signal.SIGINT, _graceful_shutdown)
     st._graceful_shutdown_registered = True
 
-from lib.config import CSS
 from lib.db import has_data
+from lib.formatting import render_header
 from lib.state import format_month, load_from_db
-
-# ---- Logo as base64 data URI (avoids Streamlit static file issues) ----
-_LOGO_PATH = Path(__file__).parent / "assets" / "ci_logo.png"
-_LOGO_B64 = ""
-if _LOGO_PATH.exists():
-    _LOGO_B64 = base64.b64encode(_LOGO_PATH.read_bytes()).decode()
 
 st.set_page_config(
     page_title="Consumer Intelligence",
     page_icon="\U0001F4CA",
     layout="wide",
 )
-st.markdown(CSS, unsafe_allow_html=True)
-
-# ---- Header ----
-_logo_tag = f'<img src="data:image/png;base64,{_LOGO_B64}" alt="CI Logo">' if _LOGO_B64 else ""
-st.markdown(
-    f'<div class="ci-header">'
-    f'{_logo_tag}'
-    f'<span class="ci-logo">Consumer Intelligence</span>'
-    f"</div>",
-    unsafe_allow_html=True,
-)
+render_header()
 
 # ---- Load data: always try DuckDB cache first ----
 if not st.session_state.get("data_loaded", False):

@@ -19,9 +19,11 @@ from lib.config import (
     MIN_BASE_INDICATIVE, SISTER_BRANDS, Z_95,
     PRODUCTS,
 )
-from lib.formatting import FONT, section_divider
+from lib.formatting import FONT, section_divider, render_header
 from lib.narrative import generate_claims_narrative
 from lib.state import format_month
+
+render_header()
 
 # ---- Product selector (aligned with global pattern) ----
 product = st.sidebar.selectbox("Product", PRODUCTS)

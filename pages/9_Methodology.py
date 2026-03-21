@@ -10,6 +10,7 @@ from lib.config import (
     CONFIDENCE_LEVEL, MIN_BASE_FLOW_CELL, MIN_BASE_PUBLISHABLE,
     PRIOR_STRENGTH, SYSTEM_FLOOR_N, Z_SCORE,
 )
+from lib.formatting import render_header
 
 
 def _ci_explanation() -> str:
@@ -22,6 +23,7 @@ def _ci_explanation() -> str:
     )
 
 
+render_header()
 st.header("Methodology")
 st.caption("How we calculate and present the data in this portal")
 

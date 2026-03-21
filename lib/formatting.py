@@ -2,11 +2,33 @@
 Shared formatting utilities for Consumer Intelligence dashboard pages.
 """
 
+import base64
+from pathlib import Path
+
 import streamlit as st
 
-from lib.config import CI_GREY, CI_LIGHT_GREY
+from lib.config import CI_GREY, CI_LIGHT_GREY, CSS
 
 FONT = "Verdana, Geneva, sans-serif"
+
+# Pre-compute logo base64 once at module load
+_LOGO_PATH = Path(__file__).parent.parent / "assets" / "ci_logo.png"
+_LOGO_B64 = ""
+if _LOGO_PATH.exists():
+    _LOGO_B64 = base64.b64encode(_LOGO_PATH.read_bytes()).decode()
+
+
+def render_header():
+    """Render the CI branded header with logo. Call at the top of every page."""
+    st.markdown(CSS, unsafe_allow_html=True)
+    logo_tag = f'<img src="data:image/png;base64,{_LOGO_B64}" alt="CI Logo">' if _LOGO_B64 else ""
+    st.markdown(
+        f'<div class="ci-header">'
+        f'{logo_tag}'
+        f'<span class="ci-logo">Consumer Intelligence</span>'
+        f"</div>",
+        unsafe_allow_html=True,
+    )
 
 
 def fmt_pct(val, dp=1):

@@ -14,8 +14,10 @@ from lib.analytics.rates import calc_retention_rate, calc_shopping_rate
 from lib.analytics.flows import calc_net_flow
 from lib.config import CI_GREEN, CI_GREY, CI_LIGHT_GREY, CI_MAGENTA, CI_RED, CI_YELLOW, MIN_BASE_PUBLISHABLE
 from lib.narrative import generate_diagnostic_narrative
+from lib.formatting import render_header
 from lib.state import format_year_month, render_global_filters, get_ss_data
 
+render_header()
 st.header("What Changed This Month")
 st.caption("Anomaly detection across all eligible insurers")
 
