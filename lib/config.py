@@ -154,7 +154,7 @@ NARRATIVE_ENABLED = os.getenv("NARRATIVE_ENABLED", "true").lower() in ("true", "
 CSS = f"""
 <style>
 html, body, [class*="css"] {{
-    font-family: Calibri, Verdana, sans-serif;
+    font-family: Verdana, Geneva, sans-serif;
     color: {CI_DARK};
 }}
 .ci-header {{

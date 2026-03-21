@@ -12,6 +12,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+from lib.analytics.narrative_engine import generate_screen_narrative
 from lib.analytics.awareness import (
     AWARENESS_LEVELS,
     calc_awareness_movers,
@@ -29,6 +30,7 @@ from lib.analytics.spontaneous import (
 )
 from lib.chart_export import apply_export_metadata
 from lib.components.kpi_cards import kpi_card
+from lib.components.narrative_panel import render_narrative_panel
 from lib.config import (
     BUMP_COLOURS,
     CI_GREEN,
@@ -290,6 +292,38 @@ def _render_insurer_prompted(df_main, insurer, level, product, period, n):
                 change = (row.get("end_rate", 0) - row.get("start_rate", 0)) * 100
                 colour = CI_GREEN if change > 0 else CI_RED if change < 0 else CI_GREY
                 kpi_card("Change", f"{change:+.1f}pp", "", colour)
+
+    # --- AI Narrative ---
+    section_divider("AI Narrative")
+    ins_rate_val = ins_rate if not ins_latest.empty else 0
+    rank_val = ins_rank if ins_rank else 0
+    total_val = len(latest_all)
+    slopegraph = calc_awareness_slopegraph(df_main, level)
+    change_val = 0.0
+    if slopegraph is not None and not slopegraph.empty:
+        ins_slope = slopegraph[slopegraph["brand"] == insurer]
+        if not ins_slope.empty:
+            change_val = (ins_slope.iloc[0].get("end_rate", 0) - ins_slope.iloc[0].get("start_rate", 0)) * 100
+    narrative = generate_screen_narrative("awareness", {
+        "insurer": insurer,
+        "product": product,
+        "awareness_rate": ins_rate_val,
+        "rank": rank_val,
+        "total_brands": total_val,
+        "change_pp": change_val,
+    })
+    render_narrative_panel(narrative, "awareness")
+
+    # --- Cross-screen links ---
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("View Shopping Behaviour", key="awareness_to_shopping"):
+            from lib.state import navigate_to
+            navigate_to("shopping")
+    with col2:
+        if st.button("View Switching & Flows", key="awareness_to_switching"):
+            from lib.state import navigate_to
+            navigate_to("switching")
 
     st.markdown("---")
     st.caption(f"Awareness | {insurer} | {product} | {period} | n={n:,}")

@@ -11,9 +11,11 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from lib.analytics.demographics import apply_filters
+from lib.analytics.narrative_engine import generate_screen_narrative
 from lib.analytics.reasons import calc_reason_ranking, calc_reason_comparison
 from lib.chart_export import apply_export_metadata, render_suppression_html
 from lib.components.kpi_cards import kpi_card
+from lib.components.narrative_panel import render_narrative_panel
 from lib.config import (
     CI_GREEN,
     CI_GREY,
@@ -168,6 +170,31 @@ def _render_insurer_view(df_motor, df_mkt, insurer, filters, period, n_mkt):
             continue
 
         _render_reason_comparison(ins_reasons, mkt_reasons, insurer, q_code)
+
+    # --- AI Narrative ---
+    section_divider("AI Narrative")
+    top_stay = calc_reason_ranking(df_mkt, "Q18", insurer, top_n=1)
+    top_leave = calc_reason_ranking(df_mkt, "Q31", insurer, top_n=1)
+    top_shop = calc_reason_ranking(df_mkt, "Q8", insurer, top_n=1)
+    narrative = generate_screen_narrative("reasons", {
+        "insurer": insurer,
+        "product": filters["product"],
+        "top_stay_reason": top_stay[0]["reason"] if top_stay else "N/A",
+        "top_leave_reason": top_leave[0]["reason"] if top_leave else "N/A",
+        "top_shop_reason": top_shop[0]["reason"] if top_shop else "N/A",
+    })
+    render_narrative_panel(narrative, "reasons")
+
+    # --- Cross-screen links ---
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("View Switching & Flows", key="reasons_to_switching"):
+            from lib.state import navigate_to
+            navigate_to("switching")
+    with col2:
+        if st.button("View Satisfaction & Loyalty", key="reasons_to_satisfaction"):
+            from lib.state import navigate_to
+            navigate_to("satisfaction")
 
     # Footer
     st.markdown("---")

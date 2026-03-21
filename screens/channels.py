@@ -9,6 +9,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+from lib.analytics.narrative_engine import generate_screen_narrative
 from lib.analytics.channels import (
     calc_channel_usage,
     calc_pcw_usage,
@@ -19,6 +20,7 @@ from lib.analytics.channels import (
 from lib.analytics.demographics import apply_filters
 from lib.chart_export import apply_export_metadata, render_suppression_html
 from lib.components.kpi_cards import kpi_card
+from lib.components.narrative_panel import render_narrative_panel
 from lib.components.paired_bars import paired_bar_chart
 from lib.config import (
     CI_BLUE,
@@ -246,6 +248,30 @@ def _render_insurer_view(df_motor, df_mkt, insurer, filters, period, n_mkt):
         kpi_card("Quote Reach", f"{quote_reach:,}", "Shoppers who got a quote from this insurer", CI_MAGENTA)
     with col2:
         kpi_card("Reach %", fmt_pct(reach_pct), f"Of {n_shoppers:,} total shoppers", CI_MAGENTA)
+
+    # --- AI Narrative ---
+    section_divider("AI Narrative")
+    top_ch = ch_ins.idxmax() if ch_ins is not None and len(ch_ins) > 0 else "N/A"
+    pcw_rate = f"{pcw_ins.sum():.0%}" if pcw_ins is not None else "N/A"
+    narrative = generate_screen_narrative("channels", {
+        "insurer": insurer,
+        "product": filters["product"],
+        "top_channel": top_ch,
+        "pcw_usage_rate": pcw_rate,
+        "quote_reach": quote_reach,
+    })
+    render_narrative_panel(narrative, "channels")
+
+    # --- Cross-screen links ---
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("View Shopping Behaviour", key="channels_to_shopping"):
+            from lib.state import navigate_to
+            navigate_to("shopping")
+    with col2:
+        if st.button("View Pre-Renewal Context", key="channels_to_prerenewal"):
+            from lib.state import navigate_to
+            navigate_to("pre_renewal")
 
     # Footer
     st.markdown("---")

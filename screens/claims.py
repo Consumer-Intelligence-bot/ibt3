@@ -11,8 +11,10 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+from lib.analytics.narrative_engine import generate_screen_narrative
 from lib.chart_export import apply_export_metadata, confidence_tooltip
 from lib.components.kpi_cards import kpi_card
+from lib.components.narrative_panel import render_narrative_panel
 from lib.config import (
     CI_BLUE, CI_DARK, CI_GREEN, CI_GREY, CI_LGREY, CI_LIGHT_GREY,
     CI_MAGENTA, CI_RED, CI_VIOLET, CI_WHITE,
@@ -221,22 +223,34 @@ def render(filters: dict):
     if not q53_df.empty:
         _render_q53_journey(q53_df, eligible, insurer, market_mean, period_text)
 
-    # AI Narrative
+    # AI Narrative (claims-specific via lib/narrative.py, plus screen narrative)
     section_divider("AI Claims Narrative")
     diagnostics = _get_diagnostics(q53_df, eligible, insurer)
     narrative = generate_claims_narrative(insurer, ins_mean, market_mean, gap, stars, diagnostics)
-    if narrative:
-        st.markdown(
-            f'<div style="font-family:{FONT}; background:white; border:1px solid {CI_LIGHT_GREY}; '
-            f'border-radius:4px; padding:20px 24px;">'
-            f'<div style="font-size:16px; font-weight:bold; color:{CI_VIOLET}; margin-bottom:8px;">'
-            f'{narrative.get("headline", "")}</div>'
-            f'<div style="font-size:13px; color:{CI_GREY}; line-height:1.6;">'
-            f'{narrative.get("paragraph", "")}</div></div>',
-            unsafe_allow_html=True,
-        )
-    else:
-        st.caption("AI narrative unavailable.")
+    render_narrative_panel(narrative, "claims")
+
+    # Also try screen-level narrative engine as fallback
+    if narrative is None:
+        screen_narrative = generate_screen_narrative("claims", {
+            "insurer": insurer,
+            "product": product,
+            "satisfaction": ins_mean,
+            "mkt_satisfaction": market_mean,
+            "stars": stars or 0,
+            "gap": gap,
+        })
+        render_narrative_panel(screen_narrative, "claims_fallback")
+
+    # --- Cross-screen links ---
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("View Satisfaction & Loyalty", key="claims_to_satisfaction"):
+            from lib.state import navigate_to
+            navigate_to("satisfaction")
+    with col2:
+        if st.button("View Switching & Flows", key="claims_to_switching"):
+            from lib.state import navigate_to
+            navigate_to("switching")
 
     # Footer
     st.markdown("---")

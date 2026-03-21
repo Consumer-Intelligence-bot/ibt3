@@ -11,6 +11,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from lib.analytics.demographics import apply_filters
+from lib.analytics.narrative_engine import generate_screen_narrative
 from lib.analytics.satisfaction import (
     calc_overall_satisfaction,
     calc_nps,
@@ -20,6 +21,7 @@ from lib.analytics.satisfaction import (
 )
 from lib.chart_export import render_suppression_html
 from lib.components.kpi_cards import kpi_card
+from lib.components.narrative_panel import render_narrative_panel
 from lib.config import (
     CI_GREEN,
     CI_GREY,
@@ -310,6 +312,35 @@ def _render_insurer_view(df_motor, df_mkt, insurer, filters, period, n_mkt):
             render_suppression_html(f"{insurer} (Departed Satisfaction)", n_dep, MIN_BASE_REASON),
             unsafe_allow_html=True,
         )
+
+    # --- AI Narrative ---
+    section_divider("AI Narrative")
+    ins_sat_val = ins_sat["mean"] if ins_sat else 0
+    mkt_sat_val = mkt_sat["mean"] if mkt_sat else 0
+    ins_nps_val = ins_nps["nps"] if ins_nps else 0
+    mkt_nps_val = mkt_nps["nps"] if mkt_nps else 0
+    dep_sat_str = f"{ins_prev.get('mean_q40a', 0):.2f}" if ins_prev and ins_prev.get("mean_q40a") else "N/A"
+    narrative = generate_screen_narrative("satisfaction", {
+        "insurer": insurer,
+        "product": filters["product"],
+        "satisfaction": ins_sat_val,
+        "mkt_satisfaction": mkt_sat_val,
+        "nps": ins_nps_val,
+        "mkt_nps": mkt_nps_val,
+        "departed_sat": dep_sat_str,
+    })
+    render_narrative_panel(narrative, "satisfaction")
+
+    # --- Cross-screen links ---
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("View Reasons & Drivers", key="satisfaction_to_reasons"):
+            from lib.state import navigate_to
+            navigate_to("reasons")
+    with col2:
+        if st.button("View Claims Intelligence", key="satisfaction_to_claims"):
+            from lib.state import navigate_to
+            navigate_to("claims")
 
     st.markdown("---")
     st.caption(

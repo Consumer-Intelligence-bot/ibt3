@@ -11,6 +11,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from lib.analytics.demographics import apply_filters
+from lib.analytics.narrative_engine import generate_screen_narrative
 from lib.analytics.pre_renewal import (
     calc_tenure_distribution,
     calc_price_shopping_crossover,
@@ -24,6 +25,7 @@ from lib.analytics.price import (
 from lib.analytics.rates import calc_shopping_rate
 from lib.chart_export import render_suppression_html
 from lib.components.kpi_cards import kpi_card
+from lib.components.narrative_panel import render_narrative_panel
 from lib.config import (
     CI_GREEN,
     CI_GREY,
@@ -271,6 +273,39 @@ def _render_insurer_view(df_motor, df_mkt, insurer, filters, period, n_mkt):
         _render_tenure_chart(ins_tenure)
     else:
         st.info("No Q21 tenure data available for this insurer.")
+
+    # --- AI Narrative ---
+    section_divider("AI Narrative")
+    ins_price = calc_price_direction_dist(df_ins)
+    pct_h = float(ins_price.get("Higher", 0)) if ins_price is not None else 0
+    pct_l = float(ins_price.get("Lower", 0)) if ins_price is not None else 0
+    pct_u = float(ins_price.get("Unchanged", 0)) if ins_price is not None else 0
+    ins_cross = calc_price_shopping_crossover(df_ins)
+    higher_shop = "N/A"
+    if ins_cross is not None and not ins_cross.empty:
+        h_row = ins_cross[ins_cross["direction"] == "Higher"]
+        if not h_row.empty and h_row.iloc[0]["shopping_rate"] is not None:
+            higher_shop = f"{h_row.iloc[0]['shopping_rate']:.0%}"
+    narrative = generate_screen_narrative("pre_renewal", {
+        "insurer": insurer,
+        "product": filters["product"],
+        "pct_higher": pct_h,
+        "pct_lower": pct_l,
+        "pct_unchanged": pct_u,
+        "higher_shopping_rate": higher_shop,
+    })
+    render_narrative_panel(narrative, "pre_renewal")
+
+    # --- Cross-screen links ---
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("View Shopping Behaviour", key="prerenewal_to_shopping"):
+            from lib.state import navigate_to
+            navigate_to("shopping")
+    with col2:
+        if st.button("View Switching & Flows", key="prerenewal_to_switching"):
+            from lib.state import navigate_to
+            navigate_to("switching")
 
     # Footer
     st.markdown("---")

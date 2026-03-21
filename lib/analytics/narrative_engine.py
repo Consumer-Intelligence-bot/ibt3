@@ -47,6 +47,41 @@ Analyse awareness metrics for {insurer} in UK {product} insurance.
 - Prompted awareness: {awareness_rate:.1%} (rank {rank} of {total_brands})
 - Period change: {change_pp:+.1f}pp
 Max 200 words. Return JSON with headline and findings.""",
+
+    "reasons": """\
+Analyse reasons and drivers for {insurer} in UK {product} insurance.
+- Top reason for staying (Q18): {top_stay_reason}
+- Top reason for leaving (Q31): {top_leave_reason}
+- Top reason for shopping (Q8): {top_shop_reason}
+Follow the fact-observation-prompt pattern. Max 200 words. Return JSON:
+{{"headline": "...", "findings": [{{"fact": "...", "observation": "...", "prompt": "..."}}]}}""",
+
+    "channels": """\
+Analyse channel usage for {insurer} in UK {product} insurance.
+- Top shopping channel: {top_channel}
+- PCW usage rate: {pcw_usage_rate}
+- Quote reach: {quote_reach:,} shoppers
+Max 200 words. Return JSON with headline and findings.""",
+
+    "pre_renewal": """\
+Analyse pre-renewal context for {insurer} in UK {product} insurance.
+- Price direction: {pct_higher:.0%} saw higher, {pct_lower:.0%} saw lower, {pct_unchanged:.0%} unchanged
+- Shopping rate among those with higher prices: {higher_shopping_rate}
+Max 200 words. Return JSON with headline and findings.""",
+
+    "satisfaction": """\
+Analyse satisfaction for {insurer} in UK {product} insurance.
+- Current satisfaction (Q47): {satisfaction:.2f} (market: {mkt_satisfaction:.2f})
+- NPS (Q48): {nps:+.0f} (market: {mkt_nps:+.0f})
+- Departed satisfaction (Q40a): {departed_sat}
+Max 200 words. Return JSON with headline and findings.""",
+
+    "claims": """\
+Analyse claims satisfaction for {insurer} in UK {product} insurance.
+- Overall satisfaction (Q52): {satisfaction:.2f} (market: {mkt_satisfaction:.2f})
+- Star rating: {stars} stars
+- Gap to market: {gap:+.2f}
+Max 200 words. Return JSON with headline and findings.""",
 }
 
 
