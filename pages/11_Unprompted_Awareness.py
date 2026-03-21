@@ -30,32 +30,11 @@ from lib.config import (
     CI_RED,
     MARKET_COLOUR,
 )
-from lib.formatting import FONT, render_header
+from lib.formatting import FONT, render_header, card_html, section_divider
 from lib.state import format_year_month, get_ss_data, render_global_filters
 
-
-# ---------------------------------------------------------------------------
-# Helpers (consistent with other pages)
-# ---------------------------------------------------------------------------
-
-def _card_html(title, value, subtitle="", colour=CI_MAGENTA):
-    return (
-        f'<div style="background:white; border:1px solid {CI_LIGHT_GREY}; border-top:4px solid {colour}; '
-        f'border-radius:4px; padding:16px 20px; text-align:center; font-family:{FONT};">'
-        f'<div style="font-size:12px; color:{CI_GREY}; margin-bottom:6px;">{title}</div>'
-        f'<div style="font-size:28px; font-weight:bold; color:{colour};">{value}</div>'
-        f'<div style="font-size:11px; color:{CI_GREY}; margin-top:4px;">{subtitle}</div>'
-        f"</div>"
-    )
-
-
-def _section_divider(title):
-    st.markdown(
-        f'<div style="font-family:{FONT}; font-size:15px; font-weight:bold; color:{CI_GREY}; '
-        f'border-bottom:2px solid {CI_LIGHT_GREY}; padding-bottom:8px; margin:28px 0 16px 0;">'
-        f"{title}</div>",
-        unsafe_allow_html=True,
-    )
+_card_html = card_html
+_section_divider = section_divider
 
 
 def _brand_colour(brand: str, idx: int = 0) -> str:
@@ -169,82 +148,92 @@ tab1, tab2, tab3, tab4 = st.tabs([
 # ---------------------------------------------------------------------------
 
 with tab1:
-    col_area, col_bump = st.columns(2)
+    # ---- TOMA Share — stacked area (full width, normalised to 100%) ----
+    share_result = calc_toma_share(metrics, top_n=8)
+    if share_result and not share_result[0].empty:
+        share_df, top_brands = share_result
 
-    with col_area:
-        share_result = calc_toma_share(metrics, top_n=8)
-        if share_result and not share_result[0].empty:
-            share_df, top_brands = share_result
-            fig_area = go.Figure()
+        # Normalise each row so stacked areas sum to 100%
+        brand_cols = [b for b in top_brands + ["Other"] if b in share_df.columns]
+        row_totals = share_df[brand_cols].sum(axis=1)
+        share_norm = share_df.copy()
+        for col in brand_cols:
+            share_norm[col] = share_df[col] / row_totals * 100
 
-            for i, brand in enumerate(reversed(top_brands + ["Other"])):
-                if brand not in share_df.columns:
-                    continue
-                colour = CI_LIGHT_GREY if brand == "Other" else _brand_colour(brand, len(top_brands) - 1 - i)
-                fig_area.add_trace(go.Scatter(
-                    x=[format_year_month(m) for m in share_df["month"]],
-                    y=share_df[brand],
-                    name=brand,
-                    mode="lines",
-                    stackgroup="one",
-                    line=dict(width=0.5, color=colour),
-                    fillcolor=colour,
-                    hovertemplate=f"<b>{brand}</b><br>TOMA: %{{y:.1f}}%<br>%{{x}}<extra></extra>",
-                ))
+        fig_area = go.Figure()
+        for i, brand in enumerate(reversed(top_brands + ["Other"])):
+            if brand not in share_norm.columns:
+                continue
+            colour = CI_LIGHT_GREY if brand == "Other" else _brand_colour(brand, len(top_brands) - 1 - i)
+            fig_area.add_trace(go.Scatter(
+                x=[format_year_month(m) for m in share_norm["month"]],
+                y=share_norm[brand],
+                name=brand,
+                mode="lines",
+                stackgroup="one",
+                groupnorm="",
+                line=dict(width=0.5, color=colour),
+                fillcolor=colour,
+                hovertemplate=f"<b>{brand}</b><br>Share: %{{y:.1f}}%<br>%{{x}}<extra></extra>",
+            ))
 
-            fig_area.update_layout(
-                yaxis_title="TOMA Share %", yaxis_ticksuffix="%",
-                height=420, font=dict(family=FONT),
-                plot_bgcolor="white", paper_bgcolor="white",
-                legend=dict(font_size=9, orientation="h", yanchor="top", y=-0.22,
-                            xanchor="center", x=0.5),
-                margin=dict(l=60, r=20, t=50, b=40),
-                xaxis_tickangle=-45,
-            )
-            apply_export_metadata(
-                fig_area, title="TOMA Share Over Time",
-                period=period_label, base=n, question="Q1",
-                subtitle="Top-of-mind awareness as % of all first mentions",
-            )
-            st.plotly_chart(fig_area, use_container_width=True)
-        else:
-            st.info("Insufficient data for TOMA share chart.")
+        fig_area.update_layout(
+            yaxis=dict(title="TOMA Share %", ticksuffix="%", range=[0, 100]),
+            xaxis=dict(tickangle=0),
+            height=380, font=dict(family=FONT, size=12),
+            plot_bgcolor="white", paper_bgcolor="white",
+            legend=dict(font_size=10, orientation="h", yanchor="top", y=-0.12,
+                        xanchor="center", x=0.5),
+            margin=dict(l=50, r=20, t=60, b=80),
+        )
+        apply_export_metadata(
+            fig_area, title="TOMA Share Over Time",
+            period=period_label, base=n, question="Q1",
+            subtitle="Top-of-mind awareness as % of all first mentions (normalised to 100%)",
+        )
+        st.plotly_chart(fig_area, use_container_width=True)
+    else:
+        st.info("Insufficient data for TOMA share chart.")
 
-    with col_bump:
-        rank_result = calc_toma_ranks(metrics, top_n=8)
-        if rank_result and not rank_result[0].empty:
-            rank_df, top_brands_r = rank_result
-            fig_bump = go.Figure()
+    # ---- TOMA Rank — bump chart (full width, cleaner) ----
+    rank_result = calc_toma_ranks(metrics, top_n=8)
+    if rank_result and not rank_result[0].empty:
+        rank_df, top_brands_r = rank_result
+        fig_bump = go.Figure()
 
-            for i, brand in enumerate(top_brands_r):
-                if brand not in rank_df.columns:
-                    continue
-                fig_bump.add_trace(go.Scatter(
-                    x=[format_year_month(m) for m in rank_df["month"]],
-                    y=rank_df[brand],
-                    name=brand,
-                    mode="lines+markers",
-                    line=dict(width=2.5, color=_brand_colour(brand, i)),
-                    marker=dict(size=6, color=_brand_colour(brand, i)),
-                    hovertemplate=f"<b>{brand}</b><br>Rank: %{{y}}<br>%{{x}}<extra></extra>",
-                ))
+        for i, brand in enumerate(top_brands_r):
+            if brand not in rank_df.columns:
+                continue
+            colour = _brand_colour(brand, i)
+            fig_bump.add_trace(go.Scatter(
+                x=[format_year_month(m) for m in rank_df["month"]],
+                y=rank_df[brand],
+                name=brand,
+                mode="lines+markers",
+                line=dict(width=2.5, color=colour),
+                marker=dict(size=7, color=colour),
+                hovertemplate=f"<b>{brand}</b><br>Rank: %{{y}}<br>%{{x}}<extra></extra>",
+            ))
 
-            fig_bump.update_layout(
-                yaxis=dict(autorange="reversed", title="Rank", dtick=1),
-                height=420, font=dict(family=FONT),
-                plot_bgcolor="white", paper_bgcolor="white",
-                legend=dict(font_size=9, orientation="h", yanchor="top", y=-0.22,
-                            xanchor="center", x=0.5),
-                margin=dict(l=60, r=20, t=50, b=40),
-                xaxis_tickangle=-45,
-            )
-            apply_export_metadata(
-                fig_bump, title="TOMA Rank — Bump Chart",
-                period=period_label, base=n, question="Q1",
-            )
-            st.plotly_chart(fig_bump, use_container_width=True)
-        else:
-            st.info("Insufficient data for bump chart.")
+        max_rank = int(rank_df[top_brands_r].max().max()) if not rank_df.empty else 8
+        fig_bump.update_layout(
+            yaxis=dict(autorange="reversed", title="Rank", dtick=1,
+                       range=[0.5, max_rank + 0.5],
+                       gridcolor=CI_LIGHT_GREY, gridwidth=0.5),
+            xaxis=dict(tickangle=0),
+            height=380, font=dict(family=FONT, size=12),
+            plot_bgcolor="white", paper_bgcolor="white",
+            legend=dict(font_size=10, orientation="h", yanchor="top", y=-0.12,
+                        xanchor="center", x=0.5),
+            margin=dict(l=50, r=20, t=60, b=80),
+        )
+        apply_export_metadata(
+            fig_bump, title="TOMA Rank — Bump Chart",
+            period=period_label, base=n, question="Q1",
+        )
+        st.plotly_chart(fig_bump, use_container_width=True)
+    else:
+        st.info("Insufficient data for bump chart.")
 
 # ---------------------------------------------------------------------------
 # Tab 2: Brand Deep-Dive
@@ -308,27 +297,29 @@ with tab2:
             fig_trend.add_trace(go.Scatter(
                 x=x, y=brand_data["mention"] * 100, name="Total Awareness",
                 mode="lines+markers", line=dict(color=CI_MAGENTA, width=2.5),
-                marker=dict(size=5, color=CI_MAGENTA),
+                marker=dict(size=6, color=CI_MAGENTA),
                 hovertemplate="Total: %{y:.1f}%<br>%{x}<extra></extra>",
             ))
             fig_trend.add_trace(go.Scatter(
                 x=x, y=brand_data["top3"] * 100, name="Top-3 Rate",
                 mode="lines+markers", line=dict(color=CI_GREEN, width=2, dash="dash"),
-                marker=dict(size=5, color=CI_GREEN),
+                marker=dict(size=6, color=CI_GREEN),
                 hovertemplate="Top-3: %{y:.1f}%<br>%{x}<extra></extra>",
             ))
             fig_trend.add_trace(go.Scatter(
                 x=x, y=brand_data["toma"] * 100, name="TOMA",
                 mode="lines+markers", line=dict(color=MARKET_COLOUR, width=2.5),
-                marker=dict(size=5, color=MARKET_COLOUR),
+                marker=dict(size=6, color=MARKET_COLOUR),
                 hovertemplate="TOMA: %{y:.1f}%<br>%{x}<extra></extra>",
             ))
             fig_trend.update_layout(
-                yaxis_title="Rate %", yaxis_ticksuffix="%",
-                height=340, font=dict(family=FONT),
+                yaxis=dict(title="Rate %", ticksuffix="%"),
+                xaxis=dict(tickangle=0),
+                height=380, font=dict(family=FONT, size=12),
                 plot_bgcolor="white", paper_bgcolor="white",
-                legend=dict(orientation="h", yanchor="top", y=-0.15, font_size=10),
-                margin=dict(l=60, r=20, t=20, b=70),
+                legend=dict(orientation="h", yanchor="top", y=-0.12,
+                            xanchor="center", x=0.5, font_size=10),
+                margin=dict(l=50, r=20, t=30, b=80),
             )
             apply_export_metadata(
                 fig_trend, title=f"{selected} — Awareness Trends",
@@ -355,11 +346,11 @@ with tab2:
                     hovertemplate="Position %{x}: %{y:.1f}%<extra></extra>",
                 ))
                 fig_decay.update_layout(
-                    xaxis_title="Mention Position", xaxis_dtick=1,
-                    yaxis_title="% of respondents", yaxis_ticksuffix="%",
-                    height=340, font=dict(family=FONT),
+                    xaxis=dict(title="Mention Position", dtick=1),
+                    yaxis=dict(title="% of respondents", ticksuffix="%"),
+                    height=380, font=dict(family=FONT, size=12),
                     plot_bgcolor="white", paper_bgcolor="white",
-                    margin=dict(l=60, r=20, t=20, b=70),
+                    margin=dict(l=50, r=20, t=30, b=80),
                 )
                 apply_export_metadata(
                     fig_decay, title=f"{selected} — Mention Decay Curve",
@@ -418,11 +409,11 @@ with tab3:
             ))
 
             fig_scatter.update_layout(
-                xaxis_title="Total Awareness %", xaxis_ticksuffix="%",
-                yaxis_title="TOMA %", yaxis_ticksuffix="%",
-                height=420, font=dict(family=FONT),
+                xaxis=dict(title="Total Awareness %", ticksuffix="%"),
+                yaxis=dict(title="TOMA %", ticksuffix="%"),
+                height=420, font=dict(family=FONT, size=12),
                 plot_bgcolor="white", paper_bgcolor="white",
-                margin=dict(l=60, r=20, t=20, b=60),
+                margin=dict(l=50, r=20, t=30, b=80),
             )
             apply_export_metadata(
                 fig_scatter, title="Salience Gap Analysis",
