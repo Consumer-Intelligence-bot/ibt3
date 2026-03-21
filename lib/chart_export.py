@@ -73,7 +73,7 @@ def apply_export_metadata(
     fig.add_annotation(
         text=footer_text,
         xref="paper", yref="paper",
-        x=0, y=-0.15,
+        x=0, y=-0.10,
         xanchor="left", yanchor="top",
         showarrow=False,
         font=dict(family="Verdana", size=9, color="#54585A"),

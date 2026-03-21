@@ -177,14 +177,34 @@ with tab1:
                 hovertemplate=f"<b>{brand}</b><br>Share: %{{y:.1f}}%<br>%{{x}}<extra></extra>",
             ))
 
+        # Direct on-chart labels at last data point for each brand
+        x_labels = [format_year_month(m) for m in share_norm["month"]]
+        last_x = x_labels[-1]
+        annotations = []
+        for i, brand in enumerate(reversed(top_brands + ["Other"])):
+            if brand not in share_norm.columns:
+                continue
+            last_y = share_norm[brand].iloc[-1]
+            # Stack midpoint: sum of all series below + half of this one
+            below_brands = list(reversed(top_brands + ["Other"]))[:list(reversed(top_brands + ["Other"])).index(brand)]
+            cumulative = sum(share_norm[b].iloc[-1] for b in below_brands if b in share_norm.columns)
+            mid_y = cumulative + last_y / 2
+            if last_y > 3:  # Only label if slice is wide enough to read
+                annotations.append(dict(
+                    x=last_x, y=mid_y,
+                    text=f"<b>{brand}</b> {last_y:.0f}%",
+                    showarrow=False, xanchor="left", xshift=6,
+                    font=dict(family=FONT, size=10, color="#333"),
+                ))
+
         fig_area.update_layout(
             yaxis=dict(title="TOMA Share %", ticksuffix="%", range=[0, 100]),
             xaxis=dict(tickangle=0),
-            height=380, font=dict(family=FONT, size=12),
+            height=520, font=dict(family=FONT, size=12),
             plot_bgcolor="white", paper_bgcolor="white",
-            legend=dict(font_size=10, orientation="h", yanchor="top", y=-0.12,
-                        xanchor="center", x=0.5),
-            margin=dict(l=50, r=20, t=60, b=80),
+            showlegend=False,
+            margin=dict(l=50, r=120, t=40, b=50),
+            annotations=annotations,
         )
         apply_export_metadata(
             fig_area, title="TOMA Share Over Time",
@@ -216,16 +236,17 @@ with tab1:
             ))
 
         max_rank = int(rank_df[top_brands_r].max().max()) if not rank_df.empty else 8
+        bump_height = max(500, 300 + max_rank * 30)
         fig_bump.update_layout(
             yaxis=dict(autorange="reversed", title="Rank", dtick=1,
                        range=[0.5, max_rank + 0.5],
                        gridcolor=CI_LIGHT_GREY, gridwidth=0.5),
             xaxis=dict(tickangle=0),
-            height=380, font=dict(family=FONT, size=12),
+            height=bump_height, font=dict(family=FONT, size=12),
             plot_bgcolor="white", paper_bgcolor="white",
-            legend=dict(font_size=10, orientation="h", yanchor="top", y=-0.12,
-                        xanchor="center", x=0.5),
-            margin=dict(l=50, r=20, t=60, b=80),
+            legend=dict(font_size=11, orientation="v", yanchor="top", y=1,
+                        xanchor="left", x=1.02, tracegroupgap=2),
+            margin=dict(l=50, r=140, t=40, b=50),
         )
         apply_export_metadata(
             fig_bump, title="TOMA Rank — Bump Chart",
