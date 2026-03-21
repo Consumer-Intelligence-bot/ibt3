@@ -148,8 +148,10 @@ tab1, tab2, tab3, tab4 = st.tabs([
 # ---------------------------------------------------------------------------
 
 with tab1:
+    top_n = st.slider("Number of brands to show", min_value=3, max_value=12, value=5, key="som_top_n")
+
     # ---- TOMA Share — stacked area (full width, normalised to 100%) ----
-    share_result = calc_toma_share(metrics, top_n=5)
+    share_result = calc_toma_share(metrics, top_n=top_n)
     if share_result and not share_result[0].empty:
         share_df, top_brands = share_result
 
@@ -217,7 +219,7 @@ with tab1:
         st.info("Insufficient data for TOMA share chart.")
 
     # ---- TOMA Rank — bump chart (full width, cleaner) ----
-    rank_result = calc_toma_ranks(metrics, top_n=5)
+    rank_result = calc_toma_ranks(metrics, top_n=top_n)
     if rank_result and not rank_result[0].empty:
         rank_df, top_brands_r = rank_result
         fig_bump = go.Figure()
