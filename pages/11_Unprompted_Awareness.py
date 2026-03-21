@@ -149,7 +149,7 @@ tab1, tab2, tab3, tab4 = st.tabs([
 
 with tab1:
     # ---- TOMA Share — stacked area (full width, normalised to 100%) ----
-    share_result = calc_toma_share(metrics, top_n=8)
+    share_result = calc_toma_share(metrics, top_n=5)
     if share_result and not share_result[0].empty:
         share_df, top_brands = share_result
 
@@ -160,11 +160,13 @@ with tab1:
         for col in brand_cols:
             share_norm[col] = share_df[col] / row_totals * 100
 
+        # Build the stacked order: Other at the bottom, top brands above
+        stack_order = ["Other"] + list(top_brands)
         fig_area = go.Figure()
-        for i, brand in enumerate(reversed(top_brands + ["Other"])):
+        for i, brand in enumerate(stack_order):
             if brand not in share_norm.columns:
                 continue
-            colour = CI_LIGHT_GREY if brand == "Other" else _brand_colour(brand, len(top_brands) - 1 - i)
+            colour = CI_LIGHT_GREY if brand == "Other" else _brand_colour(brand, top_brands.index(brand))
             fig_area.add_trace(go.Scatter(
                 x=[format_year_month(m) for m in share_norm["month"]],
                 y=share_norm[brand],
@@ -177,33 +179,32 @@ with tab1:
                 hovertemplate=f"<b>{brand}</b><br>Share: %{{y:.1f}}%<br>%{{x}}<extra></extra>",
             ))
 
-        # Direct on-chart labels at last data point for each brand
+        # Right-side labels at cumulative midpoints
         x_labels = [format_year_month(m) for m in share_norm["month"]]
         last_x = x_labels[-1]
         annotations = []
-        for i, brand in enumerate(reversed(top_brands + ["Other"])):
+        cumulative = 0.0
+        for brand in stack_order:
             if brand not in share_norm.columns:
                 continue
-            last_y = share_norm[brand].iloc[-1]
-            # Stack midpoint: sum of all series below + half of this one
-            below_brands = list(reversed(top_brands + ["Other"]))[:list(reversed(top_brands + ["Other"])).index(brand)]
-            cumulative = sum(share_norm[b].iloc[-1] for b in below_brands if b in share_norm.columns)
-            mid_y = cumulative + last_y / 2
-            if last_y > 3:  # Only label if slice is wide enough to read
+            val = share_norm[brand].iloc[-1]
+            mid_y = cumulative + val / 2
+            cumulative += val
+            if val >= 5:  # Only label slices wide enough to read
                 annotations.append(dict(
                     x=last_x, y=mid_y,
-                    text=f"<b>{brand}</b> {last_y:.0f}%",
-                    showarrow=False, xanchor="left", xshift=6,
-                    font=dict(family=FONT, size=10, color="#333"),
+                    text=f"<b>{brand}</b> {val:.0f}%",
+                    showarrow=False, xanchor="left", xshift=8,
+                    font=dict(family=FONT, size=11, color="#333"),
                 ))
 
         fig_area.update_layout(
             yaxis=dict(title="TOMA Share %", ticksuffix="%", range=[0, 100]),
             xaxis=dict(tickangle=0),
-            height=520, font=dict(family=FONT, size=12),
+            height=420, font=dict(family=FONT, size=12),
             plot_bgcolor="white", paper_bgcolor="white",
             showlegend=False,
-            margin=dict(l=50, r=120, t=40, b=50),
+            margin=dict(l=50, r=130, t=40, b=50),
             annotations=annotations,
         )
         apply_export_metadata(
@@ -216,37 +217,46 @@ with tab1:
         st.info("Insufficient data for TOMA share chart.")
 
     # ---- TOMA Rank — bump chart (full width, cleaner) ----
-    rank_result = calc_toma_ranks(metrics, top_n=8)
+    rank_result = calc_toma_ranks(metrics, top_n=5)
     if rank_result and not rank_result[0].empty:
         rank_df, top_brands_r = rank_result
         fig_bump = go.Figure()
 
+        x_labels_bump = [format_year_month(m) for m in rank_df["month"]]
+        bump_annotations = []
         for i, brand in enumerate(top_brands_r):
             if brand not in rank_df.columns:
                 continue
             colour = _brand_colour(brand, i)
             fig_bump.add_trace(go.Scatter(
-                x=[format_year_month(m) for m in rank_df["month"]],
+                x=x_labels_bump,
                 y=rank_df[brand],
                 name=brand,
                 mode="lines+markers",
-                line=dict(width=2.5, color=colour),
-                marker=dict(size=7, color=colour),
+                line=dict(width=3, color=colour),
+                marker=dict(size=8, color=colour),
                 hovertemplate=f"<b>{brand}</b><br>Rank: %{{y}}<br>%{{x}}<extra></extra>",
+                showlegend=False,
+            ))
+            # End-of-line label
+            last_rank = rank_df[brand].iloc[-1]
+            bump_annotations.append(dict(
+                x=x_labels_bump[-1], y=last_rank,
+                text=f"<b>{brand}</b>",
+                showarrow=False, xanchor="left", xshift=8,
+                font=dict(family=FONT, size=11, color=colour),
             ))
 
-        max_rank = int(rank_df[top_brands_r].max().max()) if not rank_df.empty else 8
-        bump_height = max(500, 300 + max_rank * 30)
+        max_rank = int(rank_df[top_brands_r].max().max()) if not rank_df.empty else 5
         fig_bump.update_layout(
             yaxis=dict(autorange="reversed", title="Rank", dtick=1,
                        range=[0.5, max_rank + 0.5],
                        gridcolor=CI_LIGHT_GREY, gridwidth=0.5),
             xaxis=dict(tickangle=0),
-            height=bump_height, font=dict(family=FONT, size=12),
+            height=400, font=dict(family=FONT, size=12),
             plot_bgcolor="white", paper_bgcolor="white",
-            legend=dict(font_size=11, orientation="v", yanchor="top", y=1,
-                        xanchor="left", x=1.02, tracegroupgap=2),
-            margin=dict(l=50, r=140, t=40, b=50),
+            margin=dict(l=50, r=130, t=40, b=50),
+            annotations=bump_annotations,
         )
         apply_export_metadata(
             fig_bump, title="TOMA Rank — Bump Chart",
