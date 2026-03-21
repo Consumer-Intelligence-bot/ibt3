@@ -151,48 +151,151 @@ NARRATIVE_ENABLED = os.getenv("NARRATIVE_ENABLED", "true").lower() in ("true", "
 # ---------------------------------------------------------------------------
 # CSS for Streamlit
 # ---------------------------------------------------------------------------
+# Brand palette: navy foundation
+CI_NAVY = "#1A2B4A"
+CI_NAVY_LIGHT = "#2A3D5E"
+CI_WARM_WHITE = "#FAFAF8"
+CI_CREAM = "#F5F4F0"
+
 CSS = f"""
 <style>
+/* ── Import distinctive typography ────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&display=swap');
+
+/* ── Base ─────────────────────────────────────────────────────── */
 html, body, [class*="css"] {{
-    font-family: Verdana, Geneva, sans-serif;
-    color: {CI_DARK};
+    font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    color: {CI_NAVY};
+    -webkit-font-smoothing: antialiased;
 }}
-.ci-header {{
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 12px 0 16px 0;
-    border-bottom: 3px solid {CI_MAGENTA};
-    margin-bottom: 24px;
+
+/* ── Main container background ────────────────────────────────── */
+.stApp {{
+    background: linear-gradient(168deg, {CI_WARM_WHITE} 0%, #F0EFE9 100%);
 }}
-.ci-header img {{
-    height: 36px;
-    width: auto;
+
+/* ── Sidebar refinement ───────────────────────────────────────── */
+section[data-testid="stSidebar"] {{
+    background: {CI_NAVY};
+    border-right: none;
 }}
-.ci-logo {{
-    font-size: 20px;
-    font-weight: bold;
-    color: {CI_MAGENTA};
+section[data-testid="stSidebar"] * {{
+    color: #C8CDDA !important;
 }}
+section[data-testid="stSidebar"] label {{
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.8px !important;
+    color: #8B94A8 !important;
+}}
+section[data-testid="stSidebar"] .stSelectbox > div > div {{
+    background: {CI_NAVY_LIGHT} !important;
+    border: 1px solid rgba(255,255,255,0.08) !important;
+    color: white !important;
+}}
+section[data-testid="stSidebar"] hr {{
+    border-color: rgba(255,255,255,0.08) !important;
+}}
+section[data-testid="stSidebar"] .stButton > button {{
+    background: transparent !important;
+    border: 1px solid rgba(255,255,255,0.12) !important;
+    color: #C8CDDA !important;
+    font-size: 12px !important;
+    transition: all 0.2s ease !important;
+}}
+section[data-testid="stSidebar"] .stButton > button:hover {{
+    background: rgba(255,255,255,0.06) !important;
+    border-color: {CI_MAGENTA} !important;
+    color: white !important;
+}}
+
+/* ── Tab bar (main navigation) ────────────────────────────────── */
+.stMainBlockContainer .stHorizontalBlock .stButton > button {{
+    font-family: 'DM Sans', sans-serif !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.3px !important;
+    padding: 10px 6px !important;
+    border-radius: 0 !important;
+    border: none !important;
+    border-bottom: 3px solid transparent !important;
+    background: transparent !important;
+    color: {CI_GREY} !important;
+    transition: all 0.25s ease !important;
+}}
+.stMainBlockContainer .stHorizontalBlock .stButton > button:hover {{
+    color: {CI_NAVY} !important;
+    border-bottom-color: {CI_LIGHT_GREY} !important;
+    background: transparent !important;
+}}
+.stMainBlockContainer .stHorizontalBlock .stButton > button[kind="primary"] {{
+    color: {CI_MAGENTA} !important;
+    border-bottom-color: {CI_MAGENTA} !important;
+    background: transparent !important;
+}}
+
+/* ── Headers ──────────────────────────────────────────────────── */
+h1, h2, .stSubheader {{
+    font-family: 'Fraunces', Georgia, serif !important;
+    color: {CI_NAVY} !important;
+    font-weight: 600 !important;
+}}
+h2 {{
+    font-size: 1.6rem !important;
+    letter-spacing: -0.3px !important;
+}}
+
+/* ── Metric cards ─────────────────────────────────────────────── */
+div[data-testid="stMetricValue"] {{
+    font-family: 'Fraunces', Georgia, serif !important;
+    font-size: 28px !important;
+    font-weight: 700 !important;
+    color: {CI_MAGENTA} !important;
+}}
+div[data-testid="stMetricLabel"] {{
+    font-size: 11px !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
+    color: {CI_GREY} !important;
+}}
+
+/* ── Section dividers ─────────────────────────────────────────── */
 .section-title {{
-    font-size: 15px;
-    font-weight: bold;
-    color: {CI_DARK};
-    border-bottom: 2px solid {CI_LGREY};
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: {CI_NAVY};
+    border-bottom: 2px solid {CI_MAGENTA};
     padding-bottom: 8px;
     margin-bottom: 16px;
 }}
-div[data-testid="stMetricValue"] {{
-    font-size: 26px !important;
-    font-weight: bold !important;
-    color: {CI_MAGENTA} !important;
+
+/* ── Expanders (narrative panels) ─────────────────────────────── */
+.streamlit-expanderHeader {{
+    font-family: 'DM Sans', sans-serif !important;
+    font-weight: 600 !important;
+    color: {CI_NAVY} !important;
+    background: {CI_CREAM} !important;
+    border-radius: 4px !important;
 }}
+
+/* ── DataFrames & tables ──────────────────────────────────────── */
+.stDataFrame {{
+    border: 1px solid {CI_LIGHT_GREY} !important;
+    border-radius: 4px !important;
+}}
+
+/* ── Alert badges ─────────────────────────────────────────────── */
 .alert-badge {{
     display: inline-block;
-    padding: 2px 8px;
-    border-radius: 4px;
-    font-size: 12px;
-    font-weight: bold;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
     margin-top: 4px;
 }}
 .alert-red {{
@@ -201,11 +304,39 @@ div[data-testid="stMetricValue"] {{
 }}
 .alert-yellow {{
     background-color: {CI_YELLOW};
-    color: {CI_GREY};
+    color: {CI_NAVY};
 }}
 .alert-green {{
     background-color: {CI_GREEN};
     color: white;
+}}
+
+/* ── Tooltips & captions ──────────────────────────────────────── */
+.stCaption {{
+    font-size: 11px !important;
+    color: #8B94A8 !important;
+}}
+
+/* ── Plotly chart container spacing ───────────────────────────── */
+.stPlotlyChart {{
+    border-radius: 6px;
+    overflow: hidden;
+}}
+
+/* ── Scrollbar (subtle, not default blue) ─────────────────────── */
+::-webkit-scrollbar {{
+    width: 6px;
+    height: 6px;
+}}
+::-webkit-scrollbar-track {{
+    background: transparent;
+}}
+::-webkit-scrollbar-thumb {{
+    background: {CI_LIGHT_GREY};
+    border-radius: 3px;
+}}
+::-webkit-scrollbar-thumb:hover {{
+    background: {CI_GREY};
 }}
 </style>
 """

@@ -8,7 +8,8 @@ import streamlit as st
 
 from lib.config import CI_GREY, CI_LIGHT_GREY, CSS
 
-FONT = "Verdana, Geneva, sans-serif"
+FONT = "DM Sans, -apple-system, BlinkMacSystemFont, sans-serif"
+FONT_DISPLAY = "Fraunces, Georgia, serif"
 
 # Pre-load logo bytes once at module load
 _LOGO_PATH = Path(__file__).parent.parent / "assets" / "ci_logo.png"
@@ -36,9 +37,11 @@ def safe_pct(n, d):
 
 def section_divider(title):
     """Render a branded section divider."""
+    from lib.config import CI_MAGENTA, CI_NAVY
     st.markdown(
-        f'<div style="font-family:{FONT}; font-size:15px; font-weight:bold; color:{CI_GREY}; '
-        f'border-bottom:2px solid {CI_LIGHT_GREY}; padding-bottom:8px; margin:28px 0 16px 0;">'
+        f'<div style="font-family:{FONT}; font-size:12px; font-weight:700; '
+        f'text-transform:uppercase; letter-spacing:1px; color:{CI_NAVY}; '
+        f'border-bottom:2px solid {CI_MAGENTA}; padding-bottom:8px; margin:32px 0 16px 0;">'
         f"{title}</div>",
         unsafe_allow_html=True,
     )
@@ -63,10 +66,13 @@ def card_html(title, value, subtitle="", colour=None):
     if colour is None:
         colour = CI_MAGENTA
     return (
-        f'<div style="background:white; border:1px solid {CI_LIGHT_GREY}; border-top:4px solid {colour}; '
-        f'border-radius:4px; padding:16px 20px; text-align:center; font-family:{FONT};">'
-        f'<div style="font-size:12px; color:{CI_GREY}; margin-bottom:6px;">{title}</div>'
-        f'<div style="font-size:28px; font-weight:bold; color:{colour};">{value}</div>'
-        f'<div style="font-size:11px; color:{CI_GREY}; margin-top:4px;">{subtitle}</div>'
+        f'<div style="background:white; border:1px solid {CI_LIGHT_GREY}; '
+        f'border-left:4px solid {colour}; border-radius:2px; padding:18px 22px; '
+        f'font-family:{FONT};">'
+        f'<div style="font-size:11px; font-weight:600; text-transform:uppercase; '
+        f'letter-spacing:0.8px; color:{CI_GREY}; margin-bottom:8px;">{title}</div>'
+        f'<div style="font-family:{FONT_DISPLAY}; font-size:30px; font-weight:700; '
+        f'color:{colour}; line-height:1.1;">{value}</div>'
+        f'<div style="font-size:11px; color:#8B94A8; margin-top:6px;">{subtitle}</div>'
         f"</div>"
     )

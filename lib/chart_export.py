@@ -55,7 +55,7 @@ def apply_export_metadata(
     fig.update_layout(
         title=dict(
             text="".join(title_parts),
-            font=dict(family="Verdana", size=13),
+            font=dict(family="DM Sans, sans-serif", size=13),
             x=0,
             xanchor="left",
         ),
@@ -76,7 +76,7 @@ def apply_export_metadata(
         x=0, y=-0.10,
         xanchor="left", yanchor="top",
         showarrow=False,
-        font=dict(family="Verdana", size=9, color="#54585A"),
+        font=dict(family="DM Sans, sans-serif", size=9, color="#54585A"),
     )
 
     return fig
