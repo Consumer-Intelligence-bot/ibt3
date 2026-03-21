@@ -22,7 +22,7 @@ from lib.config import (
     CI_WIDTH_PUBLISHABLE_AWARENESS, CI_WIDTH_PUBLISHABLE_RATE, CI_WIDTH_PUBLISHABLE_REASON,
     CONFIDENCE_LEVEL, MARKET_CI_ALERT_THRESHOLD, MIN_BASE_FLOW_CELL,
     MIN_BASE_PUBLISHABLE, NPS_MIN_N, PRIOR_STRENGTH, SYSTEM_FLOOR_N,
-    TREND_NOISE_THRESHOLD, CI_MAGENTA, CI_LIGHT_GREY,
+    TREND_NOISE_THRESHOLD,
     MOTOR_WORKSPACE_ID, MOTOR_DATASET_ID,
     HOME_WORKSPACE_ID, HOME_DATASET_ID,
     PET_WORKSPACE_ID, PET_DATASET_ID,
@@ -30,45 +30,7 @@ from lib.config import (
 from lib.db import clear_data, has_data, load_metadata
 from lib.state import format_year_month, get_ss_data, init_ss_data
 
-# ---------------------------------------------------------------------------
-# Page-level CSS: Verdana font, CI brand colours, table highlights
-# ---------------------------------------------------------------------------
-st.markdown(
-    f"""
-    <style>
-    html, body, [class*="css"] {{
-        font-family: Verdana, sans-serif;
-        color: {CI_GREY};
-    }}
-    div[data-testid="stMetricValue"] {{
-        font-size: 26px !important;
-        font-weight: bold !important;
-        color: {CI_MAGENTA} !important;
-    }}
-    .alert-badge {{
-        display: inline-block;
-        padding: 2px 8px;
-        border-radius: 4px;
-        font-size: 12px;
-        font-weight: bold;
-        margin-top: 4px;
-    }}
-    .alert-red {{
-        background-color: {CI_RED};
-        color: white;
-    }}
-    .alert-yellow {{
-        background-color: {CI_YELLOW};
-        color: {CI_GREY};
-    }}
-    .alert-green {{
-        background-color: {CI_GREEN};
-        color: white;
-    }}
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+# CSS is centralised in lib/config.py (injected by app.py)
 
 st.header("Admin / Governance")
 st.caption("Internal page \u2014 not visible to clients")

@@ -24,11 +24,10 @@ from lib.config import (
     MARKET_COLOUR,
     MIN_BASE_PUBLISHABLE,
 )
+from lib.formatting import FONT
 from lib.state import format_year_month, render_global_filters, get_ss_data
 
 st.header("Insurer Comparison")
-
-FONT = "Verdana, Geneva, sans-serif"
 
 # ---- Filters (no insurer selector needed — this page shows ALL insurers) ----
 filters = render_global_filters()

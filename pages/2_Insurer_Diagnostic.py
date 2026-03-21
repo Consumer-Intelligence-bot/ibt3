@@ -25,7 +25,7 @@ from lib.analytics.reasons import calc_reason_ranking, calc_reason_comparison
 from lib.analytics.suppression import check_suppression
 from lib.analytics.trends import calc_trend
 from lib.chart_export import apply_export_metadata, render_suppression_html, confidence_tooltip
-from lib.formatting import fmt_pct
+from lib.formatting import fmt_pct, section_divider, period_label, card_html, FONT
 from lib.config import (
     CI_GREEN,
     CI_GREY,
@@ -47,9 +47,6 @@ from lib.state import format_year_month, render_global_filters, get_ss_data
 # Page config
 # ---------------------------------------------------------------------------
 
-FONT = "Verdana, Geneva, sans-serif"
-
-st.set_page_config(page_title="Insurer Diagnostic", layout="wide") if "page_configured" not in st.session_state else None
 st.header("Insurer Diagnostic")
 
 # ---------------------------------------------------------------------------
@@ -71,37 +68,9 @@ def _confidence_colour(label):
     return mapping.get(str(label), CI_GREY)
 
 
-def _card_html(title, value, subtitle="", colour=CI_MAGENTA):
-    """Render a styled metric card as HTML."""
-    return (
-        f'<div style="background:white; border:1px solid {CI_LIGHT_GREY}; border-top:4px solid {colour}; '
-        f'border-radius:4px; padding:16px 20px; text-align:center; font-family:{FONT};">'
-        f'<div style="font-size:12px; color:{CI_GREY}; margin-bottom:6px;">{title}</div>'
-        f'<div style="font-size:28px; font-weight:bold; color:{colour};">{value}</div>'
-        f'<div style="font-size:11px; color:{CI_GREY}; margin-top:4px;">{subtitle}</div>'
-        f"</div>"
-    )
-
-
-def _section_divider(title):
-    """Render a branded section divider."""
-    st.markdown(
-        f'<div style="font-family:{FONT}; font-size:15px; font-weight:bold; color:{CI_GREY}; '
-        f'border-bottom:2px solid {CI_LIGHT_GREY}; padding-bottom:8px; margin:28px 0 16px 0;">'
-        f"{title}</div>",
-        unsafe_allow_html=True,
-    )
-
-
-def _period_label(selected_months):
-    """Build a human-readable period label from selected months."""
-    if not selected_months:
-        return "All periods"
-    start = format_year_month(min(selected_months))
-    end = format_year_month(max(selected_months))
-    if start == end:
-        return start
-    return f"{start} \u2013 {end}"
+_card_html = card_html
+_section_divider = section_divider
+_period_label = period_label
 
 
 # ---------------------------------------------------------------------------

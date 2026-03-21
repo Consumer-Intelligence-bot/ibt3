@@ -20,7 +20,7 @@ from lib.config import (
     MIN_BASE_FLOW_CELL,
     MIN_BASE_PUBLISHABLE,
 )
-from lib.formatting import fmt_pct
+from lib.formatting import fmt_pct, section_divider, period_label, FONT
 from lib.state import (
     format_year_month,
     get_filtered_data,
@@ -32,35 +32,10 @@ from lib.state import (
 # Page config
 # ---------------------------------------------------------------------------
 
-FONT = "Verdana, Geneva, sans-serif"
-
-st.set_page_config(page_title="Flow Intelligence", layout="wide") if "page_configured" not in st.session_state else None
 st.header("Flow Intelligence")
 
-# ---------------------------------------------------------------------------
-# Helpers (copied from pages/2_Insurer_Diagnostic.py as specified)
-# ---------------------------------------------------------------------------
-
-
-def _section_divider(title):
-    """Render a branded section divider."""
-    st.markdown(
-        f'<div style="font-family:{FONT}; font-size:15px; font-weight:bold; color:{CI_GREY}; '
-        f'border-bottom:2px solid {CI_LIGHT_GREY}; padding-bottom:8px; margin:28px 0 16px 0;">'
-        f"{title}</div>",
-        unsafe_allow_html=True,
-    )
-
-
-def _period_label(selected_months):
-    """Build a human-readable period label from selected months."""
-    if not selected_months:
-        return "All periods"
-    start = format_year_month(min(selected_months))
-    end = format_year_month(max(selected_months))
-    if start == end:
-        return start
-    return f"{start} \u2013 {end}"
+_section_divider = section_divider
+_period_label = period_label
 
 
 # ---------------------------------------------------------------------------

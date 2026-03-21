@@ -19,13 +19,12 @@ from lib.config import (
     MIN_BASE_INDICATIVE, SISTER_BRANDS, Z_95,
     PRODUCTS,
 )
+from lib.formatting import FONT, section_divider
 from lib.narrative import generate_claims_narrative
 from lib.state import format_month
 
-FONT = "Verdana, Geneva, sans-serif"
-
-# ---- Product selector ----
-product = st.sidebar.selectbox("Product", PRODUCTS, key="claims_product")
+# ---- Product selector (aligned with global pattern) ----
+product = st.sidebar.selectbox("Product", PRODUCTS)
 
 st.markdown(
     f'<h1 style="color:{CI_VIOLET}; margin-top:0; font-family:{FONT};">'
@@ -267,12 +266,7 @@ st.markdown(
 )
 
 # ---- Key Metrics ----
-st.markdown(
-    f'<div style="font-family:{FONT}; font-size:15px; font-weight:bold; color:{CI_GREY}; '
-    f'border-bottom:2px solid {CI_LIGHT_GREY}; padding-bottom:8px; margin-bottom:16px;">'
-    f'Key Metrics</div>',
-    unsafe_allow_html=True,
-)
+section_divider("Key Metrics")
 
 col1, col2, col3, col4 = st.columns(4)
 with col1:
@@ -300,12 +294,7 @@ with col4:
     )
 
 # ---- Star Rating with Rank Positioning ----
-st.markdown(
-    f'<div style="font-family:{FONT}; font-size:15px; font-weight:bold; color:{CI_GREY}; '
-    f'border-bottom:2px solid {CI_LIGHT_GREY}; padding-bottom:8px; margin:24px 0 16px 0;">'
-    f'Star Rating</div>',
-    unsafe_allow_html=True,
-)
+section_divider("Star Rating")
 
 if stars is not None:
     filled = "\u2605" * stars
@@ -344,12 +333,7 @@ if stars is not None:
     )
 
 # ---- Bar Chart — All Insurers with CI Bands ----
-st.markdown(
-    f'<div style="font-family:{FONT}; font-size:15px; font-weight:bold; color:{CI_GREY}; '
-    f'border-bottom:2px solid {CI_LIGHT_GREY}; padding-bottom:8px; margin:24px 0 16px 0;">'
-    f'Overall Satisfaction by Insurer</div>',
-    unsafe_allow_html=True,
-)
+section_divider("Overall Satisfaction by Insurer")
 
 chart_df = eligible.sort_values("Q52_mean", ascending=True).copy()
 colours = [CI_VIOLET if c == selected_insurer else CI_BLUE for c in chart_df["CurrentCompany"]]
@@ -425,12 +409,7 @@ st.plotly_chart(fig, use_container_width=True)
 
 # ---- Q53 Journey Statement Detail ----
 if not q53_df.empty and diagnostics_for_ai:
-    st.markdown(
-        f'<div style="font-family:{FONT}; font-size:15px; font-weight:bold; color:{CI_GREY}; '
-        f'border-bottom:2px solid {CI_LIGHT_GREY}; padding-bottom:8px; margin:24px 0 16px 0;">'
-        f'Claims Journey — Diagnostic Statements (Q53)</div>',
-        unsafe_allow_html=True,
-    )
+    section_divider("Claims Journey — Diagnostic Statements (Q53)")
 
     # Sort diagnostics by gap (worst first for easy identification)
     sorted_diag = sorted(diagnostics_for_ai, key=lambda d: d["gap"])

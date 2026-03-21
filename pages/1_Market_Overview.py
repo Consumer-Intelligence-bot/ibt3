@@ -17,9 +17,8 @@ from lib.analytics.reasons import calc_reason_ranking
 from lib.chart_export import apply_export_metadata
 from lib.config import CI_GREEN, CI_MAGENTA, CI_GREY, MIN_BASE_REASON
 from lib.question_ref import get_question_text
+from lib.formatting import FONT
 from lib.state import format_year_month, render_global_filters, get_ss_data
-
-FONT = "Verdana, Geneva, sans-serif"
 
 st.header("Market Overview")
 

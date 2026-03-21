@@ -55,8 +55,8 @@ CI_GREY = "#54585A"
 CI_LIGHT_GREY = "#E9EAEB"
 CI_WHITE = "#FFFFFF"
 
-# Aliases used by Claims
-CI_VIOLET = CI_MAGENTA
+# CI Violet (brand spec) — distinct from CI_MAGENTA
+CI_VIOLET = "#AD278C"
 CI_DARK = CI_GREY
 CI_LGREY = CI_LIGHT_GREY
 
@@ -154,13 +154,20 @@ NARRATIVE_ENABLED = os.getenv("NARRATIVE_ENABLED", "true").lower() in ("true", "
 CSS = f"""
 <style>
 html, body, [class*="css"] {{
-    font-family: Verdana, sans-serif;
+    font-family: Calibri, Verdana, sans-serif;
     color: {CI_DARK};
 }}
 .ci-header {{
+    display: flex;
+    align-items: center;
+    gap: 12px;
     padding: 12px 0 16px 0;
     border-bottom: 3px solid {CI_MAGENTA};
     margin-bottom: 24px;
+}}
+.ci-header img {{
+    height: 36px;
+    width: auto;
 }}
 .ci-logo {{
     font-size: 20px;
@@ -179,6 +186,26 @@ div[data-testid="stMetricValue"] {{
     font-size: 26px !important;
     font-weight: bold !important;
     color: {CI_MAGENTA} !important;
+}}
+.alert-badge {{
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: bold;
+    margin-top: 4px;
+}}
+.alert-red {{
+    background-color: {CI_RED};
+    color: white;
+}}
+.alert-yellow {{
+    background-color: {CI_YELLOW};
+    color: {CI_GREY};
+}}
+.alert-green {{
+    background-color: {CI_GREEN};
+    color: white;
 }}
 </style>
 """
