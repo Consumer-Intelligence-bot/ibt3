@@ -169,7 +169,7 @@ def _render_market_view(df_motor, df_mkt, filters, period, n_mkt):
         ]
 
         st.dataframe(
-            display_mat.style.background_gradient(cmap="YlOrRd", axis=None).format("{:.0f}"),
+            display_mat.style.format("{:.0f}"),
             use_container_width=True,
         )
         st.caption(
