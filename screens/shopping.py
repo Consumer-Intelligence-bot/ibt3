@@ -12,6 +12,7 @@ import streamlit as st
 
 from lib.analytics.cohort_heatmap import calc_cohort_heatmap
 from lib.analytics.demographics import apply_filters
+from lib.analytics.narrative_engine import generate_screen_narrative
 from lib.analytics.rates import (
     calc_shopping_rate,
     calc_switching_rate,
@@ -22,6 +23,7 @@ from lib.analytics.reasons import calc_reason_ranking, calc_reason_comparison
 from lib.chart_export import apply_export_metadata, render_suppression_html
 from lib.components.cohort_heatmap import render_cohort_heatmap
 from lib.components.kpi_cards import kpi_card
+from lib.components.narrative_panel import render_narrative_panel
 from lib.config import (
     CI_GREEN,
     CI_GREY,
@@ -260,6 +262,29 @@ def _render_insurer_view(df_motor, df_mkt, insurer, filters, period, n_mkt):
         _render_comparison_columns(q19_comp, insurer)
     else:
         st.info("No Q19 data available.")
+
+    # --- AI Narrative ---
+    section_divider("AI Narrative")
+    narrative = generate_screen_narrative("shopping", {
+        "insurer": insurer,
+        "product": filters["product"],
+        "shopping_rate": ins_shopping or 0,
+        "mkt_shopping_rate": mkt_shopping or 0,
+        "conversion_rate": ins_conversion or 0,
+        "mkt_conversion_rate": mkt_conversion or 0,
+    })
+    render_narrative_panel(narrative, "shopping")
+
+    # --- Cross-screen links ---
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("View Channels & PCWs", key="shopping_to_channels"):
+            from lib.state import navigate_to
+            navigate_to("channels")
+    with col2:
+        if st.button("View Pre-Renewal Context", key="shopping_to_prerenewal"):
+            from lib.state import navigate_to
+            navigate_to("pre_renewal")
 
     # Footer
     st.markdown("---")

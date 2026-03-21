@@ -10,6 +10,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+from lib.analytics.narrative_engine import generate_screen_narrative
 from lib.analytics.demographics import apply_filters
 from lib.analytics.flows import (
     calc_flow_index,
@@ -26,6 +27,7 @@ from lib.analytics.rates import (
 )
 from lib.chart_export import render_suppression_html
 from lib.components.kpi_cards import kpi_card
+from lib.components.narrative_panel import render_narrative_panel
 from lib.config import (
     CI_BLUE,
     CI_GREEN,
@@ -408,6 +410,39 @@ def _render_insurer_view(df_motor, df_mkt, insurer, filters, period, n_mkt):
             render_suppression_html(f"{insurer} (Departed Sentiment)", switcher_n, MIN_BASE_REASON),
             unsafe_allow_html=True,
         )
+
+    # --- AI Narrative ---
+    section_divider("AI Narrative")
+
+    sources_list = [str(s) for s in sources.index[:3]] if len(sources) > 0 else []
+    dest_list = [str(d) for d in destinations.index[:3]] if len(destinations) > 0 else []
+    narrative = generate_screen_narrative("switching", {
+        "insurer": insurer,
+        "product": filters["product"],
+        "retention_rate": ins_retention or 0,
+        "mkt_retention_rate": mkt_retention or 0,
+        "net_flow": net,
+        "gained": nf["gained"],
+        "lost": nf["lost"],
+        "top_sources": ", ".join(sources_list) or "N/A",
+        "top_destinations": ", ".join(dest_list) or "N/A",
+    })
+    render_narrative_panel(narrative, "switching")
+
+    # --- Cross-screen links ---
+    col_link1, col_link2, col_link3 = st.columns(3)
+    with col_link1:
+        if st.button("View Reasons & Drivers", key="switching_to_reasons"):
+            from lib.state import navigate_to
+            navigate_to("reasons")
+    with col_link2:
+        if st.button("View Shopping Behaviour", key="switching_to_shopping"):
+            from lib.state import navigate_to
+            navigate_to("shopping")
+    with col_link3:
+        if st.button("Compare Insurers", key="switching_to_comparison"):
+            from lib.state import navigate_to
+            navigate_to("comparison")
 
     # --- Footer ---
     st.markdown("---")

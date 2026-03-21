@@ -89,6 +89,10 @@ if not data_loaded:
         render_admin(filters)
     st.stop()
 
+# ---- Filter bar (show active cross-screen filters) ----
+from lib.components.filter_bar import render_filter_bar
+render_filter_bar()
+
 # ---- Tab bar (only shown when data is loaded) ----
 render_tab_bar()
 
