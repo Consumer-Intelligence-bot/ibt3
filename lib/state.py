@@ -305,12 +305,43 @@ def load_from_db(start_month: int | None = None, end_month: int | None = None) -
     return True
 
 
+def ensure_data_loaded():
+    """Load cached data from DuckDB into session state if not already present.
+
+    Called automatically by get_ss_data() so every page benefits from the cache
+    even if the user navigates directly to a subpage without visiting Home first.
+    """
+    if st.session_state.get("data_loaded", False):
+        return
+    if has_data("df_motor"):
+        audit_log.info("ensure_data_loaded: session state empty, restoring from DuckDB")
+        loaded = load_from_db()
+        if loaded:
+            st.session_state["data_loaded"] = True
+            # Derive time window (mirrors app.py logic)
+            cached_start = st.session_state.get("cached_start_month")
+            cached_end = st.session_state.get("cached_end_month")
+            if cached_start and cached_end:
+                st.session_state["start_month"] = cached_start
+                st.session_state["end_month"] = cached_end
+            else:
+                df = st.session_state.get("df_motor")
+                if df is not None and not df.empty and "RenewalYearMonth" in df.columns:
+                    months = sorted(df["RenewalYearMonth"].dropna().unique().astype(int).tolist())
+                    if months:
+                        st.session_state["start_month"] = months[max(0, len(months) - 12)]
+                        st.session_state["end_month"] = months[-1]
+            audit_log.info("ensure_data_loaded: restore complete")
+
+
 def get_ss_data():
     """Get S&S dataframes from session state.
 
     Returns (df_motor, dimensions). All question data is merged into df_motor
     as wide columns — there is no separate df_questions table.
+    Automatically loads from DuckDB cache if session state is empty.
     """
+    ensure_data_loaded()
     return (
         st.session_state.get("df_motor", pd.DataFrame()),
         st.session_state.get("dimensions", {}),
