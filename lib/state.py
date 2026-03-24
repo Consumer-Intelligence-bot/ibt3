@@ -279,6 +279,13 @@ def load_from_db(start_month: int | None = None, end_month: int | None = None) -
         return False
 
     audit_log.info("load_from_db: loaded %d rows, %d cols from DuckDB", len(df_all), len(df_all.columns))
+
+    # Ensure derived columns exist (may be missing from older caches)
+    if "How much higher" in df_all.columns and "Q6a" not in df_all.columns:
+        df_all["Q6a"] = df_all["How much higher"]
+    if "How much lower" in df_all.columns and "Q6b" not in df_all.columns:
+        df_all["Q6b"] = df_all["How much lower"]
+
     st.session_state["df_motor"] = df_all
     st.session_state["dimensions"] = get_all_dimensions(df_all)
 
