@@ -131,6 +131,12 @@ def transform(df: pd.DataFrame, product: str = "Motor") -> pd.DataFrame:
     elif "PaymentType" not in out.columns:
         out["PaymentType"] = "All"
 
+    # Q6a / Q6b (price magnitude bands)
+    if "How much higher" in out.columns:
+        out["Q6a"] = out["How much higher"]
+    if "How much lower" in out.columns:
+        out["Q6b"] = out["How much lower"]
+
     # PriceDirection
     out["PriceDirection"] = out.apply(_derive_price_direction, axis=1)
 
