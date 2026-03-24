@@ -21,6 +21,10 @@ from lib.analytics.price import (
     calc_price_direction_dist,
     calc_price_magnitude_dist,
     calc_rate_by_price_direction,
+    calc_avg_price_change,
+    calc_price_change_comparison,
+    calc_price_change_by_demo,
+    BAND_MIDPOINTS,
 )
 from lib.analytics.rates import calc_shopping_rate
 from lib.chart_export import render_suppression_html
@@ -79,7 +83,20 @@ def render(filters: dict):
     period = period_label(selected_months)
     n_mkt = len(df_mkt)
 
-    if insurer:
+    # Sub-view selector
+    view = st.radio(
+        "View",
+        ["Overview", "Price Analysis"],
+        horizontal=True,
+        key="prerenewal_view_radio",
+    )
+
+    if view == "Price Analysis":
+        if insurer:
+            _render_price_analysis_brand(df_mkt, insurer, filters, period, n_mkt)
+        else:
+            _render_price_analysis_market(df_mkt, filters, period, n_mkt)
+    elif insurer:
         _render_insurer_view(df_motor, df_mkt, insurer, filters, period, n_mkt)
     else:
         _render_market_view(df_mkt, filters, period, n_mkt)
@@ -397,5 +414,242 @@ def _render_tenure_chart(tenure: pd.Series):
         margin=dict(l=10, r=20, t=10, b=40),
         font=dict(family=FONT, size=11, color=CI_GREY),
         plot_bgcolor=CI_WHITE, paper_bgcolor=CI_WHITE,
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+
+# ---------------------------------------------------------------------------
+# Price Analysis sub-tab
+# ---------------------------------------------------------------------------
+
+def _render_price_analysis_market(df_mkt, filters, period, n_mkt):
+    """Market-level price change analysis using midpoint mapping."""
+    st.subheader("Price Analysis: Market View")
+
+    # --- Direction donut ---
+    section_divider("Price Direction at Renewal")
+
+    price_dist = calc_price_direction_dist(df_mkt)
+    if price_dist is not None:
+        colours = [_DIRECTION_COLOURS.get(d, CI_GREY) for d in price_dist.index]
+        fig = go.Figure(go.Pie(
+            labels=price_dist.index,
+            values=price_dist.values,
+            hole=0.45,
+            marker=dict(colors=colours),
+            textinfo="label+percent",
+            textfont=dict(family=FONT, size=11),
+        ))
+        fig.update_layout(
+            height=300,
+            margin=dict(l=10, r=10, t=10, b=10),
+            font=dict(family=FONT, size=11, color=CI_GREY),
+            showlegend=False,
+        )
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("No price direction data available.")
+
+    # --- Band distribution (signed) ---
+    section_divider("Price Change Distribution (Signed Bands)")
+    _render_signed_band_chart(df_mkt)
+
+    # --- Average change KPI ---
+    section_divider("Average Price Change")
+    avg = calc_avg_price_change(df_mkt)
+    if avg is not None:
+        change = avg["avg_change"]
+        colour = CI_RED if change > 0 else CI_GREEN if change < 0 else CI_GREY
+        sign = "+" if change > 0 else ""
+        col1, col2 = st.columns(2)
+        with col1:
+            kpi_card("Avg Price Change", f"{sign}£{abs(change):.0f}", f"n={avg['n']:,}", colour)
+        with col2:
+            kpi_card("Respondents with Band Data", f"{avg['n']:,}", f"Market total: {n_mkt:,}", CI_GREY)
+    else:
+        st.info("Insufficient data to compute average price change.")
+
+    st.markdown("---")
+    st.caption(f"Price Analysis | Market | {filters['product']} | {period} | n={n_mkt:,}")
+
+
+def _render_price_analysis_brand(df_mkt, insurer, filters, period, n_mkt):
+    """Brand-level price change analysis vs market."""
+    st.subheader(f"Price Analysis: {insurer}")
+
+    has_pre_renewal = "PreRenewalCompany" in df_mkt.columns
+    if not has_pre_renewal:
+        st.warning("PreRenewalCompany column not available. Cannot filter by brand.")
+        return
+
+    n_brand = int((df_mkt["PreRenewalCompany"] == insurer).sum())
+    st.markdown(
+        f'<div style="background:{CI_LIGHT_GREY}; padding:10px 16px; border-radius:4px; '
+        f'font-family:{FONT}; font-size:13px; color:{CI_GREY}; margin-bottom:16px;">'
+        f"<b>{insurer}</b> (PreRenewalCompany) &nbsp;|&nbsp; {filters['product']} &nbsp;|&nbsp; {period} "
+        f"&nbsp;|&nbsp; Brand n={n_brand:,} &nbsp;|&nbsp; Market n={n_mkt:,}"
+        f"</div>",
+        unsafe_allow_html=True,
+    )
+
+    if n_brand < MIN_BASE_PUBLISHABLE:
+        st.markdown(
+            render_suppression_html(insurer, n_brand, MIN_BASE_PUBLISHABLE),
+            unsafe_allow_html=True,
+        )
+        return
+
+    # --- Direction stacked bar: brand vs others ---
+    section_divider("Price Direction: Brand vs Others")
+
+    comparison = calc_price_change_comparison(df_mkt, insurer)
+    if comparison is not None:
+        brand_split = comparison["brand"]["direction_split"]
+        others_split = comparison["others"]["direction_split"] if comparison["others"] else pd.Series(dtype=float)
+
+        # Normalise to percentages
+        brand_pcts = brand_split / brand_split.sum() if brand_split.sum() > 0 else brand_split
+        others_pcts = others_split / others_split.sum() if others_split.sum() > 0 else others_split
+
+        directions = ["Higher", "Lower", "Unchanged", "New"]
+        fig = go.Figure()
+        for d in directions:
+            fig.add_trace(go.Bar(
+                x=[insurer, "Others"],
+                y=[brand_pcts.get(d, 0), others_pcts.get(d, 0)],
+                name=d,
+                marker_color=_DIRECTION_COLOURS.get(d, CI_GREY),
+                text=[f"{brand_pcts.get(d, 0):.0%}", f"{others_pcts.get(d, 0):.0%}"],
+                textposition="inside",
+            ))
+        fig.update_layout(
+            barmode="stack",
+            height=300,
+            yaxis=dict(tickformat=".0%", gridcolor=CI_LIGHT_GREY),
+            plot_bgcolor=CI_WHITE, paper_bgcolor=CI_WHITE,
+            font=dict(family=FONT, size=11, color=CI_GREY),
+            margin=dict(l=10, r=20, t=10, b=40),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+    # --- Average change KPI: brand vs market ---
+    section_divider("Average Price Change")
+    brand_avg = calc_avg_price_change(df_mkt, brand=insurer)
+    market_avg = calc_avg_price_change(df_mkt)
+
+    if brand_avg is not None and market_avg is not None:
+        col1, col2 = st.columns(2)
+        with col1:
+            bc = brand_avg["avg_change"]
+            sign = "+" if bc > 0 else ""
+            colour = CI_RED if bc > 0 else CI_GREEN if bc < 0 else CI_GREY
+            kpi_card(f"{insurer} Avg Change", f"{sign}£{abs(bc):.0f}", f"n={brand_avg['n']:,}", colour)
+        with col2:
+            mc = market_avg["avg_change"]
+            sign = "+" if mc > 0 else ""
+            colour = CI_RED if mc > 0 else CI_GREEN if mc < 0 else CI_GREY
+            kpi_card("Market Avg Change", f"{sign}£{abs(mc):.0f}", f"n={market_avg['n']:,}", colour)
+    else:
+        st.info("Insufficient data for average price change comparison.")
+
+    # --- Demographic breakdown ---
+    section_divider("Price Change by Demographic")
+
+    demo_cols = {"AgeBand": "Age Band", "Region": "Region"}
+    for col, label in demo_cols.items():
+        if col not in df_mkt.columns:
+            continue
+        demo = calc_price_change_by_demo(df_mkt, col, brand=insurer)
+        if demo is None or demo.empty:
+            continue
+
+        st.markdown(f"**{label}**")
+        # Build HTML table
+        header = (
+            f'<table style="width:100%; font-family:{FONT}; font-size:12px; '
+            f'border-collapse:collapse; margin-bottom:12px;">'
+            f'<tr style="border-bottom:2px solid {CI_GREY};">'
+            f'<th style="text-align:left; padding:6px;">{label}</th>'
+            f'<th style="text-align:right; padding:6px;">Avg Change</th>'
+            f'<th style="text-align:right; padding:6px;">n</th></tr>'
+        )
+        rows_html = []
+        for _, row in demo.iterrows():
+            avg_c = row["avg_change"]
+            sign = "+" if avg_c > 0 else ""
+            colour = CI_RED if avg_c > 0 else CI_GREEN if avg_c < 0 else CI_GREY
+            n_str = f"{int(row['n']):,}"
+            if row["flag_low_n"]:
+                n_str += " *"
+                colour = CI_GREY
+            rows_html.append(
+                f'<tr style="border-bottom:1px solid {CI_LIGHT_GREY};">'
+                f'<td style="padding:5px 6px;">{row["group"]}</td>'
+                f'<td style="text-align:right; padding:5px 6px; color:{colour}; font-weight:bold;">'
+                f'{sign}£{abs(avg_c):.0f}</td>'
+                f'<td style="text-align:right; padding:5px 6px;">{n_str}</td></tr>'
+            )
+        st.markdown(header + "".join(rows_html) + "</table>", unsafe_allow_html=True)
+        if demo["flag_low_n"].any():
+            st.caption("* n < 30: treat with caution.")
+
+    st.markdown("---")
+    st.caption(
+        f"Price Analysis | {insurer} | {filters['product']} | {period} | "
+        f"Brand n={n_brand:,} | Market n={n_mkt:,}"
+    )
+
+
+def _render_signed_band_chart(df: pd.DataFrame):
+    """Render a combined signed band distribution chart (Q6a + Q6b)."""
+    if "Q6a" not in df.columns and "Q6b" not in df.columns:
+        st.info("No Q6a/Q6b band data available.")
+        return
+
+    rows = []
+    # Higher bands (positive)
+    if "Q6a" in df.columns:
+        higher = df[df["PriceDirection"] == "Higher"]
+        for band, mid in BAND_MIDPOINTS.items():
+            n = int((higher["Q6a"] == band).sum())
+            if n > 0:
+                rows.append({"band": band, "midpoint": mid, "n": n})
+
+    # Lower bands (negative)
+    if "Q6b" in df.columns:
+        lower = df[df["PriceDirection"] == "Lower"]
+        for band, mid in BAND_MIDPOINTS.items():
+            n = int((lower["Q6b"] == band).sum())
+            if n > 0:
+                rows.append({"band": band, "midpoint": -mid, "n": n})
+
+    if not rows:
+        st.info("No band data available.")
+        return
+
+    band_df = pd.DataFrame(rows).sort_values("midpoint")
+    total = band_df["n"].sum()
+    band_df["pct"] = band_df["n"] / total
+
+    colours = [CI_GREEN if m < 0 else CI_RED for m in band_df["midpoint"]]
+    labels = [f"-{b}" if m < 0 else f"+{b}" for b, m in zip(band_df["band"], band_df["midpoint"])]
+
+    fig = go.Figure(go.Bar(
+        x=band_df["midpoint"],
+        y=band_df["pct"],
+        marker_color=colours,
+        text=[f"{p:.0%}" for p in band_df["pct"]],
+        textposition="outside",
+        hovertemplate="%{customdata}: %{y:.1%}<extra></extra>",
+        customdata=labels,
+    ))
+    fig.update_layout(
+        height=300,
+        xaxis=dict(title="Price Change (£, midpoint)", gridcolor=CI_LIGHT_GREY),
+        yaxis=dict(title="% of Respondents", tickformat=".0%", gridcolor=CI_LIGHT_GREY),
+        plot_bgcolor=CI_WHITE, paper_bgcolor=CI_WHITE,
+        font=dict(family=FONT, size=11, color=CI_GREY),
+        margin=dict(l=10, r=20, t=10, b=40),
     )
     st.plotly_chart(fig, use_container_width=True)

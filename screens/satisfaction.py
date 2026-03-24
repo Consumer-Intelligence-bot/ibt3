@@ -276,7 +276,16 @@ def _render_insurer_view(df_motor, df_mkt, insurer, filters, period, n_mkt):
             )
             st.plotly_chart(fig, use_container_width=True)
     else:
-        st.info("No Q46 brand perception data available.")
+        q46_cols = [c for c in df_mkt.columns if c.startswith("Q46_")]
+        if q46_cols:
+            st.info(f"Q46 columns found ({len(q46_cols)}) but no data for this insurer/market.")
+        else:
+            st.warning(
+                "No Q46 brand perception data available. "
+                "Q46 columns are missing from the cached data. "
+                "Check whether Q46 rows exist in the OtherData table in Power BI "
+                "(with a non-null Subject column)."
+            )
 
     # --- Previous Insurer Satisfaction ---
     section_divider("Previous Insurer Satisfaction (Q40a / Q40b)")

@@ -278,32 +278,27 @@ def _render_insurer_prompted(df_main, insurer, level, product, period, n):
 
     # Slopegraph
     section_divider("Slopegraph: Start vs End of Period")
-    slopegraph = calc_awareness_slopegraph(df_main, level)
-    if slopegraph is not None and not slopegraph.empty:
-        ins_slope = slopegraph[slopegraph["brand"] == insurer]
-        if not ins_slope.empty:
-            row = ins_slope.iloc[0]
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                kpi_card("Start Rate", fmt_pct(row.get("start_rate")), format_year_month(row.get("start_month", 0)), CI_GREY)
-            with col2:
-                kpi_card("End Rate", fmt_pct(row.get("end_rate")), format_year_month(row.get("end_month", 0)), CI_MAGENTA)
-            with col3:
-                change = (row.get("end_rate", 0) - row.get("start_rate", 0)) * 100
-                colour = CI_GREEN if change > 0 else CI_RED if change < 0 else CI_GREY
-                kpi_card("Change", f"{change:+.1f}pp", "", colour)
+    slopegraph = calc_awareness_slopegraph(df_main, insurer, level)
+    if slopegraph is not None:
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            kpi_card("Start Rate", fmt_pct(slopegraph.get("start_rate")), format_year_month(slopegraph.get("start_month", 0)), CI_GREY)
+        with col2:
+            kpi_card("End Rate", fmt_pct(slopegraph.get("end_rate")), format_year_month(slopegraph.get("end_month", 0)), CI_MAGENTA)
+        with col3:
+            change = slopegraph.get("change", 0) * 100
+            colour = CI_GREEN if change > 0 else CI_RED if change < 0 else CI_GREY
+            kpi_card("Change", f"{change:+.1f}pp", "", colour)
 
     # --- AI Narrative ---
     section_divider("AI Narrative")
     ins_rate_val = ins_rate if not ins_latest.empty else 0
     rank_val = ins_rank if ins_rank else 0
     total_val = len(latest_all)
-    slopegraph = calc_awareness_slopegraph(df_main, level)
+    slopegraph_data = calc_awareness_slopegraph(df_main, insurer, level)
     change_val = 0.0
-    if slopegraph is not None and not slopegraph.empty:
-        ins_slope = slopegraph[slopegraph["brand"] == insurer]
-        if not ins_slope.empty:
-            change_val = (ins_slope.iloc[0].get("end_rate", 0) - ins_slope.iloc[0].get("start_rate", 0)) * 100
+    if slopegraph_data is not None:
+        change_val = slopegraph_data.get("change", 0) * 100
     narrative = generate_screen_narrative("awareness", {
         "insurer": insurer,
         "product": product,
@@ -364,11 +359,14 @@ def _render_unprompted(df_motor, filters):
     # TOMA Share
     section_divider("Share of Mind (TOMA)")
 
-    toma_share = calc_toma_share(df_main)
-    if toma_share is not None and not toma_share.empty:
-        top_brands = toma_share.columns[:8].tolist()
+    toma_share, top_brands = calc_toma_share(metrics)
+    if toma_share is not None and not toma_share.empty and top_brands:
+        if "month" in toma_share.columns:
+            toma_share = toma_share.set_index("month")
         fig = go.Figure()
         for i, brand in enumerate(top_brands):
+            if brand not in toma_share.columns:
+                continue
             month_labels = [format_year_month(m) for m in toma_share.index]
             fig.add_trace(go.Scatter(
                 x=month_labels,
@@ -391,11 +389,14 @@ def _render_unprompted(df_motor, filters):
     # TOMA Rankings (Bump chart)
     section_divider("TOMA Rankings")
 
-    toma_ranks = calc_toma_ranks(df_main)
-    if toma_ranks is not None and not toma_ranks.empty:
-        top_brands = toma_ranks.columns[:8].tolist()
+    toma_ranks, rank_top_brands = calc_toma_ranks(metrics)
+    if toma_ranks is not None and not toma_ranks.empty and rank_top_brands:
+        if "month" in toma_ranks.columns:
+            toma_ranks = toma_ranks.set_index("month")
         fig = go.Figure()
-        for i, brand in enumerate(top_brands):
+        for i, brand in enumerate(rank_top_brands):
+            if brand not in toma_ranks.columns:
+                continue
             month_labels = [format_year_month(m) for m in toma_ranks.index]
             fig.add_trace(go.Scatter(
                 x=month_labels,
@@ -418,11 +419,11 @@ def _render_unprompted(df_motor, filters):
     # Salience Gap
     section_divider("Salience Gap: Total Awareness vs TOMA")
 
-    salience = calc_salience_gap(df_main)
+    salience = calc_salience_gap(metrics)
     if salience is not None and not salience.empty:
         fig = go.Figure(go.Scatter(
-            x=salience["total_mention_rate"],
-            y=salience["toma_rate"],
+            x=salience["mention_pct"],
+            y=salience["toma_pct"],
             mode="markers+text",
             text=salience["brand"],
             textposition="top center",

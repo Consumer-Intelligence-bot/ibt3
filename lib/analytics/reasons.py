@@ -49,6 +49,41 @@ def calc_reason_comparison(
     return {"insurer": insurer_rank or [], "market": market_rank or []}
 
 
+def calc_reason_index(
+    insurer_results: list[dict],
+    market_results: list[dict],
+) -> list[dict]:
+    """
+    Calculate index values comparing insurer vs market reason frequencies.
+
+    Index = (brand_pct / market_pct) * 100. An index of 110 means the insurer
+    is 10% more likely to cite this reason than the market average.
+    """
+    if not insurer_results or not market_results:
+        return []
+
+    # Build lookup from market results
+    mkt_lookup = {}
+    for r in market_results:
+        pct = r.get("rank1_pct", r.get("mention_pct", 0))
+        mkt_lookup[r["reason"]] = pct
+
+    rows = []
+    for r in insurer_results:
+        reason = r["reason"]
+        brand_pct = r.get("rank1_pct", r.get("mention_pct", 0))
+        market_pct = mkt_lookup.get(reason, 0)
+        index_val = (brand_pct / market_pct * 100) if market_pct > 0 else None
+        rows.append({
+            "reason": reason,
+            "brand_pct": brand_pct,
+            "market_pct": market_pct,
+            "index": index_val,
+        })
+
+    return rows
+
+
 def calc_primary_reason(
     df_main: pd.DataFrame,
     question: str,

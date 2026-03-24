@@ -206,7 +206,16 @@ def _pivot_grid(df: pd.DataFrame, result: pd.DataFrame) -> None:
     """Grid/scale questions: Q{n}_{subject} = numeric value."""
     subset = df[df["QuestionNumber"].isin(GRID)]
     if subset.empty:
+        log.warning("No GRID question rows (Q46, Q53) found in EAV data")
         return
+
+    # Diagnostic: log which grid questions are present
+    grid_qs = subset["QuestionNumber"].unique().tolist()
+    log.info("GRID questions present in EAV data: %s", grid_qs)
+    for gq in sorted(GRID):
+        gq_rows = subset[subset["QuestionNumber"] == gq]
+        has_subject = "Subject" in gq_rows.columns and gq_rows["Subject"].notna().any()
+        log.info("  %s: %d rows, Subject present: %s", gq, len(gq_rows), has_subject)
 
     if "Subject" in subset.columns:
         subset = subset.copy()

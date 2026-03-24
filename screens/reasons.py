@@ -12,7 +12,7 @@ import streamlit as st
 
 from lib.analytics.demographics import apply_filters
 from lib.analytics.narrative_engine import generate_screen_narrative
-from lib.analytics.reasons import calc_reason_ranking, calc_reason_comparison
+from lib.analytics.reasons import calc_reason_ranking, calc_reason_comparison, calc_reason_index
 from lib.chart_export import apply_export_metadata, render_suppression_html
 from lib.components.kpi_cards import kpi_card
 from lib.components.narrative_panel import render_narrative_panel
@@ -169,7 +169,7 @@ def _render_insurer_view(df_motor, df_mkt, insurer, filters, period, n_mkt):
             st.info(f"No {q_code} data available.")
             continue
 
-        _render_reason_comparison(ins_reasons, mkt_reasons, insurer, q_code)
+        _render_reason_index_table(ins_reasons, mkt_reasons, insurer, q_code)
 
     # --- AI Narrative ---
     section_divider("AI Narrative")
@@ -242,43 +242,54 @@ def _render_reason_bar(reasons: list[dict], q_code: str, title: str, period: str
     st.plotly_chart(fig, use_container_width=True)
 
 
-def _render_reason_comparison(
+def _render_reason_index_table(
     ins_reasons: list[dict],
     mkt_reasons: list[dict],
     insurer: str,
     q_code: str,
 ):
-    """Render insurer vs market dual-column reason comparison."""
-    col_ins, col_mkt = st.columns(2)
+    """Render insurer vs market reason comparison as an indexed table."""
+    indexed = calc_reason_index(ins_reasons, mkt_reasons)
+    if not indexed:
+        st.info(f"No {q_code} data available for indexing.")
+        return
 
-    with col_ins:
-        st.markdown(
-            f'<div style="font-family:{FONT}; font-size:12px; font-weight:bold; '
-            f'color:{CI_MAGENTA}; margin-bottom:6px;">{insurer}</div>',
-            unsafe_allow_html=True,
-        )
-        for r in ins_reasons:
-            pct = r.get("rank1_pct", r.get("mention_pct", 0))
-            st.markdown(
-                f'<div style="font-family:{FONT}; font-size:12px; padding:3px 0; '
-                f'border-bottom:1px solid {CI_LIGHT_GREY};">'
-                f'{r["reason"]} <span style="float:right; color:{CI_MAGENTA}; '
-                f'font-weight:bold;">{pct * 100:.0f}%</span></div>',
-                unsafe_allow_html=True,
-            )
+    # Build HTML table
+    header = (
+        f'<table style="width:100%; font-family:{FONT}; font-size:12px; '
+        f'border-collapse:collapse; margin-bottom:12px;">'
+        f'<tr style="border-bottom:2px solid {CI_GREY};">'
+        f'<th style="text-align:left; padding:6px;">Reason</th>'
+        f'<th style="text-align:right; padding:6px; color:{CI_MAGENTA};">{insurer}</th>'
+        f'<th style="text-align:right; padding:6px; color:{MARKET_COLOUR};">Market</th>'
+        f'<th style="text-align:right; padding:6px;">Index</th></tr>'
+    )
 
-    with col_mkt:
-        st.markdown(
-            f'<div style="font-family:{FONT}; font-size:12px; font-weight:bold; '
-            f'color:{MARKET_COLOUR}; margin-bottom:6px;">Market</div>',
-            unsafe_allow_html=True,
+    rows_html = []
+    for r in indexed:
+        brand_pct = r["brand_pct"]
+        market_pct = r["market_pct"]
+        index_val = r["index"]
+
+        if index_val is not None:
+            if index_val >= 110:
+                idx_colour = CI_GREEN
+            elif index_val <= 90:
+                idx_colour = CI_RED
+            else:
+                idx_colour = CI_GREY
+            idx_str = f"{index_val:.0f}"
+        else:
+            idx_colour = CI_GREY
+            idx_str = "\u2014"
+
+        rows_html.append(
+            f'<tr style="border-bottom:1px solid {CI_LIGHT_GREY};">'
+            f'<td style="padding:5px 6px;">{r["reason"]}</td>'
+            f'<td style="text-align:right; padding:5px 6px; color:{CI_MAGENTA}; font-weight:bold;">{brand_pct * 100:.0f}%</td>'
+            f'<td style="text-align:right; padding:5px 6px; color:{MARKET_COLOUR};">{market_pct * 100:.0f}%</td>'
+            f'<td style="text-align:right; padding:5px 6px; color:{idx_colour}; font-weight:bold;">{idx_str}</td>'
+            f'</tr>'
         )
-        for r in mkt_reasons:
-            pct = r.get("rank1_pct", r.get("mention_pct", 0))
-            st.markdown(
-                f'<div style="font-family:{FONT}; font-size:12px; padding:3px 0; '
-                f'border-bottom:1px solid {CI_LIGHT_GREY};">'
-                f'{r["reason"]} <span style="float:right; color:{MARKET_COLOUR}; '
-                f'font-weight:bold;">{pct * 100:.0f}%</span></div>',
-                unsafe_allow_html=True,
-            )
+
+    st.markdown(header + "".join(rows_html) + "</table>", unsafe_allow_html=True)

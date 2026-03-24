@@ -238,6 +238,18 @@ def _render_insurer_view(df_motor, df_mkt, insurer, filters, period, n_mkt):
     with col3:
         kpi_card("Insurer Base", f"{n_ins:,}", f"Market: {n_mkt:,}", CI_GREY)
 
+    # --- AI Narrative ---
+    section_divider("AI Narrative")
+    narrative = generate_screen_narrative("shopping", {
+        "insurer": insurer,
+        "product": filters["product"],
+        "shopping_rate": ins_shopping or 0,
+        "mkt_shopping_rate": mkt_shopping or 0,
+        "conversion_rate": ins_conversion or 0,
+        "mkt_conversion_rate": mkt_conversion or 0,
+    })
+    render_narrative_panel(narrative, "shopping")
+
     # --- Cohort Heat Map ---
     section_divider("Cohort Heat Map: Demographic Segments vs Market")
 
@@ -262,18 +274,6 @@ def _render_insurer_view(df_motor, df_mkt, insurer, filters, period, n_mkt):
         _render_comparison_columns(q19_comp, insurer)
     else:
         st.info("No Q19 data available.")
-
-    # --- AI Narrative ---
-    section_divider("AI Narrative")
-    narrative = generate_screen_narrative("shopping", {
-        "insurer": insurer,
-        "product": filters["product"],
-        "shopping_rate": ins_shopping or 0,
-        "mkt_shopping_rate": mkt_shopping or 0,
-        "conversion_rate": ins_conversion or 0,
-        "mkt_conversion_rate": mkt_conversion or 0,
-    })
-    render_narrative_panel(narrative, "shopping")
 
     # --- Cross-screen links ---
     col1, col2 = st.columns(2)

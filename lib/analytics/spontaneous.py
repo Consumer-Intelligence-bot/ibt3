@@ -79,6 +79,9 @@ def calc_spontaneous_metrics(
         return pd.DataFrame()
 
     all_pos_col_names = [c for cols in pos_cols.values() for c in cols]
+    if not all_pos_col_names:
+        return pd.DataFrame()
+
     months = sorted(df_main[time_col].dropna().unique())
     rows = []
 
