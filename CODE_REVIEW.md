@@ -212,7 +212,7 @@ suppressing the trend line across the break.
 
 ### DuckDB cache layer
 
-`lib/db.py` implements a DuckDB-backed local cache at `~/.ehubot/cache.duckdb`.
+`lib/db.py` implements a DuckDB-backed local cache at `~/.ibt3/cache.duckdb`.
 Fit for purpose for both local development and GCP VM deployment. The cache:
 
 - Survives browser refresh within a session
@@ -248,7 +248,7 @@ no changes are needed.
 | Azure credentials | ✅ Fixed | Now driven by environment variables |
 | Data exposure | ✅ Fixed | Large CSV not tracked; `.gitignore` updated |
 | Auth | ✅ OK | MSAL device flow properly implemented |
-| Token storage | ✅ OK | Persisted to `~/.ehubot/token.json` with 0o600 permissions |
+| Token storage | ✅ OK | Persisted to `~/.ibt3/token.json` with 0o600 permissions |
 | Debug mode | ✅ OK | No debug flags enabled |
 | XSS | Low risk | Streamlit auto-escapes; limited `unsafe_allow_html` for CSS only |
 | SQL injection | ✅ OK | DuckDB table names validated against allowlist regex |
@@ -272,7 +272,7 @@ HOME_DATASET_ID=
 ANTHROPIC_API_KEY=
 NARRATIVE_MODEL=claude-opus-4-6
 NARRATIVE_ENABLED=true
-EHUBOT_DB_PATH=          # optional; defaults to ~/.ehubot/cache.duckdb
+IBT3_DB_PATH=            # optional; defaults to ~/.ibt3/cache.duckdb
 ```
 
 **Dependencies:**
@@ -287,7 +287,7 @@ EHUBOT_DB_PATH=          # optional; defaults to ~/.ehubot/cache.duckdb
 
 **Auth:**
 - [ ] MSAL device flow tested from the VM
-      (token persists to `~/.ehubot/token.json`)
+      (token persists to `~/.ibt3/token.json`)
 
 **Process:**
 - [ ] Streamlit running as a persistent process (systemd service or equivalent)

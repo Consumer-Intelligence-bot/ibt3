@@ -11,7 +11,7 @@ import logging
 import pandas as pd
 import streamlit as st
 
-audit_log = logging.getLogger("ehubot.audit")
+audit_log = logging.getLogger("ibt3.audit")
 audit_log.setLevel(logging.DEBUG)
 
 from lib.analytics.demographics import apply_filters

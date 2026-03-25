@@ -26,7 +26,7 @@ import os
 import time
 from pathlib import Path
 
-_TOKEN_FILE = Path.home() / ".ehubot" / "token.json"
+_TOKEN_FILE = Path.home() / ".ibt3" / "token.json"
 
 
 def _save_token(access_token: str, expires_at: float):

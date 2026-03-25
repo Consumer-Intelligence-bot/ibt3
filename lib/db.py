@@ -14,7 +14,7 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
-_DB_PATH = os.getenv("EHUBOT_DB_PATH", str(Path.home() / ".ehubot" / "cache.duckdb"))
+_DB_PATH = os.getenv("IBT3_DB_PATH", str(Path.home() / ".ibt3" / "cache.duckdb"))
 
 # Valid table names: alphanumeric + underscore only
 _TABLE_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")

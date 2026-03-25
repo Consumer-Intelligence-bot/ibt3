@@ -10,7 +10,7 @@
 ## Context
 
 This brief adds a new analytics page to the existing Streamlit multipage dashboard.
-The app lives at `/mnt/c/Users/ianch/ehubot` (local dev) and will deploy to a GCP VM.
+The app lives at `/mnt/c/Users/ianch/ibt3` (local dev) and will deploy to a GCP VM.
 
 Before writing any code, read these files to understand the existing patterns:
 

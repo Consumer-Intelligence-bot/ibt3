@@ -1,4 +1,4 @@
-# CLAUDE.md — Ehubot (IBT Portal)
+# CLAUDE.md — IBT3 (IBT Portal)
 
 ## Application Architecture
 
@@ -47,7 +47,7 @@ Every screen module exports `render(filters: dict)`. The filters dict contains:
 `insurer`, `product`, `age_band`, `region`, `payment_type`, `selected_months`, `include_other`.
 
 ### DuckDB is the single source of truth
-- All data lives in DuckDB (`~/.ehubot/cache.duckdb`). Every screen reads from `st.session_state`, which is populated from DuckDB on startup.
+- All data lives in DuckDB (`~/.ibt3/cache.duckdb`). Every screen reads from `st.session_state`, which is populated from DuckDB on startup.
 - No screen should ever make live Power BI queries. Power BI is only accessed during an admin-triggered refresh.
 - No Power BI auth token is needed on startup. The only path to Power BI auth is the "Refresh from Power BI" button on the Admin screen.
 - Claims data (Q52/Q53) is cached per product: `claims_q52_motor`, `claims_q52_home`, `claims_q53_motor`, `claims_q53_home`. Pet does not have claims data.
@@ -122,12 +122,12 @@ Products list: Motor, Home, Pet. All in the same workspace. Pet does not have cl
 
 ## Deployment
 
-- Server: ehu-bot at `35.246.107.130`, SSH user `ianchughes`
+- Server: ibt-portal at `34.63.62.254`, SSH user `ianchughes`
 - Streamlit runs on port 8501
-- DuckDB cache: `~/.ehubot/cache.duckdb`
-- Token cache: `~/.ehubot/token.json` (MSAL device flow, ~1hr expiry)
-- Process managed via systemd: `sudo systemctl restart ehubot`
-- After deploying new code: `git pull`, `sudo systemctl restart ehubot`, verify with curl
+- DuckDB cache: `~/.ibt3/cache.duckdb`
+- Token cache: `~/.ibt3/token.json` (MSAL device flow, ~1hr expiry)
+- Process managed via systemd: `sudo systemctl restart ibt3`
+- After deploying new code: `git pull`, `sudo systemctl restart ibt3`, verify with curl
 
 ## Caching and Restart Behaviour
 
@@ -139,9 +139,9 @@ Products list: Motor, Home, Pet. All in the same workspace. Pet does not have cl
 ## Permissions
 
 The following actions are pre-authorised. Do not ask for confirmation:
-- **Git commit and push** to `origin/main` on the ehubot repo.
-- **SSH to ehu-bot** (`ssh -i ~/.ssh/id_ed25519 ianchughes@35.246.107.130`) for deployment tasks.
-- **Restart Streamlit** on the server via systemd: `sudo systemctl restart ehubot`.
+- **Git commit and push** to `origin/main` on the ibt3 repo.
+- **SSH to ibt-portal** (`ssh -i ~/.ssh/id_ed25519 ianchughes@34.63.62.254`) for deployment tasks.
+- **Restart Streamlit** on the server via systemd: `sudo systemctl restart ibt3`.
 - **Git pull on the server** to deploy new code.
-- **Read/write/create files** within the `ehubot/` project directory.
+- **Read/write/create files** within the `ibt3/` project directory.
 - **Run syntax checks and unit tests** locally (`python3 -c ...`).
