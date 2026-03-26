@@ -1,188 +1,47 @@
 # IBT3 TODO
 
-## COMPLETED
-
-### Customer Lifecycle Dashboard (Sprints 1-7)
-- [x] Sprint 1: Router pattern, screen architecture, data loading
-- [x] Sprint 2: Reasons & Shopping screens with cohort heat map
-- [x] Sprint 3: Channels & Pre-Renewal screens
-- [x] Sprint 4: Awareness & Claims screens
-- [x] Sprint 5: Satisfaction screen + narrative engine
-- [x] Sprint 6: Compare Insurers, Methodology, filter bar
-- [x] Sprint 7: Polish, narratives, cross-screen links, cleanup
-
-### Editorial Design Overhaul
-- [x] Typography, sidebar, cards redesign
-- [x] Verdana font, narrative panels on all 8 screens
-
-### Unprompted Awareness UI/UX Fixes
-- [x] Taller charts + dynamic height scaling
-- [x] Direct on-chart labels (brand + share %), legend improvements
-- [x] Tighter margins, reduced white space
-
-### Pet Insurance Integration
-- [x] Pet added as third product (dataset 4a1347c3)
-- [x] Quarterly grain conversion to monthly YYYYMM
-- [x] EAV table batching for 100K API limit
-- [x] Error isolation per product in init_ss_data
-
-### EAV-to-Wide Migration
-- [x] Dashboard migrated from EAV to wide columns
-- [x] Bayesian movers, Q1 spontaneous awareness, admin-triggered refresh
-
-### UI Refactoring
-- [x] Shared helpers extracted to lib/formatting.py
-- [x] CI logo in sidebar, colour fix, CSS centralised
-
-### Brand Alignment
-- [x] Montserrat font (replaced DM Sans + Fraunces)
-- [x] Charcoal sidebar (replaced Navy)
-- [x] 6 brand colours + 60%/20% tints in config.py
-- [x] Chart colour order: Cyan, Purple, Yellow, Green, Red, Charcoal
-- [x] 12px border-radius standardised across all screens
-- [x] Shadow-on-hover on cards
-- [x] Root CLAUDE.md brand section updated
-
----
-
 ## OPEN
 
-### P1 — Decision Screen Pattern
-**What:** Restructure all 8 screens into the CI "Decision Screen" layout: KPI row with trend arrows and confidence badges at top, 70/30 primary viz + secondary panel split, context footer with trust indicators.
-
-**Why:** Brand design system requires every portal page to be a decision screen: one viewport, enough context to act, drill-down in 1-2 clicks.
-
-**Effort:** L | **Priority:** P1
-
-#### Phase 1: Shared Components
-- [x] Create `lib/components/decision_kpi.py` — KPI card with trend arrow, change value, confidence badge (n with colour coding). Plus `decision_kpi_row()` for 3-5 in a row.
-- [x] Create `lib/components/context_bar.py` — Compact bar replacing ad-hoc subheader + period banner. Shows screen name, insurer, product, period, sample sizes.
-- [x] Create `lib/components/context_footer.py` — Data freshness timestamp, methodology link, sample size, confidence level.
-- [x] Add `render_narrative_compact()` to `lib/components/narrative_panel.py` — Compact variant: no expander, headline + 2 findings, "Show detail" for rest.
-- [x] Add CSS classes for decision layout to `lib/config.py` (`.decision-kpi`, `.confidence-badge`, `.context-footer`).
-
-**Layout note:** AI narrative goes at the TOP of each screen (below context bar, above KPIs). It sets the story before the user sees the data. All 8 screens must follow this order: context bar, narrative, KPI row, primary+secondary split, context footer.
-
-#### Phase 2: Pilot Screen
-- [x] Convert Switching (Screen 5) — KPIs: Retention, Switching, Net Flow. Primary: flow index. Secondary: sources/destinations + departed sentiment + links.
-- [ ] Visual QA: KPIs + primary chart visible without scroll on 1080p.
-
-#### Phase 3: Remaining Screens
-- [x] Convert Shopping (Screen 3) — KPIs: Shopping Rate, Conversion, Retention. Primary: trend. Secondary: reasons + narrative.
-- [x] Convert Pre-Renewal (Screen 2) — KPIs: % Higher, % Lower, Avg Change. Primary: price direction. Secondary: tenure + narrative.
-- [x] Convert Channels (Screen 4) — KPIs: Top Channel, PCW Usage, Quote Reach. Primary: channel bars. Secondary: mismatch + narrative.
-- [x] Convert Awareness (Screen 1) — KPIs: Awareness Rate, Market Avg, Rank. Primary: trend/ranking. Secondary: slopegraph + narrative.
-- [x] Convert Reasons (Screen 6) — KPIs: Active Q, Top Reason, Index. Primary: reason table. Secondary: highlight + narrative.
-- [x] Convert Satisfaction (Screen 7) — KPIs: Satisfaction, NPS, Departed NPS. Primary: brand perception. Secondary: matrix + narrative.
-- [x] Convert Claims (Screen 8) — KPIs: Satisfaction, Market Avg, Gap. Primary: insurer bars. Secondary: stars + narrative.
-
-#### Phase 4: Polish
-- [x] Standardise chart heights (primary: 280-320px, secondary: 200px max).
-- [x] Remove redundant section_divider calls (done during Phase 3).
-- [x] Full visual QA pass across all 8 screens. (See P0 Visual QA Findings section)
-
----
-
-### P2 — Add logging to powerbi.py
-**What:** Add `logging.warning()` / `logging.info()` calls to `lib/powerbi.py` token persistence functions. `lib/db.py` already has logging.
-
-**Why:** Token failures are currently silent. A few structured log lines would make production support possible.
-
-**Effort:** S | **Priority:** P2
-
----
-
-### P0 — Visual QA Findings (26 Mar 2026)
-
-**Source:** Live server screenshot review against CLAUDE.md brand guidelines.
-
-#### P0: Tab bar text wrapping
+### P0 — Tab bar text wrapping
 **What:** All 8 tab labels word-wrap into illegible fragments at default viewport width ("Pre-Ren ewal Cont ext", "Sho ppin g Beh avio ur").
 **Why:** Most visible UI defect. First thing a client sees. Makes the app look broken.
-**Fix:** Shorten tab labels (e.g. "Pre-Renewal" not "Pre-Renewal Context"), or use `white-space:nowrap` with horizontal scroll overflow, or abbreviate at narrow widths.
+**Fix:** Shorten labels, or use `white-space:nowrap` with horizontal scroll, or abbreviate at narrow widths.
 **Effort:** S | **Priority:** P0
 - [ ] Shorten or abbreviate tab labels to fit 8 tabs without wrapping
 - [ ] Test at 1080p, 1440p, and 768p widths
 
-#### P1: Tenure vs Retention shows 100% for every bucket (market view)
-**What:** The "Tenure vs Retention Rate" chart on Pre-Renewal market view shows 100% for all tenure buckets.
-**Why:** At market level with no insurer filter, every respondent is "retained" by definition (they answered the survey about their current insurer). The chart is only meaningful when filtered to a specific insurer.
-**Fix:** Hide the chart on market view, or only show it in insurer view.
-**Effort:** S | **Priority:** P1
-- [ ] Conditionally hide "Tenure vs Retention" when no insurer is selected
+---
 
-#### P2: Verify Montserrat font is loading
-**What:** Brand spec requires Montserrat (400/700). Screenshots show a clean sans-serif but can't confirm it's Montserrat vs system fallback.
-**Why:** Font consistency is part of the brand identity. If Montserrat isn't loading, all text reverts to browser default.
-**Fix:** Check CSS `@import` or `<link>` for Google Fonts Montserrat. Verify in browser dev tools.
-**Effort:** S | **Priority:** P2
-- [ ] Verify Montserrat is loaded via Google Fonts or local files
-- [ ] Check fallback chain in CSS font-family declaration
+### P1 — Visual QA Fixes
 
-#### P2: Confidence badge colour could clash with KPI accent
-**What:** The green `n=10,719 High confidence` badge uses the same green as the "% Lower" KPI accent colour on the same row.
-**Why:** Two different green elements side by side could confuse the meaning. The badge green means "high confidence" while the KPI green means "lower prices".
-**Fix:** Consider using a neutral colour (charcoal or blue) for confidence badges, or use a subtler green tint distinct from CI_GREEN.
-**Effort:** S | **Priority:** P2
-- [ ] Review badge colour against adjacent KPI colours
-- [ ] Consider using CI_CYAN or a distinct tint for confidence badges
-
-#### P3: "Last updated: Unknown" in context footer
-**What:** The context footer shows "Last updated: Unknown" because no refresh timestamp is stored in session state.
-**Why:** Looks unprofessional. The timestamp should reflect when the DuckDB cache was last populated.
-**Fix:** Store refresh timestamp in DuckDB metadata during `init_ss_data()` and read it back on load.
-**Effort:** S | **Priority:** P3
-- [ ] Save refresh timestamp to DuckDB metadata in init_ss_data()
-- [ ] Read and display in context footer
+- [ ] **Tenure vs Retention 100% bug:** Chart shows 100% for every bucket on market view. Hide when no insurer selected. (Pre-Renewal screen)
+- [ ] **Visual QA on 1080p:** Verify KPIs + primary chart visible without scroll on all screens.
 
 ---
 
-### ~~P2 — Add pytest suite for analytics functions~~ DONE
-**63 tests passing** across 6 functions: `calc_net_flow`, `calc_insurer_rank`, `calc_rolling_avg`, DuckDB roundtrip, `calc_toma_share`, `calc_awareness_rates`. See `tests/test_analytics.py`.
-
----
-
-### P1 — Ann 1:1 Feedback (26 Mar 2026)
-
-**Source:** Transcript of Ian + Ann Constantine (super user) walkthrough session.
-
-#### System-Wide / Architectural
-
-##### A1: Incomplete month handling
-**What:** Trailing months with partial fieldwork cause misleading drops in all trend charts. Either hide the last incomplete month from client view, or show widening confidence intervals.
-**Why:** Ann: "You've either got to show it and we're confident in it, or we don't show it."
-**Effort:** L | **Priority:** P1
-- [ ] Detect incomplete months (fieldwork count below threshold)
-- [ ] Option A: Suppress last incomplete month from trend lines
-- [ ] Option B: Show CI bands that widen as sample shrinks
-- [ ] Apply consistently across all screens with time-series charts
-
-##### A2: AI narrative quality overhaul
+### P1 — AI Narrative Quality (A2)
 **What:** Rewrite narrative engine prompts to produce plain English headlines. Ann's test: extract all headlines into a summary, they should make sense standalone.
-**Why:** Every headline reads "jargony" and "clunky." Too short and compressed, reads like American newspaper headlines.
+**Why:** Every headline reads "jargony" and "clunky." Both Ann and Ian flagged this independently.
 **Effort:** M | **Priority:** P1
 - [ ] Rewrite system prompts: plain English, state the "so what," always compare to market
 - [ ] Always name #1 if referencing a rank position
 - [ ] Always explain direction (better/worse than market, not just raw numbers)
 - [ ] Test headlines standalone: do they make sense without the charts?
+- [ ] Applies to: Pre-Renewal headline rewrite, Awareness headline rewrite
 
-##### A3: Market context on every metric
+---
+
+### P1 — Market Context Audit (A3)
 **What:** Every KPI, chart, and narrative must show insurer value vs market baseline.
-**Why:** Nearly every metric prompted "but how does that compare to the market?" Single most repeated theme in the session.
+**Why:** "But how does that compare to the market?" was the single most repeated theme across both feedback sessions.
 **Effort:** L | **Priority:** P1
 - [ ] Audit all KPI cards: ensure each shows insurer vs market
 - [ ] Audit all charts: ensure market comparison is visible
 - [ ] Audit all narratives: ensure market context is stated
 
-##### A4: Peer group / multi-brand comparison
-**What:** Allow selecting peer groups (e.g. "brands like me" or "Direct Line vs Aviva") rather than just one insurer vs all market.
-**Why:** Ann: "I would have been looking at Direct Line versus Aviva, because Aviva is our key competitor."
-**Effort:** L | **Priority:** P2
-- [ ] Design peer group selection UI (multi-select insurer dropdown)
-- [ ] Update analytics to compute metrics for custom peer group as baseline
-- [ ] Update charts and KPIs to show insurer vs peer group
+---
 
-##### A5: Question text on every screen
+### P1 — Question Text on Every Screen (A5)
 **What:** Add expandable info icon per section showing the survey question text and calculation methodology.
 **Why:** Ann: "We absolutely at the top of each section have to have what the question is."
 **Effort:** M | **Priority:** P1
@@ -190,13 +49,9 @@
 - [ ] Map each screen section to its source question(s)
 - [ ] Add calculation methodology where we derive values (e.g. average from bandings)
 
-##### A6: Methodology links open in-page
-**What:** "How is this calculated?" links should open as a modal or panel overlay, not navigate away.
-**Why:** Clicking the link navigates off the current screen, losing context.
-**Effort:** S | **Priority:** P1
-- [x] Replace navigation links with `@st.dialog` overlay (methodology_dialog.py)
+---
 
-##### A7: No absolute numbers rule
+### P1 — No Absolute Numbers Audit (A7)
 **What:** System-wide policy: display percentages, percentage changes, ranks, rank changes, or indices. Never raw respondent counts in client-facing views.
 **Why:** Ann: "We should not have an absolute number in any of this."
 **Effort:** M | **Priority:** P1
@@ -204,7 +59,9 @@
 - [ ] Convert to percentages, indices, or rank changes
 - [ ] Sample sizes in tooltips only, not primary display
 
-##### A8: Confidence indicators over sample sizes
+---
+
+### P1 — Confidence Indicators (A8)
 **What:** Replace raw "n=" sample size displays with confidence badges (high/medium/low) or CI ranges.
 **Why:** Ann: "I'm less interested in the sample size. I'm more interested in the confidence."
 **Effort:** M | **Priority:** P1
@@ -213,15 +70,9 @@
 - [ ] Replace sample size displays across all screens
 - [ ] Keep raw n in tooltip for internal users
 
-##### A9: Rating factor demographics
-**What:** Add key rating factors as demographic breakdowns: payment type, licence held, telematics, NCD, plus top 4 pricing drivers from Apollo/GOCO.
-**Why:** Ann + Ian identified these as the most useful demographic cuts for clients.
-**Effort:** M | **Priority:** P2
-- [ ] Identify available rating factor columns in the data model
-- [ ] Add payment type, licence held, telematics to demographic breakdowns
-- [ ] Reference Apollo/GOCO top rating factors
+---
 
-##### A10: Multi-select demographic filters
+### P1 — Multi-Select Demographic Filters (A10)
 **What:** Age band and region filters should be multi-select dropdowns, not single-value sliders.
 **Why:** "I might want to do 18-24 AND 25-34 AND 65+ as another group."
 **Effort:** M | **Priority:** P1
@@ -229,7 +80,63 @@
 - [ ] Replace region slider with multi-select dropdown
 - [ ] Update all analytics to handle multiple selected values
 
-##### A11: Customer journey flow diagram
+---
+
+### P1 — Switching: Net Flow vs Switching Contradiction
+**What:** Switching rate positive but net flow negative for some insurers. Needs explanation or bug fix.
+**Why:** Ian flagged the numbers as contradictory. Either the calculation has a bug or the display needs to explain why they can diverge.
+**Effort:** S | **Priority:** P1
+- [ ] Investigate and document why net flow and switching rate can diverge
+- [ ] Add explanatory tooltip or caption if it's expected behaviour
+
+---
+
+### P2 — Add Logging to powerbi.py
+**What:** Add `logging.warning()` / `logging.info()` calls to `lib/powerbi.py` token persistence functions.
+**Why:** Token failures are currently silent. A few structured log lines would make production support possible.
+**Effort:** S | **Priority:** P2
+
+---
+
+### P2 — Verify Montserrat Font Loading
+**What:** Brand spec requires Montserrat (400/700). Can't confirm from screenshots whether it's loading or falling back to system font.
+**Effort:** S | **Priority:** P2
+- [ ] Verify Montserrat is loaded via Google Fonts or local files
+- [ ] Check fallback chain in CSS font-family declaration
+
+---
+
+### P2 — Confidence Badge Colour Clash
+**What:** Green confidence badge uses the same green as "% Lower" KPI accent on the same row.
+**Why:** Two different green elements side by side could confuse the meaning.
+**Effort:** S | **Priority:** P2
+- [ ] Review badge colour against adjacent KPI colours
+- [ ] Consider using CI_CYAN or a distinct tint for confidence badges
+
+---
+
+### P2 — Peer Group / Multi-Brand Comparison (A4)
+**What:** Allow selecting peer groups (e.g. "brands like me" or "Direct Line vs Aviva") rather than just one insurer vs all market. Currently scoped to awareness screen only.
+**Why:** Ann: "I would have been looking at Direct Line versus Aviva, because Aviva is our key competitor."
+**Effort:** L | **Priority:** P2
+- [ ] Extend multi-brand comparison beyond awareness screen to all screens
+- [ ] Design peer group selection UI (multi-select insurer dropdown in sidebar)
+- [ ] Update analytics to compute metrics for custom peer group as baseline
+
+---
+
+### P2 — Rating Factor Demographics (A9)
+**What:** Add key rating factors as demographic breakdowns: payment type, licence held, telematics, NCD, plus top 4 pricing drivers from Apollo/GOCO.
+**Why:** Ann + Ian identified these as the most useful demographic cuts for clients.
+**Effort:** M | **Priority:** P2
+- [ ] Identify available rating factor columns in the data model
+- [ ] Add payment type, licence held, telematics to demographic breakdowns
+- [ ] Reference Apollo/GOCO top rating factors
+- [ ] Applies to: Pre-Renewal "Add more demographics"
+
+---
+
+### P2 — Customer Journey Flow Diagram (A11)
 **What:** Recreate the "journey map" visual from the old system that maps every stage of the customer lifecycle with market vs brand overlay.
 **Why:** Ann: "That is a very good visual that we've got in the old system."
 **Effort:** L | **Priority:** P2
@@ -239,52 +146,9 @@
 
 ---
 
-#### Screen 2: Pre-Renewal Context
-
-- [x] **Font size:** Increased globally in narrative_panel.py (commit 1)
-- [ ] **Headline rewrite:** Replace jargony AI headlines with plain English (see A2)
-- [x] **Facts need market comparison:** KPIs now show "+2.1pp vs market" on each metric
-- [x] **Tenure chart layout:** Moved to 50/50 split alongside crossover chart
-- [x] **Tenure 6-8 year buckets:** Merged into "6-8 years" band via merge_tenure_mid_buckets()
-- [x] **Q6A/Q6B combine charts:** Already combined on Price Analysis tab (_render_signed_band_chart)
-- [x] **Price banding white space:** Set bargap=0.15/0.05 on band charts, added £ to axis label
-- [x] **Price direction as index:** Replaced two side-by-side bars with single diverging index chart
-- [x] **Add pound sign:** format_price_change() now shows "£21" / "+£21" / "−£16"
-- [x] **Age/region side by side:** Demographic tables now render in 2-column layout
-- [ ] **Add more demographics:** Payment type, tenure, licence held, telematics (see A9)
-- [x] **Page title clarity:** Context bar shows "[Insurer]'s Pre-Renewal Price Analysis"
-
----
-
-#### Screen 1: Awareness & Consideration
-
-- [x] **Fix 12,000% share of TOM:** Calculation bug producing nonsense percentage
-- [x] **Restore top-N slider:** Default to top 10, allow user to adjust (top 8 is a weird metric)
-- [x] **Ranking chart date labels:** Rotated -45 degrees for readability
-- [x] **Remove or fix TOM vs Total scatter:** Removed (unreadable, agreed not needed)
-- [x] **Fix sub-tab naming:** Renamed to "Prompted Awareness" / "Unprompted (Q1)"
-- [ ] **Remove mystery white box:** Unexplained white box with purple border below tab header
-- [x] **Increase narrative font size:** Same issue as Pre-Renewal
-- [ ] **Rewrite prompted awareness headline:** Make plain English, less clunky
-- [ ] **Equalise KPI box sizes:** "Aviva Awareness 63.3" and "Market Average 22.4" boxes should be same width
-- [x] **Show who is #1:** If narrative says "second place," always state who is first
-- [x] **Fix period comparison key error:** "change PP" key error appearing on screen
-- [x] **Fix age band filter:** Changing age band slider does not update awareness ranking
-- [ ] **Multi-select demographic filters:** Replace sliders with multi-select dropdowns (see A10)
-
----
-
-#### Screen 5: Switching & Flows
-
-- [ ] **Add journey map visual:** Recreate old-system flow diagram (see A11)
-- [x] **Top movers: show % not absolute:** Now shows % of total flow volume
-- [x] **Net flow: show % only:** KPI value is now percentage only, raw count in subtitle
-- [ ] **Investigate net flow vs switching contradiction:** Switching rate positive but net flow negative needs explanation or bug fix
-- [x] **Simplify bar colours:** Red/green for over/under index, CI_GREY for neutral (removed CI_BLUE)
-- [x] **Index line: remove duplicate label:** Removed annotation text, kept axis title only
-- [x] **Index line: align label to line:** Removed floating annotation, axis title is the only label
-- [x] **Index line: make thicker:** Changed to dash style, width=2
-- [x] **Fix "market average" label:** Renamed to "Expected rate"
-- [x] **Departed sentiment box:** Now uses decision_kpi cards with market comparison (Satisfaction + NPS)
-- [x] **KPI colour logic:** Switching rate uses kpi_vs_market_colour (green/red/grey), removed CI_MAGENTA
-- [x] **Arrow direction clarity:** All KPIs now show "+/-Xpp vs market" text, arrows match direction
+### P3 — "Last Updated: Unknown" in Context Footer
+**What:** Context footer shows "Last updated: Unknown" because no refresh timestamp is stored in session state.
+**Fix:** Store refresh timestamp in DuckDB metadata during `init_ss_data()` and read it back on load.
+**Effort:** S | **Priority:** P3
+- [ ] Save refresh timestamp to DuckDB metadata in init_ss_data()
+- [ ] Read and display in context footer
