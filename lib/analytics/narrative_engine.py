@@ -119,7 +119,10 @@ def generate_screen_narrative(
             max_tokens=700,
             system=(
                 "You write concise market intelligence for UK insurance professionals. "
-                "Follow the fact-observation-prompt pattern. Return only valid JSON."
+                "Follow the fact-observation-prompt pattern. Return only valid JSON. "
+                "CRITICAL: Never speculate about a company's internal decisions, media spend, "
+                "restructuring, mergers, leadership changes, or business strategy. "
+                "Only state what the data shows. Do not infer causes that are not in the data."
             ),
             messages=[{"role": "user", "content": user_prompt}],
         )

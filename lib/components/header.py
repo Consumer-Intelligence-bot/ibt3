@@ -15,7 +15,7 @@ from screens import SCREENS, ADMIN_SCREENS
 def _init_navigation():
     """Initialise session state keys for navigation."""
     if "active_screen" not in st.session_state:
-        st.session_state["active_screen"] = "switching"
+        st.session_state["active_screen"] = "pre_renewal"
 
 
 def render_tab_bar():

@@ -103,31 +103,31 @@ def _render_market_view(df_mkt, filters, period, n_mkt):
         n_market=n_mkt,
     )
 
-    # -- KPI row --
+    # -- KPI row (market view: neutral colours, no insurer comparison) --
     decision_kpi_row([
         {
             "title": "Shopping Rate",
             "value": fmt_pct(shopping_rate),
             "sample_n": n_mkt,
-            "colour": CI_MAGENTA,
+            "colour": CI_GREY,
         },
         {
             "title": "Conversion Rate",
             "value": fmt_pct(conversion_rate),
             "sample_n": n_mkt,
-            "colour": CI_RED,
+            "colour": CI_GREY,
         },
         {
             "title": "Switching Rate",
             "value": fmt_pct(switching_rate),
             "sample_n": n_mkt,
-            "colour": CI_RED,
+            "colour": CI_GREY,
         },
         {
             "title": "Retention Rate",
             "value": fmt_pct(retention_rate),
             "sample_n": n_mkt,
-            "colour": CI_GREEN,
+            "colour": CI_GREY,
         },
     ])
 

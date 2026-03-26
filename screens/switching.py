@@ -119,19 +119,19 @@ def _render_market_view(df_motor, df_mkt, filters, period, n_mkt):
             "title": "Switching Rate",
             "value": fmt_pct(switching_rate),
             "sample_n": n_mkt,
-            "colour": CI_RED,
+            "colour": CI_GREY,
         },
         {
             "title": "Retention Rate",
             "value": fmt_pct(retention_rate),
             "sample_n": n_mkt,
-            "colour": CI_GREEN,
+            "colour": CI_GREY,
         },
         {
             "title": "Shopping Rate",
             "value": fmt_pct(shopping_rate),
             "sample_n": n_mkt,
-            "colour": CI_MAGENTA,
+            "colour": CI_GREY,
         },
     ])
 

@@ -66,15 +66,15 @@ def render(filters: dict):
     # Sub-view selector
     view = st.radio(
         "Awareness type",
-        ["Prompted Awareness", "Unprompted (Q1)"],
+        ["Unprompted (Q1)", "Prompted Awareness"],
         horizontal=True,
         key="awareness_view_radio",
     )
 
-    if view == "Unprompted (Q1)":
-        _render_unprompted(df_motor, filters)
-    else:
+    if view == "Prompted Awareness":
         _render_prompted(df_motor, filters)
+    else:
+        _render_unprompted(df_motor, filters)
 
 
 def _render_prompted(df_motor, filters):
@@ -424,71 +424,65 @@ def _render_unprompted(df_motor, filters):
     # Top-N control
     top_n = st.slider("Number of brands to display", min_value=5, max_value=20, value=10, key="toma_top_n")
 
-    # --- Primary (70%) / Secondary (30%) layout ---
-    col_primary, col_secondary = st.columns([7, 3])
+    # --- TOMA Rankings first (more interesting), then Share of Mind ---
+    st.markdown("**TOMA Rankings**")
 
-    with col_primary:
-        # TOMA Share
-        st.markdown("**Share of Mind (TOMA)**")
+    toma_ranks, rank_top_brands = calc_toma_ranks(metrics, top_n=top_n)
+    if toma_ranks is not None and not toma_ranks.empty and rank_top_brands:
+        if "month" in toma_ranks.columns:
+            toma_ranks = toma_ranks.set_index("month")
+        fig = go.Figure()
+        for i, brand in enumerate(rank_top_brands):
+            if brand not in toma_ranks.columns:
+                continue
+            month_labels = [format_year_month(m) for m in toma_ranks.index]
+            fig.add_trace(go.Scatter(
+                x=month_labels,
+                y=toma_ranks[brand],
+                mode="lines+markers",
+                name=brand,
+                line=dict(color=BUMP_COLOURS[i % len(BUMP_COLOURS)], width=2),
+                marker=dict(size=5),
+            ))
+        fig.update_layout(
+            height=320,
+            yaxis=dict(title="Rank", autorange="reversed", gridcolor=CI_LIGHT_GREY),
+            xaxis=dict(tickangle=-45),
+            plot_bgcolor=CI_WHITE, paper_bgcolor=CI_WHITE,
+            font=dict(family=FONT, size=11, color=CI_GREY),
+            margin=dict(l=10, r=20, t=10, b=60),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
+        )
+        st.plotly_chart(fig, use_container_width=True)
 
-        toma_share, top_brands = calc_toma_share(metrics, top_n=top_n)
-        if toma_share is not None and not toma_share.empty and top_brands:
-            if "month" in toma_share.columns:
-                toma_share = toma_share.set_index("month")
-            fig = go.Figure()
-            for i, brand in enumerate(top_brands):
-                if brand not in toma_share.columns:
-                    continue
-                month_labels = [format_year_month(m) for m in toma_share.index]
-                fig.add_trace(go.Scatter(
-                    x=month_labels,
-                    y=toma_share[brand],
-                    mode="lines",
-                    name=brand,
-                    stackgroup="one",
-                    line=dict(color=BUMP_COLOURS[i % len(BUMP_COLOURS)]),
-                ))
-            fig.update_layout(
-                height=320,
-                yaxis=dict(title="Share of TOMA", tickformat=".0%", gridcolor=CI_LIGHT_GREY),
-                plot_bgcolor=CI_WHITE, paper_bgcolor=CI_WHITE,
-                font=dict(family=FONT, size=11, color=CI_GREY),
-                margin=dict(l=10, r=20, t=10, b=40),
-                legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
-            )
-            st.plotly_chart(fig, use_container_width=True)
+    st.markdown("**Share of Mind (TOMA)**")
 
-    with col_secondary:
-        # TOMA Rankings (Bump chart)
-        st.markdown("**TOMA Rankings**")
-
-        toma_ranks, rank_top_brands = calc_toma_ranks(metrics, top_n=top_n)
-        if toma_ranks is not None and not toma_ranks.empty and rank_top_brands:
-            if "month" in toma_ranks.columns:
-                toma_ranks = toma_ranks.set_index("month")
-            fig = go.Figure()
-            for i, brand in enumerate(rank_top_brands):
-                if brand not in toma_ranks.columns:
-                    continue
-                month_labels = [format_year_month(m) for m in toma_ranks.index]
-                fig.add_trace(go.Scatter(
-                    x=month_labels,
-                    y=toma_ranks[brand],
-                    mode="lines+markers",
-                    name=brand,
-                    line=dict(color=BUMP_COLOURS[i % len(BUMP_COLOURS)], width=2),
-                    marker=dict(size=5),
-                ))
-            fig.update_layout(
-                height=200,
-                yaxis=dict(title="Rank", autorange="reversed", gridcolor=CI_LIGHT_GREY),
-                xaxis=dict(tickangle=-45),
-                plot_bgcolor=CI_WHITE, paper_bgcolor=CI_WHITE,
-                font=dict(family=FONT, size=11, color=CI_GREY),
-                margin=dict(l=10, r=20, t=10, b=60),
-                legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
-            )
-            st.plotly_chart(fig, use_container_width=True)
+    toma_share, top_brands = calc_toma_share(metrics, top_n=top_n)
+    if toma_share is not None and not toma_share.empty and top_brands:
+        if "month" in toma_share.columns:
+            toma_share = toma_share.set_index("month")
+        fig = go.Figure()
+        for i, brand in enumerate(top_brands):
+            if brand not in toma_share.columns:
+                continue
+            month_labels = [format_year_month(m) for m in toma_share.index]
+            fig.add_trace(go.Scatter(
+                x=month_labels,
+                y=toma_share[brand],
+                mode="lines",
+                name=brand,
+                stackgroup="one",
+                line=dict(color=BUMP_COLOURS[i % len(BUMP_COLOURS)]),
+            ))
+        fig.update_layout(
+            height=320,
+            yaxis=dict(title="Share of TOMA", tickformat=".0%", gridcolor=CI_LIGHT_GREY),
+            plot_bgcolor=CI_WHITE, paper_bgcolor=CI_WHITE,
+            font=dict(family=FONT, size=11, color=CI_GREY),
+            margin=dict(l=10, r=20, t=10, b=40),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
+        )
+        st.plotly_chart(fig, use_container_width=True)
 
     render_context_footer(
         screen_name="unprompted_awareness",
