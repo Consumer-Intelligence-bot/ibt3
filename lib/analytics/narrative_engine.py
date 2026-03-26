@@ -109,23 +109,25 @@ def generate_screen_narrative(
         return None
 
     try:
+        import streamlit as st
         import anthropic
         client = anthropic.Anthropic(api_key=api_key)
 
         user_prompt = prompt_template.format(**metrics)
 
-        response = client.messages.create(
-            model=NARRATIVE_MODEL,
-            max_tokens=700,
-            system=(
-                "You write concise market intelligence for UK insurance professionals. "
-                "Follow the fact-observation-prompt pattern. Return only valid JSON. "
-                "CRITICAL: Never speculate about a company's internal decisions, media spend, "
-                "restructuring, mergers, leadership changes, or business strategy. "
-                "Only state what the data shows. Do not infer causes that are not in the data."
-            ),
-            messages=[{"role": "user", "content": user_prompt}],
-        )
+        with st.spinner("Generating insights..."):
+            response = client.messages.create(
+                model=NARRATIVE_MODEL,
+                max_tokens=700,
+                system=(
+                    "You write concise market intelligence for UK insurance professionals. "
+                    "Follow the fact-observation-prompt pattern. Return only valid JSON. "
+                    "CRITICAL: Never speculate about a company's internal decisions, media spend, "
+                    "restructuring, mergers, leadership changes, or business strategy. "
+                    "Only state what the data shows. Do not infer causes that are not in the data."
+                ),
+                messages=[{"role": "user", "content": user_prompt}],
+            )
 
         text = response.content[0].text.strip()
         # Strip markdown fences if present

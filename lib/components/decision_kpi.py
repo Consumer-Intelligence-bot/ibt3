@@ -88,7 +88,7 @@ def decision_kpi(
         f'<div style="'
         f'background:white; border:1px solid {CI_CHARCOAL_20}; '
         f'border-left:4px solid {colour}; border-radius:12px; '
-        f'padding:14px 18px; font-family:{FONT}; '
+        f'padding:14px 18px; min-height:100px; font-family:{FONT}; '
         f'transition:box-shadow 0.2s ease;">'
         f'<div style="font-size:10px; font-weight:600; text-transform:uppercase; '
         f'letter-spacing:0.8px; color:{CI_CHARCOAL_60}; margin-bottom:6px;">{title}</div>'

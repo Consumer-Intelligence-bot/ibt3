@@ -347,6 +347,28 @@ div[data-testid="stExpander"]:hover {{
     color: {CI_CHARCOAL_60} !important;
 }}
 
+/* ── Tab bar buttons ──────────────────────────────────────────── */
+div[data-testid="stHorizontalBlock"] > div > div > button[kind="secondary"] {{
+    background: transparent !important;
+    border: none !important;
+    border-bottom: 2px solid transparent !important;
+    border-radius: 0 !important;
+    color: {CI_CHARCOAL_60} !important;
+    font-weight: 500 !important;
+    font-size: 13px !important;
+    padding: 8px 4px !important;
+}}
+div[data-testid="stHorizontalBlock"] > div > div > button[kind="primary"] {{
+    background: transparent !important;
+    border: none !important;
+    border-bottom: 3px solid {CI_PURPLE} !important;
+    border-radius: 0 !important;
+    color: {CI_CHARCOAL} !important;
+    font-weight: 700 !important;
+    font-size: 13px !important;
+    padding: 8px 4px !important;
+}}
+
 /* ── Plotly chart container spacing ───────────────────────────── */
 .stPlotlyChart {{
     border-radius: 12px;

@@ -113,52 +113,49 @@ def render_narrative_compact(narrative: dict | None, screen_name: str = ""):
     if not headline and not paragraph:
         return
 
-    # Outer container
-    st.markdown(
+    # Build entire narrative as single HTML string to avoid Streamlit
+    # creating separate DOM elements (which caused the "mystery white box").
+    parts = []
+    parts.append(
         f'<div style="'
         f'background:white; border:1px solid {CI_CHARCOAL_20}; '
         f'border-left:4px solid {CI_PURPLE}; border-radius:12px; '
-        f'padding:14px 18px; margin-bottom:12px; font-family:{FONT};">',
-        unsafe_allow_html=True,
+        f'padding:14px 18px; margin-bottom:12px; font-family:{FONT};">'
     )
 
     # Label
-    st.markdown(
+    parts.append(
         f'<div style="font-size:9px; font-weight:700; text-transform:uppercase; '
         f'letter-spacing:1px; color:{CI_CHARCOAL_60}; margin-bottom:6px;">'
-        f'AI Narrative</div>',
-        unsafe_allow_html=True,
+        f'AI Narrative</div>'
     )
 
     # Headline
     if headline:
-        st.markdown(
+        parts.append(
             f'<div style="font-size:17px; font-weight:700; color:{CI_CHARCOAL}; '
-            f'line-height:1.3; margin-bottom:6px;">{headline}</div>',
-            unsafe_allow_html=True,
+            f'line-height:1.3; margin-bottom:6px;">{headline}</div>'
         )
 
     # Subtitle
     if subtitle:
-        st.markdown(
+        parts.append(
             f'<div style="font-size:14px; color:{CI_CHARCOAL_60}; '
-            f'font-style:italic; margin-bottom:8px;">{subtitle}</div>',
-            unsafe_allow_html=True,
+            f'font-style:italic; margin-bottom:8px;">{subtitle}</div>'
         )
 
     # Paragraph
     if paragraph:
-        st.markdown(
+        parts.append(
             f'<div style="font-size:14px; color:{CI_CHARCOAL}; '
-            f'line-height:1.6; margin-bottom:8px;">{paragraph}</div>',
-            unsafe_allow_html=True,
+            f'line-height:1.6; margin-bottom:8px;">{paragraph}</div>'
         )
 
     # Top 2 findings inline
     for finding in findings[:2]:
         fact = finding.get("fact", "")
         observation = finding.get("observation", "")
-        st.markdown(
+        parts.append(
             f'<div style="font-size:13px; color:{CI_CHARCOAL}; '
             f'padding:6px 10px; margin:4px 0; background:{CI_CHARCOAL_20}; '
             f'border-radius:8px;">'
@@ -166,12 +163,11 @@ def render_narrative_compact(narrative: dict | None, screen_name: str = ""):
             f'text-transform:uppercase; letter-spacing:0.5px;">Fact</span> '
             f'{fact}'
             f'{"  —  " + observation if observation else ""}'
-            f'</div>',
-            unsafe_allow_html=True,
+            f'</div>'
         )
 
-    # Close outer container
-    st.markdown('</div>', unsafe_allow_html=True)
+    parts.append('</div>')
+    st.markdown("".join(parts), unsafe_allow_html=True)
 
     # Overflow: remaining findings + data gaps
     remaining_findings = findings[2:]
