@@ -1564,3 +1564,141 @@ class TestKpiVsMarketColour:
         from lib.config import CI_GREEN
         # NPS: insurer=-10, market=-30 → insurer > market → CI_GREEN
         assert kpi_vs_market_colour(-10, -30) == CI_GREEN
+
+
+# ===========================================================================
+# Batch 4: calc_wilson_ci and format_ci_range
+# ===========================================================================
+
+class TestCalcWilsonCI:
+    """lib/analytics/flow_display.py :: calc_wilson_ci"""
+
+    def test_typical_values_returns_tuple(self):
+        """50 successes from 100 trials should return a tuple of two floats."""
+        from lib.analytics.flow_display import calc_wilson_ci
+        result = calc_wilson_ci(50, 100)
+        assert result is not None
+        lower, upper = result
+        assert isinstance(lower, float)
+        assert isinstance(upper, float)
+
+    def test_lower_lt_point_estimate_lt_upper(self):
+        """CI bounds must straddle the point estimate."""
+        from lib.analytics.flow_display import calc_wilson_ci
+        lower, upper = calc_wilson_ci(50, 100)
+        point = 50 / 100
+        assert lower < point < upper
+
+    def test_bounds_are_proportions(self):
+        """Both bounds must be in [0, 1]."""
+        from lib.analytics.flow_display import calc_wilson_ci
+        lower, upper = calc_wilson_ci(50, 100)
+        assert 0.0 <= lower <= 1.0
+        assert 0.0 <= upper <= 1.0
+
+    def test_n_zero_returns_none(self):
+        """n=0 is a division-by-zero case: must return None."""
+        from lib.analytics.flow_display import calc_wilson_ci
+        assert calc_wilson_ci(0, 0) is None
+
+    def test_zero_successes(self):
+        """0 successes from 100 trials: lower should be 0.0."""
+        from lib.analytics.flow_display import calc_wilson_ci
+        result = calc_wilson_ci(0, 100)
+        assert result is not None
+        lower, upper = result
+        assert lower == pytest.approx(0.0, abs=1e-9)
+        assert upper > 0.0
+
+    def test_all_successes(self):
+        """100 successes from 100 trials: upper should be 1.0."""
+        from lib.analytics.flow_display import calc_wilson_ci
+        result = calc_wilson_ci(100, 100)
+        assert result is not None
+        lower, upper = result
+        assert upper == pytest.approx(1.0, abs=1e-9)
+        assert lower < 1.0
+
+    def test_known_values_approx(self):
+        """
+        Wilson CI for 500/1000 at z=1.96.
+        Expected: (0.4690, 0.5310) to 3 d.p.
+        Reference: computed manually.
+        """
+        from lib.analytics.flow_display import calc_wilson_ci
+        lower, upper = calc_wilson_ci(500, 1000)
+        assert lower == pytest.approx(0.4690, abs=0.001)
+        assert upper == pytest.approx(0.5310, abs=0.001)
+
+    def test_custom_z_widens_interval(self):
+        """Higher z value (e.g. 2.576 for 99% CI) must produce wider interval."""
+        from lib.analytics.flow_display import calc_wilson_ci
+        lo_95, hi_95 = calc_wilson_ci(50, 100, z=1.96)
+        lo_99, hi_99 = calc_wilson_ci(50, 100, z=2.576)
+        assert lo_99 < lo_95
+        assert hi_99 > hi_95
+
+    def test_n_one_success_one(self):
+        """Boundary: n=1, k=1 (point estimate=1.0) returns valid CI."""
+        from lib.analytics.flow_display import calc_wilson_ci
+        result = calc_wilson_ci(1, 1)
+        assert result is not None
+        lower, upper = result
+        assert 0.0 <= lower <= 1.0
+        assert upper == pytest.approx(1.0, abs=1e-9)
+
+    def test_n_one_success_zero(self):
+        """Boundary: n=1, k=0 (point estimate=0.0) returns valid CI."""
+        from lib.analytics.flow_display import calc_wilson_ci
+        result = calc_wilson_ci(0, 1)
+        assert result is not None
+        lower, upper = result
+        assert lower == pytest.approx(0.0, abs=1e-9)
+        assert 0.0 <= upper <= 1.0
+
+    def test_large_n_narrow_interval(self):
+        """Large n → very narrow CI (well under 0.01 wide)."""
+        from lib.analytics.flow_display import calc_wilson_ci
+        lower, upper = calc_wilson_ci(5000, 10000)
+        assert (upper - lower) < 0.02
+
+
+class TestFormatCIRange:
+    """lib/analytics/flow_display.py :: format_ci_range"""
+
+    def test_basic_format(self):
+        """Returns 'X%–Y%' format with one decimal place."""
+        from lib.analytics.flow_display import format_ci_range
+        result = format_ci_range(0.535, 0.575)
+        assert result == "53.5%\u201357.5%"
+
+    def test_rounded_values(self):
+        """Handles values that round cleanly."""
+        from lib.analytics.flow_display import format_ci_range
+        result = format_ci_range(0.40, 0.60)
+        assert result == "40.0%\u201360.0%"
+
+    def test_zero_lower(self):
+        """Lower bound of 0.0 formats as '0.0%'."""
+        from lib.analytics.flow_display import format_ci_range
+        result = format_ci_range(0.0, 0.05)
+        assert result == "0.0%\u20135.0%"
+
+    def test_near_one_upper(self):
+        """Upper bound near 1.0 formats correctly."""
+        from lib.analytics.flow_display import format_ci_range
+        result = format_ci_range(0.95, 1.0)
+        assert result == "95.0%\u2013100.0%"
+
+    def test_uses_en_dash_not_hyphen(self):
+        """Separator must be an en dash (U+2013), not a plain hyphen."""
+        from lib.analytics.flow_display import format_ci_range
+        result = format_ci_range(0.4, 0.6)
+        assert "\u2013" in result
+        assert "-" not in result
+
+    def test_equal_bounds(self):
+        """Equal lower and upper (degenerate CI) still formats without error."""
+        from lib.analytics.flow_display import format_ci_range
+        result = format_ci_range(0.5, 0.5)
+        assert result == "50.0%\u201350.0%"
