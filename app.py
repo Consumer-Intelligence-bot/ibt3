@@ -33,7 +33,7 @@ from lib.formatting import render_header
 from lib.state import load_from_db
 
 st.set_page_config(
-    page_title="Consumer Intelligence",
+    page_title="IBT3 Portal — Consumer Intelligence",
     page_icon="\U0001F4CA",
     layout="wide",
 )
