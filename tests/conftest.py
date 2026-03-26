@@ -154,6 +154,82 @@ def awareness_df_small():
 
 
 # ---------------------------------------------------------------------------
+# Awareness funnel fixture (Q2 prompted + Q27 consideration + Q1 spontaneous)
+# ---------------------------------------------------------------------------
+
+def _make_funnel_df(n_per_month: int = 60, months: list[int] | None = None) -> pd.DataFrame:
+    """
+    Build a wide-format DataFrame that includes:
+      - Q1_pos* columns (unprompted/spontaneous)
+      - Q2_ boolean columns (prompted awareness)
+      - Q27_ boolean columns (consideration)
+
+    Rates are set so funnel narrows: unprompted < prompted < consideration
+    by construction (Aviva: ~50% TOMA, ~80% prompted, ~60% consideration).
+    """
+    if months is None:
+        months = [202401, 202402]
+
+    rng = np.random.default_rng(99)
+    rows = []
+    uid = 1
+    for month in months:
+        for _ in range(n_per_month):
+            # Q1 spontaneous (position columns)
+            q1_pos1a = rng.choice(["Aviva", "Admiral", "Direct Line", ""], p=[0.45, 0.25, 0.15, 0.15])
+            q1_pos2a = rng.choice(["Aviva", "Admiral", "Direct Line", ""], p=[0.15, 0.25, 0.30, 0.30])
+
+            # Q2 prompted (boolean, higher rates than spontaneous)
+            q2_aviva = bool(rng.random() < 0.80)
+            q2_admiral = bool(rng.random() < 0.70)
+            q2_dl = bool(rng.random() < 0.60)
+            if not any([q2_aviva, q2_admiral, q2_dl]):
+                q2_aviva = True
+
+            # Q27 consideration (boolean, lower rates than prompted)
+            q27_aviva = bool(rng.random() < 0.55)
+            q27_admiral = bool(rng.random() < 0.45)
+            q27_dl = bool(rng.random() < 0.35)
+            if not any([q27_aviva, q27_admiral, q27_dl]):
+                q27_aviva = True
+
+            rows.append({
+                "UniqueID": uid,
+                "RenewalYearMonth": month,
+                "Product": "Motor",
+                "Q1_pos1a": q1_pos1a if q1_pos1a else None,
+                "Q1_pos1b": None,
+                "Q1_pos2a": q1_pos2a if q1_pos2a else None,
+                "Q1_pos2b": None,
+                "Q2_Aviva": q2_aviva,
+                "Q2_Admiral": q2_admiral,
+                "Q2_Direct Line": q2_dl,
+                "Q27_Aviva": q27_aviva,
+                "Q27_Admiral": q27_admiral,
+                "Q27_Direct Line": q27_dl,
+            })
+            uid += 1
+
+    df = pd.DataFrame(rows)
+    for col in ["Q2_Aviva", "Q2_Admiral", "Q2_Direct Line",
+                "Q27_Aviva", "Q27_Admiral", "Q27_Direct Line"]:
+        df[col] = df[col].astype(bool)
+    return df
+
+
+@pytest.fixture
+def funnel_df():
+    """Multi-month funnel DataFrame with Q1, Q2, Q27 columns."""
+    return _make_funnel_df(n_per_month=60)
+
+
+@pytest.fixture
+def funnel_df_single_month():
+    """Single-month funnel DataFrame."""
+    return _make_funnel_df(n_per_month=60, months=[202401])
+
+
+# ---------------------------------------------------------------------------
 # Spontaneous awareness fixture (Q1 position columns)
 # ---------------------------------------------------------------------------
 

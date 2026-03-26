@@ -480,6 +480,141 @@ def calc_most_improved_enriched(
     }
 
 
+def calc_awareness_funnel(
+    df_main: pd.DataFrame,
+    brands: list[str],
+    product: str = "Motor",
+) -> pd.DataFrame:
+    """
+    Awareness funnel rates per brand across three stages.
+
+    Aggregates data across all months in df_main (no per-month split).
+
+    Parameters
+    ----------
+    df_main : pd.DataFrame
+        Wide-format respondent data with Q1_pos*, Q2_*, Q27_* columns.
+    brands : list[str]
+        Brand names to include in the funnel.
+    product : str
+        Product context: 'Motor', 'Home', or 'Pet'. Used to resolve Q-codes.
+
+    Returns
+    -------
+    pd.DataFrame with columns:
+        brand, unprompted, prompted, consideration
+    All values are proportions (0–1). Missing data yields NaN for that stage.
+    """
+    if df_main is None or df_main.empty or not brands:
+        return pd.DataFrame(columns=["brand", "unprompted", "prompted", "consideration"])
+
+    levels = AWARENESS_LEVELS.get(product, _DEFAULT_LEVELS)
+    prompted_q = levels.get("prompted")
+    consideration_q = levels.get("consideration")
+
+    # --- Unprompted: derive from Q1 position columns ---
+    # Denominator: respondents with at least one non-null Q1 position
+    pos_cols = [c for c in df_main.columns if c.startswith("Q1_pos")]
+    unprompted_rates: dict[str, float | None] = {}
+
+    if pos_cols:
+        # Flag each respondent as having answered
+        def _has_answer(row) -> bool:
+            return any(
+                pd.notna(v) and str(v).strip() not in ("", "nan", "None", "False")
+                for v in row
+            )
+        answered_mask = df_main[pos_cols].apply(_has_answer, axis=1)
+        n_total = int(answered_mask.sum())
+
+        if n_total >= SYSTEM_FLOOR_N:
+            # Collect all text mentions per respondent across all pos cols
+            all_mentions = pd.concat(
+                [df_main[c].astype(str).str.strip() for c in pos_cols],
+                axis=1,
+            )
+            for brand in brands:
+                n_mention = int((all_mentions == brand).any(axis=1).sum())
+                # Return NaN if brand never appeared — cannot distinguish
+                # "zero awareness" from "brand not in survey universe"
+                unprompted_rates[brand] = (n_mention / n_total) if n_mention > 0 else None
+        else:
+            for brand in brands:
+                unprompted_rates[brand] = None
+    else:
+        for brand in brands:
+            unprompted_rates[brand] = None
+
+    # --- Prompted: Q2_ boolean columns ---
+    prompted_rates: dict[str, float | None] = {}
+    if prompted_q:
+        prompt_cols = _brand_cols_for_q(df_main, prompted_q)
+        if prompt_cols:
+            answered = df_main[prompt_cols].any(axis=1)
+            n_total = int(answered.sum())
+            prefix = f"{prompted_q}_"
+            for brand in brands:
+                col = f"{prefix}{brand}"
+                if col in df_main.columns and n_total >= SYSTEM_FLOOR_N:
+                    n_mention = int(df_main[col].sum())
+                    prompted_rates[brand] = n_mention / n_total
+                else:
+                    prompted_rates[brand] = None
+        else:
+            for brand in brands:
+                prompted_rates[brand] = None
+    else:
+        for brand in brands:
+            prompted_rates[brand] = None
+
+    # --- Consideration: Q27_ boolean columns ---
+    consideration_rates: dict[str, float | None] = {}
+    if consideration_q:
+        consid_cols = _brand_cols_for_q(df_main, consideration_q)
+        if consid_cols:
+            answered = df_main[consid_cols].any(axis=1)
+            n_total = int(answered.sum())
+            prefix = f"{consideration_q}_"
+            for brand in brands:
+                col = f"{prefix}{brand}"
+                if col in df_main.columns and n_total >= SYSTEM_FLOOR_N:
+                    n_mention = int(df_main[col].sum())
+                    consideration_rates[brand] = n_mention / n_total
+                else:
+                    consideration_rates[brand] = None
+        else:
+            for brand in brands:
+                consideration_rates[brand] = None
+    else:
+        for brand in brands:
+            consideration_rates[brand] = None
+
+    rows = []
+    for brand in brands:
+        rows.append({
+            "brand": brand,
+            "unprompted": unprompted_rates.get(brand),
+            "prompted": prompted_rates.get(brand),
+            "consideration": consideration_rates.get(brand),
+        })
+
+    return pd.DataFrame(rows)
+
+
+def _brand_cols_for_q(df: pd.DataFrame, q_code: str) -> list[str]:
+    """Return boolean columns for a question code (without modifying global state)."""
+    prefix = f"{q_code}_"
+    return [
+        c for c in df.columns
+        if c.startswith(prefix)
+        and not c.startswith(f"{q_code}_pos")
+        and not c.startswith(f"{q_code}_{{")
+        and c != f"{q_code}_Other"
+        and c != f"{q_code}_None of these"
+        and pd.api.types.is_bool_dtype(df[c])
+    ]
+
+
 def apply_movement_filters(
     comparison: pd.DataFrame,
     *,

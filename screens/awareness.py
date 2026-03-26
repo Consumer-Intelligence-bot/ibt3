@@ -15,6 +15,7 @@ import streamlit as st
 from lib.analytics.narrative_engine import generate_screen_narrative
 from lib.analytics.awareness import (
     AWARENESS_LEVELS,
+    calc_awareness_funnel,
     calc_awareness_movers,
     calc_awareness_rates,
     calc_awareness_slopegraph,
@@ -236,6 +237,62 @@ def _render_market_prompted(df_main, level, product, period, n):
     )
 
 
+def _render_awareness_funnel(funnel_df: "pd.DataFrame", primary_brand: str, compare_brand: str | None = None) -> None:
+    """
+    Render a grouped horizontal bar chart showing the awareness funnel.
+
+    Shows three stages per brand: Unprompted -> Prompted -> Consideration.
+    Uses CI brand colours. If compare_brand is provided, renders both brands.
+    """
+    import plotly.graph_objects as go
+
+    brands_to_show = [b for b in [primary_brand, compare_brand] if b is not None]
+    if funnel_df is None or funnel_df.empty:
+        st.info("No funnel data available.")
+        return
+
+    filtered = funnel_df[funnel_df["brand"].isin(brands_to_show)]
+    if filtered.empty:
+        st.info("No funnel data for selected brands.")
+        return
+
+    stage_labels = ["Unprompted", "Prompted", "Consideration"]
+    stage_cols = ["unprompted", "prompted", "consideration"]
+
+    # CI colours for primary and comparison brands
+    brand_colours = [CI_MAGENTA, CI_VIOLET]
+
+    fig = go.Figure()
+    for i, (_, row) in enumerate(filtered.iterrows()):
+        colour = brand_colours[i % len(brand_colours)]
+        brand_label = row["brand"]
+        values = [row.get(c) for c in stage_cols]
+        text_labels = [f"{v:.0%}" if v is not None and not (v != v) else "n/a" for v in values]
+
+        fig.add_trace(go.Bar(
+            name=brand_label,
+            x=[v if v is not None and not (v != v) else 0 for v in values],
+            y=stage_labels,
+            orientation="h",
+            marker_color=colour,
+            text=text_labels,
+            textposition="outside",
+            opacity=1.0 if i == 0 else 0.7,
+        ))
+
+    fig.update_layout(
+        barmode="group",
+        height=220,
+        margin=dict(l=10, r=70, t=10, b=30),
+        font=dict(family=FONT, size=11, color=CI_GREY),
+        plot_bgcolor=CI_WHITE,
+        paper_bgcolor=CI_WHITE,
+        xaxis=dict(tickformat=".0%", range=[0, 1.05], gridcolor=CI_LIGHT_GREY),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+
 def _render_insurer_prompted(df_main, insurer, level, product, period, n):
     """Insurer-level prompted awareness."""
     rates = calc_awareness_rates(df_main, level)
@@ -368,6 +425,32 @@ def _render_insurer_prompted(df_main, insurer, level, product, period, n):
         if st.button("View Switching & Flows", key="awareness_to_switching"):
             from lib.state import navigate_to
             navigate_to("switching")
+
+    # --- Awareness Funnel section ---
+    st.divider()
+    st.markdown("### Awareness Funnel")
+    st.caption(
+        "Shows how brand awareness narrows from unprompted recall through to "
+        "consideration. Unprompted = spontaneous Q1 mention rate. "
+        "Prompted = Q2. Consideration = Q27."
+    )
+
+    # Comparison brand selector (scoped to awareness screen)
+    available_brands = sorted(rates["brand"].unique().tolist())
+    other_brands = [b for b in available_brands if b != insurer]
+    compare_options = ["None"] + other_brands
+    compare_brand = st.selectbox(
+        "Compare with",
+        options=compare_options,
+        index=0,
+        key="awareness_funnel_compare",
+        help="Select a second brand to compare in the funnel chart.",
+    )
+    compare_brand_value = compare_brand if compare_brand != "None" else None
+
+    brands_for_funnel = [insurer] + ([compare_brand_value] if compare_brand_value else [])
+    funnel_data = calc_awareness_funnel(df_main, brands_for_funnel, product=product)
+    _render_awareness_funnel(funnel_data, insurer, compare_brand_value)
 
     render_context_footer(
         screen_name="awareness_insurer",

@@ -2679,3 +2679,159 @@ class TestFormatCIRange:
         from lib.analytics.flow_display import format_ci_range
         result = format_ci_range(0.5, 0.5)
         assert result == "50.0%\u201350.0%"
+
+
+# ===========================================================================
+# Batch 6 — calc_awareness_funnel
+# ===========================================================================
+
+class TestCalcAwarenessFunnel:
+    """
+    lib/analytics/awareness.py :: calc_awareness_funnel
+
+    Tests for Feature 6.1: Awareness Funnel.
+    Each brand row has three proportions:
+      unprompted (Q1 mention rate), prompted (Q2), consideration (Q27).
+    """
+
+    def test_returns_dataframe(self, funnel_df):
+        """Function must return a pandas DataFrame."""
+        from lib.analytics.awareness import calc_awareness_funnel
+        result = calc_awareness_funnel(funnel_df, ["Aviva", "Admiral"])
+        assert isinstance(result, pd.DataFrame)
+
+    def test_expected_columns(self, funnel_df):
+        """Result must have brand, unprompted, prompted, consideration columns."""
+        from lib.analytics.awareness import calc_awareness_funnel
+        result = calc_awareness_funnel(funnel_df, ["Aviva"])
+        assert set(result.columns) >= {"brand", "unprompted", "prompted", "consideration"}
+
+    def test_one_row_per_brand(self, funnel_df):
+        """Result has exactly one row per requested brand."""
+        from lib.analytics.awareness import calc_awareness_funnel
+        brands = ["Aviva", "Admiral", "Direct Line"]
+        result = calc_awareness_funnel(funnel_df, brands)
+        assert len(result) == len(brands)
+        assert set(result["brand"]) == set(brands)
+
+    def test_values_between_zero_and_one(self, funnel_df):
+        """All rate values must be proportions in [0, 1]."""
+        from lib.analytics.awareness import calc_awareness_funnel
+        result = calc_awareness_funnel(funnel_df, ["Aviva", "Admiral", "Direct Line"])
+        for col in ["unprompted", "prompted", "consideration"]:
+            valid = result[col].dropna()
+            assert (valid >= 0.0).all(), f"{col} has values below 0"
+            assert (valid <= 1.0).all(), f"{col} has values above 1"
+
+    def test_prompted_exceeds_consideration(self, funnel_df):
+        """
+        For brands with sufficient data, prompted >= consideration is expected
+        (funnel narrows). Test at aggregate level across all brands.
+        """
+        from lib.analytics.awareness import calc_awareness_funnel
+        result = calc_awareness_funnel(funnel_df, ["Aviva", "Admiral", "Direct Line"])
+        for _, row in result.iterrows():
+            if pd.notna(row["prompted"]) and pd.notna(row["consideration"]):
+                assert row["prompted"] >= row["consideration"] - 0.05, (
+                    f"{row['brand']}: prompted={row['prompted']:.3f} < "
+                    f"consideration={row['consideration']:.3f} by more than tolerance"
+                )
+
+    def test_empty_dataframe_returns_empty(self):
+        """Empty input DataFrame returns an empty result."""
+        from lib.analytics.awareness import calc_awareness_funnel
+        result = calc_awareness_funnel(pd.DataFrame(), ["Aviva"])
+        assert isinstance(result, pd.DataFrame)
+        assert result.empty
+
+    def test_unknown_brand_returns_nan(self, funnel_df):
+        """A brand not in any data column returns NaN for all rate columns."""
+        from lib.analytics.awareness import calc_awareness_funnel
+        result = calc_awareness_funnel(funnel_df, ["NonExistentInsurer"])
+        assert len(result) == 1
+        row = result.iloc[0]
+        assert row["brand"] == "NonExistentInsurer"
+        for col in ["unprompted", "prompted", "consideration"]:
+            assert pd.isna(row[col]), f"{col} should be NaN for unknown brand"
+
+    def test_mixed_known_and_unknown_brands(self, funnel_df):
+        """Known brands get values; unknown brand gets NaN."""
+        from lib.analytics.awareness import calc_awareness_funnel
+        result = calc_awareness_funnel(funnel_df, ["Aviva", "Ghost Brand"])
+        assert len(result) == 2
+        aviva_row = result[result["brand"] == "Aviva"].iloc[0]
+        ghost_row = result[result["brand"] == "Ghost Brand"].iloc[0]
+        assert pd.notna(aviva_row["prompted"])
+        assert pd.isna(ghost_row["prompted"])
+
+    def test_single_brand(self, funnel_df):
+        """Works correctly when only one brand is requested."""
+        from lib.analytics.awareness import calc_awareness_funnel
+        result = calc_awareness_funnel(funnel_df, ["Aviva"])
+        assert len(result) == 1
+        assert result.iloc[0]["brand"] == "Aviva"
+
+    def test_empty_brand_list_returns_empty(self, funnel_df):
+        """Empty brand list returns empty DataFrame."""
+        from lib.analytics.awareness import calc_awareness_funnel
+        result = calc_awareness_funnel(funnel_df, [])
+        assert isinstance(result, pd.DataFrame)
+        assert result.empty
+
+    def test_product_motor_default(self, funnel_df):
+        """Default product=Motor resolves Q2/Q27 correctly."""
+        from lib.analytics.awareness import calc_awareness_funnel
+        result = calc_awareness_funnel(funnel_df, ["Aviva"], product="Motor")
+        assert len(result) == 1
+        assert pd.notna(result.iloc[0]["prompted"])
+
+    def test_no_q1_cols_returns_nan_unprompted(self):
+        """DataFrame with no Q1 columns produces NaN for unprompted."""
+        import numpy as np
+        from lib.analytics.awareness import calc_awareness_funnel
+
+        rng = np.random.default_rng(1)
+        df = pd.DataFrame({
+            "UniqueID": range(50),
+            "RenewalYearMonth": [202401] * 50,
+            "Q2_Aviva": rng.random(50) < 0.8,
+            "Q27_Aviva": rng.random(50) < 0.5,
+        })
+        df["Q2_Aviva"] = df["Q2_Aviva"].astype(bool)
+        df["Q27_Aviva"] = df["Q27_Aviva"].astype(bool)
+        result = calc_awareness_funnel(df, ["Aviva"])
+        assert len(result) == 1
+        assert pd.isna(result.iloc[0]["unprompted"])
+        assert pd.notna(result.iloc[0]["prompted"])
+
+    def test_no_q27_cols_returns_nan_consideration(self):
+        """DataFrame with no Q27 columns produces NaN for consideration."""
+        import numpy as np
+        from lib.analytics.awareness import calc_awareness_funnel
+
+        rng = np.random.default_rng(2)
+        df = pd.DataFrame({
+            "UniqueID": range(50),
+            "RenewalYearMonth": [202401] * 50,
+            "Q2_Aviva": rng.random(50) < 0.8,
+        })
+        df["Q2_Aviva"] = df["Q2_Aviva"].astype(bool)
+        result = calc_awareness_funnel(df, ["Aviva"])
+        assert len(result) == 1
+        assert pd.isna(result.iloc[0]["consideration"])
+        assert pd.notna(result.iloc[0]["prompted"])
+
+    def test_multiple_months_aggregated(self, funnel_df):
+        """Multi-month data is aggregated into a single rate per brand."""
+        from lib.analytics.awareness import calc_awareness_funnel
+        result = calc_awareness_funnel(funnel_df, ["Aviva"])
+        # Should return one row, not one per month
+        assert len(result) == 1
+
+    def test_aviva_rates_plausible(self, funnel_df):
+        """Aviva should have positive rates given fixture design."""
+        from lib.analytics.awareness import calc_awareness_funnel
+        result = calc_awareness_funnel(funnel_df, ["Aviva"])
+        row = result.iloc[0]
+        assert row["prompted"] > 0.1, "Aviva prompted awareness should be substantial"
+        assert row["consideration"] > 0.0, "Aviva consideration should be positive"
