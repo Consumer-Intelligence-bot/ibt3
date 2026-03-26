@@ -60,6 +60,16 @@ def period_label(selected_months):
     return f"{start} \u2013 {end}"
 
 
+def fmt_year_month_list(months: list[int]) -> str:
+    """
+    Format a list of YYYYMM integers as a human-readable string.
+
+    Example: [202403, 202404] -> "Mar 2024, Apr 2024"
+    """
+    from lib.state import format_year_month
+    return ", ".join(format_year_month(m) for m in sorted(months))
+
+
 def card_html(title, value, subtitle="", colour=None):
     """Render a styled metric card as HTML."""
     from lib.config import CI_MAGENTA

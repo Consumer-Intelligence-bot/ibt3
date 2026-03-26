@@ -12,6 +12,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+from lib.analytics.completeness import filter_complete_months, get_incomplete_months
 from lib.analytics.narrative_engine import generate_screen_narrative
 from lib.analytics.awareness import (
     AWARENESS_LEVELS,
@@ -132,6 +133,10 @@ def _render_market_prompted(df_main, level, product, period, n):
         n_market=n,
     )
 
+    # Suppress incomplete trailing months before trend computation
+    incomplete_months = get_incomplete_months(df_main)
+    df_main = filter_complete_months(df_main)
+
     # Awareness rates by brand
     rates = calc_awareness_rates(df_main, level)
     if rates.empty:
@@ -198,6 +203,12 @@ def _render_market_prompted(df_main, level, product, period, n):
             )
             st.plotly_chart(fig, use_container_width=True)
 
+    if incomplete_months:
+        from lib.formatting import fmt_year_month_list
+        st.caption(
+            f"Note: {fmt_year_month_list(incomplete_months)} excluded due to incomplete fieldwork."
+        )
+
     # Period comparison stays below the main layout
     st.markdown("**Period Comparison**")
     periods = render_dual_period_selector()
@@ -238,6 +249,10 @@ def _render_market_prompted(df_main, level, product, period, n):
 
 def _render_insurer_prompted(df_main, insurer, level, product, period, n):
     """Insurer-level prompted awareness."""
+    # Suppress incomplete trailing months before trend computation
+    incomplete_months = get_incomplete_months(df_main)
+    df_main = filter_complete_months(df_main)
+
     rates = calc_awareness_rates(df_main, level)
     if rates.empty:
         st.warning("No awareness data available.")
@@ -348,6 +363,11 @@ def _render_insurer_prompted(df_main, insurer, level, product, period, n):
             legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
         )
         st.plotly_chart(fig, use_container_width=True)
+        if incomplete_months:
+            from lib.formatting import fmt_year_month_list
+            st.caption(
+                f"Note: {fmt_year_month_list(incomplete_months)} excluded due to incomplete fieldwork."
+            )
 
     with col_secondary:
         # Slopegraph KPIs
@@ -397,6 +417,10 @@ def _render_unprompted(df_motor, filters):
     if df_main.empty:
         st.warning("No data for selected filters.")
         return
+
+    # Suppress incomplete trailing months before trend computation
+    incomplete_months = get_incomplete_months(df_main)
+    df_main = filter_complete_months(df_main)
 
     # Check for Q1 data
     q1_cols = [c for c in df_main.columns if c.startswith("Q1_") and not c.startswith("Q1_{")]
@@ -483,6 +507,12 @@ def _render_unprompted(df_motor, filters):
             legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
         )
         st.plotly_chart(fig, use_container_width=True)
+
+    if incomplete_months:
+        from lib.formatting import fmt_year_month_list
+        st.caption(
+            f"Note: {fmt_year_month_list(incomplete_months)} excluded due to incomplete fieldwork."
+        )
 
     render_context_footer(
         screen_name="unprompted_awareness",
