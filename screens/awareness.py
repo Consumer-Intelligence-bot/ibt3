@@ -23,7 +23,6 @@ from lib.analytics.awareness import (
 )
 from lib.analytics.demographics import apply_filters
 from lib.analytics.spontaneous import (
-    calc_salience_gap,
     calc_spontaneous_metrics,
     calc_toma_ranks,
     calc_toma_share,
@@ -67,7 +66,7 @@ def render(filters: dict):
     # Sub-view selector
     view = st.radio(
         "Awareness type",
-        ["Prompted & Consideration", "Unprompted (Q1)"],
+        ["Prompted Awareness", "Unprompted (Q1)"],
         horizontal=True,
         key="awareness_view_radio",
     )
@@ -191,9 +190,10 @@ def _render_market_prompted(df_main, level, product, period, n):
             fig.update_layout(
                 height=300,
                 yaxis=dict(title="Awareness Rate", tickformat=".0%", gridcolor=CI_LIGHT_GREY),
+                xaxis=dict(tickangle=-45),
                 plot_bgcolor=CI_WHITE, paper_bgcolor=CI_WHITE,
                 font=dict(family=FONT, size=11, color=CI_GREY),
-                margin=dict(l=10, r=20, t=10, b=40),
+                margin=dict(l=10, r=20, t=10, b=60),
                 legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
             )
             st.plotly_chart(fig, use_container_width=True)
@@ -260,10 +260,13 @@ def _render_insurer_prompted(df_main, insurer, level, product, period, n):
     avg_rate = 0.0
     total_brands = len(latest_all)
 
+    leader_brand = ""
     if not ins_latest.empty:
         ins_rate = ins_latest.iloc[0]["rate"]
         ins_rank = latest_all.index.get_loc(ins_latest.index[0]) + 1 if ins_latest.index[0] in latest_all.index else None
         avg_rate = latest_all["rate"].mean()
+        if not latest_all.empty:
+            leader_brand = latest_all.iloc[0]["brand"]
 
     render_context_bar(
         "Awareness & Consideration",
@@ -307,8 +310,8 @@ def _render_insurer_prompted(df_main, insurer, level, product, period, n):
         },
         {
             "title": "Rank",
-            "value": f"{ins_rank}" if ins_rank else "\u2014",
-            "change": f"of {total_brands} brands",
+            "value": f"#{ins_rank}" if ins_rank else "\u2014",
+            "change": f"of {total_brands} ({leader_brand} is #1)" if leader_brand and leader_brand != insurer else f"of {total_brands} brands",
             "colour": CI_GREY,
         },
     ])
@@ -418,6 +421,9 @@ def _render_unprompted(df_motor, filters):
         st.warning("Unable to compute Q1 metrics.")
         return
 
+    # Top-N control
+    top_n = st.slider("Number of brands to display", min_value=5, max_value=20, value=10, key="toma_top_n")
+
     # --- Primary (70%) / Secondary (30%) layout ---
     col_primary, col_secondary = st.columns([7, 3])
 
@@ -425,7 +431,7 @@ def _render_unprompted(df_motor, filters):
         # TOMA Share
         st.markdown("**Share of Mind (TOMA)**")
 
-        toma_share, top_brands = calc_toma_share(metrics)
+        toma_share, top_brands = calc_toma_share(metrics, top_n=top_n)
         if toma_share is not None and not toma_share.empty and top_brands:
             if "month" in toma_share.columns:
                 toma_share = toma_share.set_index("month")
@@ -456,7 +462,7 @@ def _render_unprompted(df_motor, filters):
         # TOMA Rankings (Bump chart)
         st.markdown("**TOMA Rankings**")
 
-        toma_ranks, rank_top_brands = calc_toma_ranks(metrics)
+        toma_ranks, rank_top_brands = calc_toma_ranks(metrics, top_n=top_n)
         if toma_ranks is not None and not toma_ranks.empty and rank_top_brands:
             if "month" in toma_ranks.columns:
                 toma_ranks = toma_ranks.set_index("month")
@@ -476,38 +482,13 @@ def _render_unprompted(df_motor, filters):
             fig.update_layout(
                 height=200,
                 yaxis=dict(title="Rank", autorange="reversed", gridcolor=CI_LIGHT_GREY),
+                xaxis=dict(tickangle=-45),
                 plot_bgcolor=CI_WHITE, paper_bgcolor=CI_WHITE,
                 font=dict(family=FONT, size=11, color=CI_GREY),
-                margin=dict(l=10, r=20, t=10, b=40),
+                margin=dict(l=10, r=20, t=10, b=60),
                 legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
             )
             st.plotly_chart(fig, use_container_width=True)
-
-    # Salience Gap stays below the main layout
-    st.markdown("**Salience Gap: Total Awareness vs TOMA**")
-
-    salience = calc_salience_gap(metrics)
-    if salience is not None and not salience.empty:
-        fig = go.Figure(go.Scatter(
-            x=salience["mention_pct"],
-            y=salience["toma_pct"],
-            mode="markers+text",
-            text=salience["brand"],
-            textposition="top center",
-            marker=dict(size=10, color=CI_MAGENTA),
-            textfont=dict(size=9, family=FONT),
-        ))
-        fig.add_shape(type="line", x0=0, y0=0, x1=1, y1=1, line=dict(dash="dot", color=CI_GREY))
-        fig.update_layout(
-            height=320,
-            xaxis=dict(title="Total Mention Rate", tickformat=".0%"),
-            yaxis=dict(title="TOMA Rate", tickformat=".0%"),
-            plot_bgcolor=CI_WHITE, paper_bgcolor=CI_WHITE,
-            font=dict(family=FONT, size=11, color=CI_GREY),
-            margin=dict(l=10, r=20, t=10, b=40),
-        )
-        st.plotly_chart(fig, use_container_width=True)
-        st.caption("Brands above the diagonal have disproportionately high top-of-mind awareness relative to total mentions.")
 
     render_context_footer(
         screen_name="unprompted_awareness",

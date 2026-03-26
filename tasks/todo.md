@@ -224,18 +224,18 @@
 
 #### Screen 1: Awareness & Consideration
 
-- [ ] **Fix 12,000% share of TOM:** Calculation bug producing nonsense percentage
-- [ ] **Restore top-N slider:** Default to top 10, allow user to adjust (top 8 is a weird metric)
-- [ ] **Ranking chart date labels:** Rotate so dates read bottom-to-top (March at bottom, year at top)
-- [ ] **Remove or fix TOM vs Total scatter:** Unreadable (black dots, can't read brand names, no brands above diagonal). Consider removing entirely
-- [ ] **Fix sub-tab naming:** "Prompted and Consideration" vs "Awareness and Consideration" inconsistency. Pick one label
+- [x] **Fix 12,000% share of TOM:** Calculation bug producing nonsense percentage
+- [x] **Restore top-N slider:** Default to top 10, allow user to adjust (top 8 is a weird metric)
+- [x] **Ranking chart date labels:** Rotated -45 degrees for readability
+- [x] **Remove or fix TOM vs Total scatter:** Removed (unreadable, agreed not needed)
+- [x] **Fix sub-tab naming:** Renamed to "Prompted Awareness" / "Unprompted (Q1)"
 - [ ] **Remove mystery white box:** Unexplained white box with purple border below tab header
-- [ ] **Increase narrative font size:** Same issue as Pre-Renewal
+- [x] **Increase narrative font size:** Same issue as Pre-Renewal
 - [ ] **Rewrite prompted awareness headline:** Make plain English, less clunky
 - [ ] **Equalise KPI box sizes:** "Aviva Awareness 63.3" and "Market Average 22.4" boxes should be same width
-- [ ] **Show who is #1:** If narrative says "second place," always state who is first
-- [ ] **Fix period comparison key error:** "change PP" key error appearing on screen
-- [ ] **Fix age band filter:** Changing age band slider does not update awareness ranking
+- [x] **Show who is #1:** If narrative says "second place," always state who is first
+- [x] **Fix period comparison key error:** "change PP" key error appearing on screen
+- [x] **Fix age band filter:** Changing age band slider does not update awareness ranking
 - [ ] **Multi-select demographic filters:** Replace sliders with multi-select dropdowns (see A10)
 
 ---
