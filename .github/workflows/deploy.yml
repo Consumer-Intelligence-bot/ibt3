@@ -49,7 +49,7 @@ jobs:
             cd ~/ibt3
             git pull origin main
             pip install -r requirements.txt
-            sudo systemctl restart ehubot
+            sudo systemctl restart ibt3
 
       - name: Health check
         env:
