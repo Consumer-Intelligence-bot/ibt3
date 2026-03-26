@@ -31,13 +31,14 @@ from lib.analytics.flow_display import (
 )
 from lib.analytics.rates import (
     calc_retention_rate,
+    calc_rolling_switching_trend,
     calc_shopping_rate,
     calc_switching_rate,
 )
 from lib.chart_export import render_suppression_html
 from lib.components.context_bar import render_context_bar
 from lib.components.context_footer import render_context_footer
-from lib.components.decision_kpi import decision_kpi, decision_kpi_row
+from lib.components.decision_kpi import decision_kpi, decision_kpi_row, render_kpi_with_info
 from lib.components.kpi_cards import kpi_card
 from lib.components.narrative_panel import render_narrative_compact
 from lib.config import (
@@ -54,7 +55,7 @@ from lib.config import (
     MIN_BASE_REASON,
 )
 from lib.formatting import fmt_pct, period_label
-from lib.state import format_year_month, get_ss_data
+from lib.state import get_ss_data
 
 
 def render(filters: dict):
@@ -114,48 +115,56 @@ def _render_market_view(df_motor, df_mkt, filters, period, n_mkt):
     )
 
     # ── KPI row ──────────────────────────────────────────────────
-    decision_kpi_row([
-        {
-            "title": "Switching Rate",
-            "value": fmt_pct(switching_rate),
-            "sample_n": n_mkt,
-            "colour": CI_GREY,
-        },
-        {
-            "title": "Retention Rate",
-            "value": fmt_pct(retention_rate),
-            "sample_n": n_mkt,
-            "colour": CI_GREY,
-        },
-        {
-            "title": "Shopping Rate",
-            "value": fmt_pct(shopping_rate),
-            "sample_n": n_mkt,
-            "colour": CI_GREY,
-        },
-    ])
+    kpi_col1, kpi_col2, kpi_col3 = st.columns(3)
+    with kpi_col1:
+        render_kpi_with_info(
+            {
+                "title": "Switching Rate",
+                "value": fmt_pct(switching_rate),
+                "sample_n": n_mkt,
+                "colour": CI_GREY,
+            },
+            "% of customers who changed insurer at renewal. Lower = better retention.",
+        )
+    with kpi_col2:
+        render_kpi_with_info(
+            {
+                "title": "Retention Rate",
+                "value": fmt_pct(retention_rate),
+                "sample_n": n_mkt,
+                "colour": CI_GREY,
+            },
+            "% of customers who stayed with their insurer at renewal.",
+        )
+    with kpi_col3:
+        render_kpi_with_info(
+            {
+                "title": "Shopping Rate",
+                "value": fmt_pct(shopping_rate),
+                "sample_n": n_mkt,
+                "colour": CI_GREY,
+            },
+            "% of customers who compared quotes from other insurers, regardless of whether they switched.",
+        )
 
     # ── 70 / 30 split ───────────────────────────────────────────
     col_primary, col_secondary = st.columns([7, 3])
 
     with col_primary:
+        # Smoothing toggle
+        smoothing = st.radio(
+            "Smoothing",
+            ["Monthly", "3-month rolling"],
+            horizontal=True,
+            key="switching_trend_smoothing",
+        )
+        window = 3 if smoothing == "3-month rolling" else 1
+
         # Switching rate trend
         if "RenewalYearMonth" in df_mkt.columns:
-            months = sorted(df_mkt["RenewalYearMonth"].dropna().unique().astype(int))
-            trend_rows = []
-            for m in months:
-                df_month = df_mkt[df_mkt["RenewalYearMonth"] == m]
-                sw = calc_switching_rate(df_month)
-                if sw is not None:
-                    trend_rows.append({
-                        "month": m,
-                        "label": format_year_month(m),
-                        "switching_rate": sw,
-                        "n": len(df_month),
-                    })
+            trend_df = calc_rolling_switching_trend(df_mkt, window=window)
 
-            if trend_rows:
-                trend_df = pd.DataFrame(trend_rows)
+            if not trend_df.empty:
                 fig = go.Figure()
                 fig.add_trace(go.Scatter(
                     x=trend_df["label"],

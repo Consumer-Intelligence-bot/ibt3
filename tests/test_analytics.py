@@ -1564,3 +1564,242 @@ class TestKpiVsMarketColour:
         from lib.config import CI_GREEN
         # NPS: insurer=-10, market=-30 → insurer > market → CI_GREEN
         assert kpi_vs_market_colour(-10, -30) == CI_GREEN
+
+
+# ===========================================================================
+# 16. calc_rolling_switching_trend
+# ===========================================================================
+
+class TestCalcRollingSwitchingTrend:
+    """lib/analytics/rates.py :: calc_rolling_switching_trend
+
+    Groups raw respondent-level DataFrame by RenewalYearMonth, calculates
+    switching_rate per month, then optionally applies a rolling mean.
+
+    Expected return: DataFrame with columns [month, label, switching_rate, n].
+    """
+
+    def _make_multi_month_df(self) -> "pd.DataFrame":
+        """Build a 3-month respondent-level DataFrame with known switching rates.
+
+        Month 202401: 2 switchers out of 10 → 20%
+        Month 202402: 3 switchers out of 10 → 30%
+        Month 202403: 1 switcher  out of 10 → 10%
+        """
+        rows = []
+        uid = 1
+        for month, n_switchers in [(202401, 2), (202402, 3), (202403, 1)]:
+            for i in range(10):
+                rows.append({
+                    "UniqueID": uid,
+                    "RenewalYearMonth": month,
+                    "IsSwitcher": i < n_switchers,
+                    "IsNewToMarket": False,
+                    "IsShopper": i < n_switchers,
+                })
+                uid += 1
+        return pd.DataFrame(rows)
+
+    def test_returns_dataframe(self):
+        """Result must be a pandas DataFrame."""
+        from lib.analytics.rates import calc_rolling_switching_trend
+        df = self._make_multi_month_df()
+        result = calc_rolling_switching_trend(df, window=1)
+        assert isinstance(result, pd.DataFrame)
+
+    def test_required_columns_present(self):
+        """Result must contain month, label, switching_rate, n columns."""
+        from lib.analytics.rates import calc_rolling_switching_trend
+        df = self._make_multi_month_df()
+        result = calc_rolling_switching_trend(df, window=1)
+        assert set(["month", "label", "switching_rate", "n"]).issubset(set(result.columns))
+
+    def test_window_1_matches_per_month_calculation(self):
+        """window=1 must produce the same rates as individual per-month calc_switching_rate calls."""
+        from lib.analytics.rates import calc_rolling_switching_trend, calc_switching_rate
+        df = self._make_multi_month_df()
+        result = calc_rolling_switching_trend(df, window=1)
+        months = sorted(df["RenewalYearMonth"].unique())
+        assert len(result) == len(months)
+        for _, row in result.iterrows():
+            df_m = df[df["RenewalYearMonth"] == row["month"]]
+            expected = calc_switching_rate(df_m)
+            assert row["switching_rate"] == pytest.approx(expected, rel=1e-6)
+
+    def test_window_1_produces_three_rows_for_three_months(self):
+        """window=1 should return one row per month."""
+        from lib.analytics.rates import calc_rolling_switching_trend
+        df = self._make_multi_month_df()
+        result = calc_rolling_switching_trend(df, window=1)
+        assert len(result) == 3
+
+    def test_window_3_smooths_correctly(self):
+        """window=3 result for 3rd month equals mean of all three monthly rates."""
+        from lib.analytics.rates import calc_rolling_switching_trend
+        df = self._make_multi_month_df()
+        result = calc_rolling_switching_trend(df, window=3)
+        # Rates: 0.20, 0.30, 0.10
+        expected_smoothed_m3 = (0.20 + 0.30 + 0.10) / 3
+        # Third row (index 2) should be the 3-month rolling mean
+        assert result.iloc[2]["switching_rate"] == pytest.approx(expected_smoothed_m3, rel=1e-4)
+
+    def test_window_3_first_row_uses_min_periods_1(self):
+        """First row with window=3 must equal the raw month rate (min_periods=1, not NaN)."""
+        from lib.analytics.rates import calc_rolling_switching_trend
+        df = self._make_multi_month_df()
+        result = calc_rolling_switching_trend(df, window=3)
+        # First month should be 0.20 (only one period available)
+        assert result.iloc[0]["switching_rate"] == pytest.approx(0.20, rel=1e-4)
+
+    def test_window_3_no_nan_values(self):
+        """Rolling result must contain no NaN in switching_rate column."""
+        from lib.analytics.rates import calc_rolling_switching_trend
+        df = self._make_multi_month_df()
+        result = calc_rolling_switching_trend(df, window=3)
+        assert not result["switching_rate"].isna().any()
+
+    def test_window_larger_than_months_still_works(self):
+        """window=12 on a 3-month DataFrame must not raise and return 3 rows."""
+        from lib.analytics.rates import calc_rolling_switching_trend
+        df = self._make_multi_month_df()
+        result = calc_rolling_switching_trend(df, window=12)
+        assert len(result) == 3
+        assert not result["switching_rate"].isna().any()
+
+    def test_empty_dataframe_returns_empty_result(self):
+        """Empty input DataFrame must return an empty DataFrame (not raise)."""
+        from lib.analytics.rates import calc_rolling_switching_trend
+        result = calc_rolling_switching_trend(pd.DataFrame(), window=1)
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) == 0
+
+    def test_result_sorted_by_month_ascending(self):
+        """Returned rows must be sorted by month ascending."""
+        from lib.analytics.rates import calc_rolling_switching_trend
+        df = self._make_multi_month_df()
+        result = calc_rolling_switching_trend(df, window=1)
+        months = list(result["month"])
+        assert months == sorted(months)
+
+    def test_n_column_equals_month_respondent_count(self):
+        """n column must equal the number of respondents for each month."""
+        from lib.analytics.rates import calc_rolling_switching_trend
+        df = self._make_multi_month_df()
+        result = calc_rolling_switching_trend(df, window=1)
+        for _, row in result.iterrows():
+            expected_n = len(df[df["RenewalYearMonth"] == row["month"]])
+            assert row["n"] == expected_n
+
+    def test_single_month_window_1_returns_one_row(self):
+        """Single-month DataFrame with window=1 returns exactly one row."""
+        from lib.analytics.rates import calc_rolling_switching_trend
+        df = pd.DataFrame([
+            {"UniqueID": i, "RenewalYearMonth": 202401,
+             "IsSwitcher": i < 2, "IsNewToMarket": False, "IsShopper": i < 2}
+            for i in range(5)
+        ])
+        result = calc_rolling_switching_trend(df, window=1)
+        assert len(result) == 1
+        assert result.iloc[0]["switching_rate"] == pytest.approx(0.40, rel=1e-4)
+
+    def test_original_dataframe_not_mutated(self):
+        """Function must not mutate the input DataFrame."""
+        from lib.analytics.rates import calc_rolling_switching_trend
+        df = self._make_multi_month_df()
+        original_cols = set(df.columns)
+        calc_rolling_switching_trend(df, window=3)
+        assert set(df.columns) == original_cols
+
+    def test_excludes_new_to_market_from_switching_rate(self):
+        """Rows where IsNewToMarket=True must be excluded from switching rate denominator."""
+        from lib.analytics.rates import calc_rolling_switching_trend
+        # 10 respondents: 5 new-to-market (should be excluded), 2 switchers among the 5 eligible
+        rows = [
+            {"UniqueID": i, "RenewalYearMonth": 202401,
+             "IsSwitcher": i < 2, "IsNewToMarket": i >= 5, "IsShopper": i < 2}
+            for i in range(10)
+        ]
+        df = pd.DataFrame(rows)
+        result = calc_rolling_switching_trend(df, window=1)
+        # 2 switchers / 5 eligible (not new-to-market) = 0.40
+        assert result.iloc[0]["switching_rate"] == pytest.approx(0.40, rel=1e-4)
+
+
+# ===========================================================================
+# 17. render_kpi_with_info
+# ===========================================================================
+
+class TestRenderKpiWithInfo:
+    """lib/components/decision_kpi.py :: render_kpi_with_info
+
+    Wraps decision_kpi with an additional info text rendered as st.caption.
+    Must be testable without a real Streamlit session: patches st.markdown
+    and st.caption to capture calls.
+    """
+
+    def _make_kpi_kwargs(self) -> dict:
+        return {
+            "title": "Switching Rate",
+            "value": "18.5%",
+            "change": "+2.1pp vs market",
+            "trend": "up",
+            "sample_n": 500,
+            "colour": "#981D97",
+        }
+
+    def test_function_exists(self):
+        """render_kpi_with_info must be importable from lib.components.decision_kpi."""
+        from lib.components.decision_kpi import render_kpi_with_info
+        assert callable(render_kpi_with_info)
+
+    def test_accepts_kpi_kwargs_and_info_text(self):
+        """render_kpi_with_info(kpi_kwargs, info_text) must not raise with valid inputs."""
+        from lib.components import decision_kpi as dkpi_mod
+        import unittest.mock as mock
+        with mock.patch.object(dkpi_mod.st, "markdown"), \
+             mock.patch.object(dkpi_mod.st, "caption"):
+            from lib.components.decision_kpi import render_kpi_with_info
+            render_kpi_with_info(self._make_kpi_kwargs(), "% of customers who changed insurer.")
+
+    def test_info_text_passed_to_caption(self):
+        """The info_text argument must appear in an st.caption call."""
+        from lib.components import decision_kpi as dkpi_mod
+        import unittest.mock as mock
+        info = "% of customers who changed insurer at renewal."
+        caption_calls = []
+        with mock.patch.object(dkpi_mod.st, "markdown"), \
+             mock.patch.object(dkpi_mod.st, "caption", side_effect=lambda t: caption_calls.append(t)):
+            from lib.components.decision_kpi import render_kpi_with_info
+            render_kpi_with_info(self._make_kpi_kwargs(), info)
+        assert any(info in call for call in caption_calls), \
+            f"Expected info text in caption calls, got: {caption_calls}"
+
+    def test_kpi_card_still_rendered(self):
+        """decision_kpi card HTML must still be rendered (st.markdown called)."""
+        from lib.components import decision_kpi as dkpi_mod
+        import unittest.mock as mock
+        markdown_calls = []
+        with mock.patch.object(dkpi_mod.st, "markdown",
+                                side_effect=lambda html, **kw: markdown_calls.append(html)), \
+             mock.patch.object(dkpi_mod.st, "caption"):
+            from lib.components.decision_kpi import render_kpi_with_info
+            render_kpi_with_info(self._make_kpi_kwargs(), "Some info.")
+        assert len(markdown_calls) >= 1, "Expected at least one st.markdown call for the KPI card."
+
+    def test_empty_info_text_does_not_raise(self):
+        """Empty string for info_text must not raise."""
+        from lib.components import decision_kpi as dkpi_mod
+        import unittest.mock as mock
+        with mock.patch.object(dkpi_mod.st, "markdown"), \
+             mock.patch.object(dkpi_mod.st, "caption"):
+            from lib.components.decision_kpi import render_kpi_with_info
+            render_kpi_with_info(self._make_kpi_kwargs(), "")
+
+    def test_minimal_kpi_kwargs_title_and_value_only(self):
+        """Minimal kpi_kwargs with only title and value must not raise."""
+        from lib.components import decision_kpi as dkpi_mod
+        import unittest.mock as mock
+        with mock.patch.object(dkpi_mod.st, "markdown"), \
+             mock.patch.object(dkpi_mod.st, "caption"):
+            from lib.components.decision_kpi import render_kpi_with_info
+            render_kpi_with_info({"title": "Test KPI", "value": "42%"}, "Explanation here.")

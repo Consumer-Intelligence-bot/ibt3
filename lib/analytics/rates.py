@@ -85,6 +85,62 @@ def calc_insurer_rank(df_market: pd.DataFrame, insurer: str, min_base: int = 50)
     return None
 
 
+def calc_rolling_switching_trend(df: pd.DataFrame, window: int = 1) -> pd.DataFrame:
+    """Calculate per-month switching rates with optional rolling smoothing.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Respondent-level DataFrame containing RenewalYearMonth, IsSwitcher,
+        IsNewToMarket columns.
+    window : int
+        Rolling mean window size. 1 = no smoothing (monthly). 3 = 3-month
+        rolling mean. min_periods=1 so early months are never NaN.
+
+    Returns
+    -------
+    pd.DataFrame
+        Columns: month (int), label (str), switching_rate (float), n (int).
+        Sorted by month ascending. Empty DataFrame if input is empty or
+        RenewalYearMonth column is missing.
+    """
+    from lib.state import format_year_month
+
+    _EMPTY = pd.DataFrame(columns=["month", "label", "switching_rate", "n"])
+
+    if df is None or df.empty or "RenewalYearMonth" not in df.columns:
+        return _EMPTY
+
+    months = sorted(df["RenewalYearMonth"].dropna().unique().astype(int))
+    if not months:
+        return _EMPTY
+
+    rows = []
+    for m in months:
+        df_month = df[df["RenewalYearMonth"] == m]
+        sw = calc_switching_rate(df_month)
+        if sw is not None:
+            rows.append({
+                "month": int(m),
+                "label": format_year_month(m),
+                "switching_rate": sw,
+                "n": len(df_month),
+            })
+
+    if not rows:
+        return _EMPTY
+
+    result = pd.DataFrame(rows)
+    if window > 1:
+        result = result.copy()
+        result["switching_rate"] = (
+            result["switching_rate"]
+            .rolling(window=window, min_periods=1)
+            .mean()
+        )
+    return result.reset_index(drop=True)
+
+
 def calc_rolling_avg(by_month_df: pd.DataFrame, window: int = 3, rate_col: str = "retention") -> pd.DataFrame:
     """Add a rolling average column to a month-level rates dataframe.
 

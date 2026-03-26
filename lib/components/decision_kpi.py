@@ -101,6 +101,24 @@ def decision_kpi(
     )
 
 
+def render_kpi_with_info(kpi_kwargs: dict, info_text: str):
+    """Render a decision_kpi card with an explanatory caption below.
+
+    Parameters
+    ----------
+    kpi_kwargs : dict
+        Keyword arguments forwarded to ``decision_kpi()``.
+        Required keys: title, value.
+        Optional keys: change, trend, sample_n, colour.
+    info_text : str
+        Plain-English explanation of what this KPI measures. Rendered as
+        an ``st.caption`` below the card. Pass an empty string to skip.
+    """
+    decision_kpi(**kpi_kwargs)
+    if info_text:
+        st.caption(info_text)
+
+
 def decision_kpi_row(kpis: list[dict]):
     """Render a row of Decision Screen KPI cards.
 
