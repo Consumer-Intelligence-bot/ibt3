@@ -79,7 +79,7 @@
 #### Phase 4: Polish
 - [x] Standardise chart heights (primary: 280-320px, secondary: 200px max).
 - [x] Remove redundant section_divider calls (done during Phase 3).
-- [ ] Full visual QA pass across all 8 screens.
+- [x] Full visual QA pass across all 8 screens. (See P0 Visual QA Findings section)
 
 ---
 
@@ -89,6 +89,51 @@
 **Why:** Token failures are currently silent. A few structured log lines would make production support possible.
 
 **Effort:** S | **Priority:** P2
+
+---
+
+### P0 — Visual QA Findings (26 Mar 2026)
+
+**Source:** Live server screenshot review against CLAUDE.md brand guidelines.
+
+#### P0: Tab bar text wrapping
+**What:** All 8 tab labels word-wrap into illegible fragments at default viewport width ("Pre-Ren ewal Cont ext", "Sho ppin g Beh avio ur").
+**Why:** Most visible UI defect. First thing a client sees. Makes the app look broken.
+**Fix:** Shorten tab labels (e.g. "Pre-Renewal" not "Pre-Renewal Context"), or use `white-space:nowrap` with horizontal scroll overflow, or abbreviate at narrow widths.
+**Effort:** S | **Priority:** P0
+- [ ] Shorten or abbreviate tab labels to fit 8 tabs without wrapping
+- [ ] Test at 1080p, 1440p, and 768p widths
+
+#### P1: Tenure vs Retention shows 100% for every bucket (market view)
+**What:** The "Tenure vs Retention Rate" chart on Pre-Renewal market view shows 100% for all tenure buckets.
+**Why:** At market level with no insurer filter, every respondent is "retained" by definition (they answered the survey about their current insurer). The chart is only meaningful when filtered to a specific insurer.
+**Fix:** Hide the chart on market view, or only show it in insurer view.
+**Effort:** S | **Priority:** P1
+- [ ] Conditionally hide "Tenure vs Retention" when no insurer is selected
+
+#### P2: Verify Montserrat font is loading
+**What:** Brand spec requires Montserrat (400/700). Screenshots show a clean sans-serif but can't confirm it's Montserrat vs system fallback.
+**Why:** Font consistency is part of the brand identity. If Montserrat isn't loading, all text reverts to browser default.
+**Fix:** Check CSS `@import` or `<link>` for Google Fonts Montserrat. Verify in browser dev tools.
+**Effort:** S | **Priority:** P2
+- [ ] Verify Montserrat is loaded via Google Fonts or local files
+- [ ] Check fallback chain in CSS font-family declaration
+
+#### P2: Confidence badge colour could clash with KPI accent
+**What:** The green `n=10,719 High confidence` badge uses the same green as the "% Lower" KPI accent colour on the same row.
+**Why:** Two different green elements side by side could confuse the meaning. The badge green means "high confidence" while the KPI green means "lower prices".
+**Fix:** Consider using a neutral colour (charcoal or blue) for confidence badges, or use a subtler green tint distinct from CI_GREEN.
+**Effort:** S | **Priority:** P2
+- [ ] Review badge colour against adjacent KPI colours
+- [ ] Consider using CI_CYAN or a distinct tint for confidence badges
+
+#### P3: "Last updated: Unknown" in context footer
+**What:** The context footer shows "Last updated: Unknown" because no refresh timestamp is stored in session state.
+**Why:** Looks unprofessional. The timestamp should reflect when the DuckDB cache was last populated.
+**Fix:** Store refresh timestamp in DuckDB metadata during `init_ss_data()` and read it back on load.
+**Effort:** S | **Priority:** P3
+- [ ] Save refresh timestamp to DuckDB metadata in init_ss_data()
+- [ ] Read and display in context footer
 
 ---
 
