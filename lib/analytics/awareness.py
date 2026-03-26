@@ -63,7 +63,7 @@ def _brand_cols(df: pd.DataFrame, q_code: str) -> list[str]:
         and not c.startswith(f"{q_code}_{{")    # {SUB_Q...} artefacts
         and c != f"{q_code}_Other"
         and c != f"{q_code}_None of these"
-        and df[c].dtype == "bool"
+        and pd.api.types.is_bool_dtype(df[c])
     ]
 
 
