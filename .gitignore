@@ -28,3 +28,5 @@ dist/data/motor_main_data.csv
 ss-intelligence/
 node_modules/
 .claude/worktrees/
+.coverage
+.pytest_cache/
