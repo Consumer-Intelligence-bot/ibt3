@@ -55,6 +55,7 @@ from lib.config import (
     MIN_BASE_REASON,
 )
 from lib.formatting import fmt_pct, period_label
+from lib.analytics.completeness import filter_complete_months, get_incomplete_months
 from lib.state import get_ss_data
 
 
@@ -162,7 +163,10 @@ def _render_market_view(df_motor, df_mkt, filters, period, n_mkt):
 
         # Switching rate trend
         if "RenewalYearMonth" in df_mkt.columns:
-            trend_df = calc_rolling_switching_trend(df_mkt, window=window)
+            # Suppress incomplete trailing months before computing the trend
+            incomplete_months = get_incomplete_months(df_mkt)
+            df_trend = filter_complete_months(df_mkt)
+            trend_df = calc_rolling_switching_trend(df_trend, window=window)
 
             if not trend_df.empty:
                 fig = go.Figure()
@@ -184,6 +188,11 @@ def _render_market_view(df_motor, df_mkt, filters, period, n_mkt):
                     margin=dict(l=10, r=20, t=10, b=40),
                 )
                 st.plotly_chart(fig, use_container_width=True)
+                if incomplete_months:
+                    from lib.formatting import fmt_year_month_list
+                    st.caption(
+                        f"Note: {fmt_year_month_list(incomplete_months)} excluded due to incomplete fieldwork."
+                    )
             else:
                 st.info("Insufficient monthly data for trend.")
 
