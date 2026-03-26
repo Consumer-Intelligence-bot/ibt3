@@ -149,7 +149,7 @@
 **What:** "How is this calculated?" links should open as a modal or panel overlay, not navigate away.
 **Why:** Clicking the link navigates off the current screen, losing context.
 **Effort:** S | **Priority:** P1
-- [ ] Replace navigation links with modal/overlay for methodology content
+- [x] Replace navigation links with `@st.dialog` overlay (methodology_dialog.py)
 
 ##### A7: No absolute numbers rule
 **What:** System-wide policy: display percentages, percentage changes, ranks, rank changes, or indices. Never raw respondent counts in client-facing views.
@@ -237,8 +237,8 @@
 - [ ] **Investigate net flow vs switching contradiction:** Switching rate positive but net flow negative needs explanation or bug fix
 - [x] **Simplify bar colours:** Red/green for over/under index, CI_GREY for neutral (removed CI_BLUE)
 - [x] **Index line: remove duplicate label:** Removed annotation text, kept axis title only
-- [ ] **Index line: align label to line:** Label should sit exactly on the dotted line position
-- [ ] **Index line: make thicker:** Currently too thin and hard to spot
+- [x] **Index line: align label to line:** Removed floating annotation, axis title is the only label
+- [x] **Index line: make thicker:** Changed to dash style, width=2
 - [x] **Fix "market average" label:** Renamed to "Expected rate"
 - [ ] **Departed sentiment box:** Make larger, add market comparison for NPS
 - [ ] **KPI colour logic:** Remove purple for "same." Use green = better, red = worse, grey = on par

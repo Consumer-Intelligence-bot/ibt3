@@ -491,16 +491,14 @@ def _render_index_chart(df_index: pd.DataFrame, direction: str = "loss"):
 
     fig.add_vline(
         x=100,
-        line_dash="dot",
+        line_dash="dash",
         line_color=CI_GREY,
-        annotation_text="Expected rate",
-        annotation_position="top right",
-        annotation_font_color=CI_GREY,
+        line_width=2,
     )
 
     fig.update_layout(
         height=max(220, n * 28),
-        xaxis=dict(title="Index (100 = market avg)", gridcolor=CI_LIGHT_GREY),
+        xaxis=dict(title="Index (100 = expected rate)", gridcolor=CI_LIGHT_GREY),
         yaxis=dict(title="", autorange="reversed"),
         plot_bgcolor=CI_WHITE,
         paper_bgcolor=CI_WHITE,

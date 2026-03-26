@@ -8,7 +8,7 @@ Mandatory trust indicators on every data view.
 import streamlit as st
 
 from lib.config import CI_CHARCOAL, CI_CHARCOAL_20, CI_CHARCOAL_60, CI_GREEN, CI_YELLOW, CI_RED, FONT
-from lib.state import navigate_to
+from lib.components.methodology_dialog import render_methodology_button
 
 
 def _confidence_label(n: int) -> tuple[str, str]:
@@ -82,9 +82,4 @@ def render_context_footer(
     )
 
     if show_methodology_link:
-        if st.button(
-            "How is this calculated?",
-            key=f"methodology_link_{screen_name}",
-            type="tertiary",
-        ):
-            navigate_to("methodology")
+        render_methodology_button(screen_name)

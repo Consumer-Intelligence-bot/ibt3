@@ -892,3 +892,178 @@ class TestGetIndexBarColour:
         from lib.analytics.flow_display import get_index_bar_colour
         from lib.config import CI_GREY
         assert get_index_bar_colour(150, "unknown") == CI_GREY
+
+
+# ===========================================================================
+# 9. TestMethodologyContent
+# ===========================================================================
+
+class TestMethodologyContent:
+    """lib/components/methodology_dialog.py :: get_methodology_sections
+
+    Pure-function tests — no Streamlit dependency.
+    The function returns structured content as a list of dicts so it can be
+    tested in isolation from the @st.dialog rendering layer.
+    """
+
+    def _get_sections(self):
+        from lib.components.methodology_dialog import get_methodology_sections
+        return get_methodology_sections()
+
+    # -----------------------------------------------------------------------
+    # Structure tests
+    # -----------------------------------------------------------------------
+
+    def test_returns_a_list(self):
+        """Return value must be a list."""
+        result = self._get_sections()
+        assert isinstance(result, list)
+
+    def test_list_is_not_empty(self):
+        """Must return at least one section."""
+        result = self._get_sections()
+        assert len(result) > 0
+
+    def test_each_item_has_title_and_content_keys(self):
+        """Every item in the list must have 'title' and 'content' keys."""
+        result = self._get_sections()
+        for item in result:
+            assert "title" in item, f"Missing 'title' key in {item}"
+            assert "content" in item, f"Missing 'content' key in {item}"
+
+    def test_titles_are_non_empty_strings(self):
+        """Every title must be a non-empty string."""
+        result = self._get_sections()
+        for item in result:
+            assert isinstance(item["title"], str)
+            assert len(item["title"].strip()) > 0
+
+    def test_content_are_non_empty_strings(self):
+        """Every content value must be a non-empty string."""
+        result = self._get_sections()
+        for item in result:
+            assert isinstance(item["content"], str)
+            assert len(item["content"].strip()) > 0
+
+    # -----------------------------------------------------------------------
+    # Required section coverage
+    # -----------------------------------------------------------------------
+
+    def _section_titles(self):
+        return [s["title"] for s in self._get_sections()]
+
+    def test_contains_bayesian_smoothing_section(self):
+        """Bayesian Smoothing section must be present."""
+        titles = self._section_titles()
+        assert any("bayesian" in t.lower() for t in titles), \
+            f"No Bayesian Smoothing section found in {titles}"
+
+    def test_contains_confidence_intervals_section(self):
+        """Confidence Intervals section must be present."""
+        titles = self._section_titles()
+        assert any("confidence interval" in t.lower() for t in titles), \
+            f"No Confidence Intervals section found in {titles}"
+
+    def test_contains_data_suppression_section(self):
+        """Data Suppression section must be present."""
+        titles = self._section_titles()
+        assert any("suppression" in t.lower() for t in titles), \
+            f"No Data Suppression section found in {titles}"
+
+    def test_contains_claims_star_ratings_section(self):
+        """Claims Star Ratings section must be present."""
+        titles = self._section_titles()
+        assert any("star" in t.lower() or "claims" in t.lower() for t in titles), \
+            f"No Claims Star Ratings section found in {titles}"
+
+    def test_contains_trend_detection_section(self):
+        """Trend Detection section must be present."""
+        titles = self._section_titles()
+        assert any("trend" in t.lower() for t in titles), \
+            f"No Trend Detection section found in {titles}"
+
+    def test_contains_data_quality_section(self):
+        """Data Quality Controls section must be present."""
+        titles = self._section_titles()
+        assert any("quality" in t.lower() for t in titles), \
+            f"No Data Quality section found in {titles}"
+
+    def test_contains_pet_insurance_section(self):
+        """Pet Insurance section must be present."""
+        titles = self._section_titles()
+        assert any("pet" in t.lower() for t in titles), \
+            f"No Pet Insurance section found in {titles}"
+
+    def test_has_at_least_seven_sections(self):
+        """Must cover the 7 documented methodology topics."""
+        result = self._get_sections()
+        assert len(result) >= 7, \
+            f"Expected >= 7 sections, got {len(result)}"
+
+    # -----------------------------------------------------------------------
+    # Config value embedding tests
+    # -----------------------------------------------------------------------
+
+    def test_prior_strength_embedded_in_bayesian_section(self):
+        """PRIOR_STRENGTH value must appear in the Bayesian Smoothing content."""
+        from lib.config import PRIOR_STRENGTH
+        sections = self._get_sections()
+        bayesian = next(
+            (s for s in sections if "bayesian" in s["title"].lower()), None
+        )
+        assert bayesian is not None, "Bayesian Smoothing section not found"
+        assert str(PRIOR_STRENGTH) in bayesian["content"], \
+            f"PRIOR_STRENGTH ({PRIOR_STRENGTH}) not found in Bayesian content"
+
+    def test_min_base_publishable_embedded_in_suppression_section(self):
+        """MIN_BASE_PUBLISHABLE value must appear in the Data Suppression content."""
+        from lib.config import MIN_BASE_PUBLISHABLE
+        sections = self._get_sections()
+        suppression = next(
+            (s for s in sections if "suppression" in s["title"].lower()), None
+        )
+        assert suppression is not None, "Data Suppression section not found"
+        assert str(MIN_BASE_PUBLISHABLE) in suppression["content"], \
+            f"MIN_BASE_PUBLISHABLE ({MIN_BASE_PUBLISHABLE}) not found in suppression content"
+
+    def test_min_base_flow_cell_embedded_in_suppression_section(self):
+        """MIN_BASE_FLOW_CELL value must appear in the Data Suppression content."""
+        from lib.config import MIN_BASE_FLOW_CELL
+        sections = self._get_sections()
+        suppression = next(
+            (s for s in sections if "suppression" in s["title"].lower()), None
+        )
+        assert suppression is not None, "Data Suppression section not found"
+        assert str(MIN_BASE_FLOW_CELL) in suppression["content"], \
+            f"MIN_BASE_FLOW_CELL ({MIN_BASE_FLOW_CELL}) not found in suppression content"
+
+    def test_system_floor_n_embedded_in_suppression_section(self):
+        """SYSTEM_FLOOR_N value must appear in the Data Suppression content."""
+        from lib.config import SYSTEM_FLOOR_N
+        sections = self._get_sections()
+        suppression = next(
+            (s for s in sections if "suppression" in s["title"].lower()), None
+        )
+        assert suppression is not None, "Data Suppression section not found"
+        assert str(SYSTEM_FLOOR_N) in suppression["content"], \
+            f"SYSTEM_FLOOR_N ({SYSTEM_FLOOR_N}) not found in suppression content"
+
+    # -----------------------------------------------------------------------
+    # Immutability — calling twice returns equal but independent objects
+    # -----------------------------------------------------------------------
+
+    def test_calling_twice_returns_equal_results(self):
+        """get_methodology_sections() must be deterministic (same output each call)."""
+        result1 = self._get_sections()
+        result2 = self._get_sections()
+        assert len(result1) == len(result2)
+        for s1, s2 in zip(result1, result2):
+            assert s1["title"] == s2["title"]
+            assert s1["content"] == s2["content"]
+
+    def test_mutating_return_does_not_affect_next_call(self):
+        """Mutating the returned list must not corrupt future calls."""
+        result1 = self._get_sections()
+        result1.clear()
+        result2 = self._get_sections()
+        assert len(result2) >= 7  # still returns full content
