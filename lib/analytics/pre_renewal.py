@@ -19,6 +19,49 @@ def calc_tenure_distribution(df: pd.DataFrame) -> pd.Series | None:
     return valid["Q21"].value_counts(normalize=True).sort_index()
 
 
+def merge_tenure_mid_buckets(tenure: pd.Series) -> pd.Series:
+    """
+    Collapse the 6, 7, and 8 year tenure buckets into a single '6-8 years' bucket.
+
+    Ann noted these individual year buckets each show ~1%, likely a sample
+    artefact.  Merging them produces a more stable and readable chart.
+
+    Parameters
+    ----------
+    tenure : pd.Series
+        Indexed by tenure label (e.g. '1 year', '2 years', ..., '10 years or more').
+        Values are proportions (summing to 1.0) as returned by calc_tenure_distribution.
+
+    Returns
+    -------
+    pd.Series
+        New series with '6 years', '7 years', '8 years' replaced by '6-8 years'
+        at the same position.  If none of those keys are present, the original
+        series is returned unchanged.  The input series is never mutated.
+    """
+    _MID_KEYS = {"6 years", "7 years", "8 years"}
+    present = [k for k in tenure.index if k in _MID_KEYS]
+    if not present:
+        return tenure.copy()
+
+    merged_value = sum(tenure.get(k, 0.0) for k in present)
+
+    # Rebuild the series in order, replacing the first mid-key position
+    new_items: list[tuple[str, float]] = []
+    inserted = False
+    for label in tenure.index:
+        if label in _MID_KEYS:
+            if not inserted:
+                new_items.append(("6-8 years", merged_value))
+                inserted = True
+            # skip the individual 6/7/8 entries
+        else:
+            new_items.append((label, float(tenure[label])))
+
+    labels, values = zip(*new_items)
+    return pd.Series(list(values), index=list(labels))
+
+
 def calc_price_shopping_crossover(df: pd.DataFrame) -> pd.DataFrame | None:
     """Shopping rate by price direction (Q6 x Q7 crossover).
 

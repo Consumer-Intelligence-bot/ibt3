@@ -79,6 +79,31 @@ _HIGH_THRESHOLD = 120
 _LOW_THRESHOLD = 80
 
 
+def format_price_change(value: float) -> str:
+    """
+    Format a signed average price change as a display string with £ sign.
+
+    Parameters
+    ----------
+    value : float
+        Signed price change, e.g. 21.3 or -15.7.
+
+    Returns
+    -------
+    str
+        Formatted string:
+        - Positive: '+£21'  (leading plus, £ symbol, rounded to integer)
+        - Negative: '−£16'  (unicode minus U+2212, £ symbol, rounded to integer)
+        - Zero:     '£0'
+    """
+    rounded = round(float(value))
+    if rounded > 0:
+        return f"+\u00a3{rounded}"
+    if rounded < 0:
+        return f"\u2212\u00a3{abs(rounded)}"
+    return f"\u00a30"
+
+
 def get_index_bar_colour(index_value: float, direction: str) -> str:
     """
     Return a CI brand colour for a flow index bar based on value and direction.

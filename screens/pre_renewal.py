@@ -14,11 +14,13 @@ from lib.analytics.demographics import apply_filters
 from lib.analytics.narrative_engine import generate_screen_narrative
 from lib.analytics.pre_renewal import (
     calc_tenure_distribution,
+    merge_tenure_mid_buckets,
     calc_price_shopping_crossover,
     calc_tenure_retention_crossover,
 )
 from lib.analytics.price import (
     calc_price_direction_dist,
+    calc_price_direction_index,
     calc_price_magnitude_dist,
     calc_rate_by_price_direction,
     calc_avg_price_change,
@@ -26,6 +28,7 @@ from lib.analytics.price import (
     calc_price_change_by_demo,
     BAND_MIDPOINTS,
 )
+from lib.analytics.flow_display import format_price_change
 from lib.analytics.rates import calc_shopping_rate
 from lib.chart_export import render_suppression_html
 from lib.components.context_bar import render_context_bar
@@ -147,6 +150,7 @@ def _render_market_view(df_mkt, filters, period, n_mkt):
         # Tenure Distribution (Q21)
         tenure = calc_tenure_distribution(df_mkt)
         if tenure is not None:
+            tenure = merge_tenure_mid_buckets(tenure)
             st.markdown("**Tenure with Current Insurer (Q21)**")
             _render_tenure_chart(tenure)
         else:
@@ -258,11 +262,25 @@ def _render_insurer_view(df_motor, df_mkt, insurer, filters, period, n_mkt):
     })
     render_narrative_compact(narrative, "pre_renewal")
 
-    # --- KPIs: % Higher, % Lower, % Unchanged ---
+    # --- KPIs: % Higher, % Lower, % Unchanged (with market comparison) ---
+    mkt_price = calc_price_direction_dist(df_mkt)
+    mkt_h = float(mkt_price.get("Higher", 0)) if mkt_price is not None else None
+    mkt_l = float(mkt_price.get("Lower", 0)) if mkt_price is not None else None
+    mkt_u = float(mkt_price.get("Unchanged", 0)) if mkt_price is not None else None
+
+    def _pp_change(ins_val: float, mkt_val: float | None) -> str | None:
+        if mkt_val is None:
+            return None
+        diff = (ins_val - mkt_val) * 100
+        return f"{diff:+.1f}pp vs market"
+
     decision_kpi_row([
-        {"title": "% Higher", "value": fmt_pct(pct_h), "colour": CI_RED, "sample_n": n_ins},
-        {"title": "% Lower", "value": fmt_pct(pct_l), "colour": CI_GREEN, "sample_n": n_ins},
-        {"title": "% Unchanged", "value": fmt_pct(pct_u), "colour": CI_GREY, "sample_n": n_ins},
+        {"title": "% Higher", "value": fmt_pct(pct_h), "colour": CI_RED,
+         "change": _pp_change(pct_h, mkt_h), "sample_n": n_ins},
+        {"title": "% Lower", "value": fmt_pct(pct_l), "colour": CI_GREEN,
+         "change": _pp_change(pct_l, mkt_l), "sample_n": n_ins},
+        {"title": "% Unchanged", "value": fmt_pct(pct_u), "colour": CI_GREY,
+         "change": _pp_change(pct_u, mkt_u), "sample_n": n_ins},
     ])
 
     # --- Primary (70%) / Secondary (30%) layout ---
@@ -273,13 +291,12 @@ def _render_insurer_view(df_motor, df_mkt, insurer, filters, period, n_mkt):
         mkt_dist = calc_price_direction_dist(df_mkt)
 
         if ins_price is not None and mkt_dist is not None:
-            col1, col2 = st.columns(2)
-            with col1:
-                st.markdown(f"**{insurer}**")
+            index_df = calc_price_direction_index(ins_price, mkt_dist)
+            if index_df is not None:
+                st.markdown(f"**Price Direction Index: {insurer} vs Market (pp)**")
+                _render_price_direction_index_chart(index_df)
+            else:
                 _render_price_direction_chart(ins_price, insurer)
-            with col2:
-                st.markdown("**Market**")
-                _render_price_direction_chart(mkt_dist, "Market")
         elif ins_price is not None:
             _render_price_direction_chart(ins_price, insurer)
         else:
@@ -328,6 +345,7 @@ def _render_insurer_view(df_motor, df_mkt, insurer, filters, period, n_mkt):
         # Tenure
         ins_tenure = calc_tenure_distribution(df_ins)
         if ins_tenure is not None:
+            ins_tenure = merge_tenure_mid_buckets(ins_tenure)
             st.markdown("**Tenure with Current Insurer (Q21)**")
             _render_tenure_chart(ins_tenure)
         else:
@@ -369,6 +387,39 @@ def _render_price_direction_chart(dist: pd.Series, label: str):
         margin=dict(l=10, r=40, t=10, b=20),
         font=dict(family=FONT, size=11, color=CI_GREY),
         plot_bgcolor=CI_WHITE, paper_bgcolor=CI_WHITE,
+        showlegend=False,
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def _render_price_direction_index_chart(index_df: pd.DataFrame):
+    """Render pp-deviation index chart: insurer minus market for each direction."""
+    colours = [
+        CI_RED if d > 0 else CI_GREEN if d < 0 else CI_GREY
+        for d in index_df["diff_pp"]
+    ]
+    hover_text = [
+        f"{row['direction']}<br>Insurer: {row['insurer_pct']:.1f}%<br>"
+        f"Market: {row['market_pct']:.1f}%<br>Diff: {row['diff_pp']:+.1f}pp"
+        for _, row in index_df.iterrows()
+    ]
+    fig = go.Figure(go.Bar(
+        x=index_df["direction"],
+        y=index_df["diff_pp"],
+        marker_color=colours,
+        text=[f"{d:+.1f}pp" for d in index_df["diff_pp"]],
+        textposition="outside",
+        hovertemplate="%{customdata}<extra></extra>",
+        customdata=hover_text,
+    ))
+    fig.add_hline(y=0, line_width=1, line_color=CI_GREY)
+    fig.update_layout(
+        height=250,
+        yaxis=dict(title="Difference vs Market (pp)", gridcolor=CI_LIGHT_GREY),
+        xaxis=dict(title="Price Direction"),
+        plot_bgcolor=CI_WHITE, paper_bgcolor=CI_WHITE,
+        font=dict(family=FONT, size=11, color=CI_GREY),
+        margin=dict(l=10, r=20, t=10, b=40),
         showlegend=False,
     )
     st.plotly_chart(fig, use_container_width=True)
@@ -484,10 +535,9 @@ def _render_price_analysis_market(df_mkt, filters, period, n_mkt):
     if avg is not None:
         change = avg["avg_change"]
         colour = CI_RED if change > 0 else CI_GREEN if change < 0 else CI_GREY
-        sign = "+" if change > 0 else ""
         col1, col2 = st.columns(2)
         with col1:
-            kpi_card("Avg Price Change", f"{sign}{abs(change):.0f}", f"n={avg['n']:,}", colour)
+            kpi_card("Avg Price Change", format_price_change(change), f"n={avg['n']:,}", colour)
         with col2:
             kpi_card("Respondents with Band Data", f"{avg['n']:,}", f"Market total: {n_mkt:,}", CI_GREY)
     else:
@@ -511,7 +561,7 @@ def _render_price_analysis_brand(df_mkt, insurer, filters, period, n_mkt):
     n_brand = int((df_mkt["PreRenewalCompany"] == insurer).sum())
 
     render_context_bar(
-        "Price Analysis",
+        f"{insurer}'s Pre-Renewal Price Analysis",
         insurer=insurer,
         product=filters["product"],
         period=period,
@@ -569,14 +619,12 @@ def _render_price_analysis_brand(df_mkt, insurer, filters, period, n_mkt):
         col1, col2 = st.columns(2)
         with col1:
             bc = brand_avg["avg_change"]
-            sign = "+" if bc > 0 else ""
             colour = CI_RED if bc > 0 else CI_GREEN if bc < 0 else CI_GREY
-            kpi_card(f"{insurer} Avg Change", f"{sign}{abs(bc):.0f}", f"n={brand_avg['n']:,}", colour)
+            kpi_card(f"{insurer} Avg Change", format_price_change(bc), f"n={brand_avg['n']:,}", colour)
         with col2:
             mc = market_avg["avg_change"]
-            sign = "+" if mc > 0 else ""
             colour = CI_RED if mc > 0 else CI_GREEN if mc < 0 else CI_GREY
-            kpi_card("Market Avg Change", f"{sign}{abs(mc):.0f}", f"n={market_avg['n']:,}", colour)
+            kpi_card("Market Avg Change", format_price_change(mc), f"n={market_avg['n']:,}", colour)
     else:
         st.info("Insufficient data for average price change comparison.")
 

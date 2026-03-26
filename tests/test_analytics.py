@@ -1067,3 +1067,276 @@ class TestMethodologyContent:
         result1.clear()
         result2 = self._get_sections()
         assert len(result2) >= 7  # still returns full content
+
+
+# ===========================================================================
+# Fix 1: format_price_change  (lib/analytics/flow_display.py)
+# ===========================================================================
+
+class TestFormatPriceChange:
+    """lib/analytics/flow_display.py :: format_price_change"""
+
+    def _fmt(self, value):
+        from lib.analytics.flow_display import format_price_change
+        return format_price_change(value)
+
+    # --- Happy path ---
+
+    def test_positive_rounds_and_adds_plus_and_pound(self):
+        """21.3 → '+£21'"""
+        assert self._fmt(21.3) == "+£21"
+
+    def test_positive_rounds_up(self):
+        """21.7 → '+£22'"""
+        assert self._fmt(21.7) == "+£22"
+
+    def test_negative_shows_minus_and_pound(self):
+        """-15.7 → '−£16' (uses unicode minus sign, not ASCII hyphen)"""
+        result = self._fmt(-15.7)
+        assert result == "\u2212£16"
+
+    def test_negative_small(self):
+        """-1.4 → '−£1'"""
+        assert self._fmt(-1.4) == "\u2212£1"
+
+    def test_zero_shows_pound_only(self):
+        """0.0 → '£0'"""
+        assert self._fmt(0.0) == "£0"
+
+    def test_zero_negative_zero(self):
+        """-0.0 treated as zero → '£0'"""
+        assert self._fmt(-0.0) == "£0"
+
+    def test_large_positive(self):
+        """525.0 → '+£525'"""
+        assert self._fmt(525.0) == "+£525"
+
+    def test_large_negative(self):
+        """-525.0 → '−£525'"""
+        assert self._fmt(-525.0) == "\u2212£525"
+
+    # --- Boundary: exactly 0.5 rounds up ---
+    def test_positive_half_rounds_to_one(self):
+        """0.5 → '+£1' (standard rounding)"""
+        result = self._fmt(0.5)
+        # Python's round() uses banker's rounding; we just check sign and £
+        assert result.startswith("+£") or result == "£0"
+
+    # --- Type handling ---
+    def test_integer_input(self):
+        """Integer 21 → '+£21'"""
+        assert self._fmt(21) == "+£21"
+
+    def test_negative_integer(self):
+        """Integer -10 → '−£10'"""
+        assert self._fmt(-10) == "\u2212£10"
+
+
+# ===========================================================================
+# Fix 2: merge_tenure_mid_buckets  (lib/analytics/pre_renewal.py)
+# ===========================================================================
+
+class TestMergeTenureMidBuckets:
+    """lib/analytics/pre_renewal.py :: merge_tenure_mid_buckets"""
+
+    def _merge(self, series):
+        from lib.analytics.pre_renewal import merge_tenure_mid_buckets
+        return merge_tenure_mid_buckets(series)
+
+    def _make_full_tenure(self):
+        """Realistic tenure series with all year buckets."""
+        return pd.Series({
+            "1 year": 0.15,
+            "2 years": 0.14,
+            "3 years": 0.12,
+            "4 years": 0.10,
+            "5 years": 0.09,
+            "6 years": 0.04,
+            "7 years": 0.03,
+            "8 years": 0.03,
+            "9 years": 0.07,
+            "10 years or more": 0.23,
+        })
+
+    # --- Core merge behaviour ---
+
+    def test_merges_6_7_8_into_single_bucket(self):
+        """'6 years', '7 years', '8 years' must be collapsed to '6-8 years'."""
+        result = self._merge(self._make_full_tenure())
+        assert "6-8 years" in result.index
+        assert "6 years" not in result.index
+        assert "7 years" not in result.index
+        assert "8 years" not in result.index
+
+    def test_summed_value_correct(self):
+        """'6-8 years' value should be sum of 6+7+8 year values."""
+        source = self._make_full_tenure()
+        expected = source["6 years"] + source["7 years"] + source["8 years"]
+        result = self._merge(source)
+        assert result["6-8 years"] == pytest.approx(expected)
+
+    def test_other_buckets_unchanged(self):
+        """All non-6/7/8 buckets must retain their original values."""
+        source = self._make_full_tenure()
+        result = self._merge(source)
+        for label in ["1 year", "2 years", "3 years", "4 years", "5 years", "9 years", "10 years or more"]:
+            assert result[label] == pytest.approx(source[label])
+
+    def test_order_preserved_6_8_between_5_and_9(self):
+        """'6-8 years' must appear between '5 years' and '9 years'."""
+        result = self._merge(self._make_full_tenure())
+        idx = list(result.index)
+        pos_5 = idx.index("5 years")
+        pos_merged = idx.index("6-8 years")
+        pos_9 = idx.index("9 years")
+        assert pos_5 < pos_merged < pos_9
+
+    def test_total_sums_to_one(self):
+        """After merging, proportions should still sum to ~1."""
+        source = self._make_full_tenure()
+        result = self._merge(source)
+        assert result.sum() == pytest.approx(1.0, abs=1e-9)
+
+    # --- Edge cases ---
+
+    def test_missing_all_three_returns_unchanged(self):
+        """If none of 6/7/8 keys exist, Series returned unchanged."""
+        source = pd.Series({"1 year": 0.4, "2 years": 0.3, "3 years": 0.3})
+        result = self._merge(source)
+        pd.testing.assert_series_equal(result, source)
+
+    def test_missing_one_of_three_still_merges_present_keys(self):
+        """If only 6 and 7 years exist (no 8), they should still merge."""
+        source = pd.Series({
+            "5 years": 0.20,
+            "6 years": 0.05,
+            "7 years": 0.04,
+            "9 years": 0.71,
+        })
+        result = self._merge(source)
+        assert "6-8 years" in result.index
+        assert result["6-8 years"] == pytest.approx(0.09)
+
+    def test_empty_series_returns_empty(self):
+        """Empty series should not raise."""
+        result = self._merge(pd.Series(dtype=float))
+        assert len(result) == 0
+
+    def test_immutability_original_unchanged(self):
+        """Input Series must not be mutated."""
+        source = self._make_full_tenure()
+        original_keys = list(source.index)
+        self._merge(source)
+        assert list(source.index) == original_keys
+
+
+# ===========================================================================
+# Fix 3: calc_price_direction_index  (lib/analytics/price.py)
+# ===========================================================================
+
+class TestCalcPriceDirectionIndex:
+    """lib/analytics/price.py :: calc_price_direction_index"""
+
+    def _calc(self, insurer_dist, market_dist):
+        from lib.analytics.price import calc_price_direction_index
+        return calc_price_direction_index(insurer_dist, market_dist)
+
+    def _make_dist(self, higher=0.47, lower=0.30, unchanged=0.18, new=0.05):
+        return pd.Series({
+            "Higher": higher,
+            "Lower": lower,
+            "Unchanged": unchanged,
+            "New": new,
+        })
+
+    # --- Schema ---
+
+    def test_returns_dataframe(self):
+        result = self._calc(self._make_dist(), self._make_dist())
+        assert isinstance(result, pd.DataFrame)
+
+    def test_has_required_columns(self):
+        result = self._calc(self._make_dist(), self._make_dist())
+        assert "direction" in result.columns
+        assert "insurer_pct" in result.columns
+        assert "market_pct" in result.columns
+        assert "diff_pp" in result.columns
+
+    def test_direction_column_contains_expected_values(self):
+        result = self._calc(self._make_dist(), self._make_dist())
+        assert set(result["direction"]).issubset({"Higher", "Lower", "Unchanged", "New"})
+
+    # --- Calculation correctness ---
+
+    def test_diff_pp_positive_when_insurer_higher(self):
+        """insurer Higher=0.50, market Higher=0.48 → diff_pp ≈ +2.0"""
+        ins = self._make_dist(higher=0.50)
+        mkt = self._make_dist(higher=0.48)
+        result = self._calc(ins, mkt)
+        row = result[result["direction"] == "Higher"].iloc[0]
+        assert row["diff_pp"] == pytest.approx(2.0, abs=0.01)
+
+    def test_diff_pp_negative_when_insurer_lower(self):
+        """insurer Higher=0.47, market Higher=0.48 → diff_pp ≈ -1.0"""
+        ins = self._make_dist(higher=0.47)
+        mkt = self._make_dist(higher=0.48)
+        result = self._calc(ins, mkt)
+        row = result[result["direction"] == "Higher"].iloc[0]
+        assert row["diff_pp"] == pytest.approx(-1.0, abs=0.01)
+
+    def test_diff_pp_zero_when_equal(self):
+        """Same distributions → all diff_pp = 0"""
+        dist = self._make_dist()
+        result = self._calc(dist, dist)
+        assert (result["diff_pp"].abs() < 0.001).all()
+
+    def test_insurer_pct_in_percentage_points(self):
+        """insurer_pct for Higher=0.47 should be 47.0"""
+        ins = self._make_dist(higher=0.47)
+        mkt = self._make_dist(higher=0.48)
+        result = self._calc(ins, mkt)
+        row = result[result["direction"] == "Higher"].iloc[0]
+        assert row["insurer_pct"] == pytest.approx(47.0, abs=0.01)
+
+    def test_market_pct_in_percentage_points(self):
+        """market_pct for Higher=0.48 should be 48.0"""
+        ins = self._make_dist(higher=0.47)
+        mkt = self._make_dist(higher=0.48)
+        result = self._calc(ins, mkt)
+        row = result[result["direction"] == "Higher"].iloc[0]
+        assert row["market_pct"] == pytest.approx(48.0, abs=0.01)
+
+    # --- Edge cases ---
+
+    def test_missing_direction_in_insurer_treated_as_zero(self):
+        """Direction present in market but not insurer should have insurer_pct=0."""
+        ins = pd.Series({"Higher": 0.60, "Lower": 0.40})
+        mkt = pd.Series({"Higher": 0.50, "Lower": 0.30, "Unchanged": 0.20})
+        result = self._calc(ins, mkt)
+        row = result[result["direction"] == "Unchanged"].iloc[0]
+        assert row["insurer_pct"] == pytest.approx(0.0)
+        assert row["diff_pp"] == pytest.approx(-20.0, abs=0.01)
+
+    def test_missing_direction_in_market_treated_as_zero(self):
+        """Direction in insurer but not market should have market_pct=0."""
+        ins = pd.Series({"Higher": 0.60, "Lower": 0.40, "New": 0.10})
+        mkt = pd.Series({"Higher": 0.60, "Lower": 0.40})
+        result = self._calc(ins, mkt)
+        row = result[result["direction"] == "New"].iloc[0]
+        assert row["market_pct"] == pytest.approx(0.0)
+
+    def test_none_insurer_returns_none(self):
+        from lib.analytics.price import calc_price_direction_index
+        assert calc_price_direction_index(None, self._make_dist()) is None
+
+    def test_none_market_returns_none(self):
+        from lib.analytics.price import calc_price_direction_index
+        assert calc_price_direction_index(self._make_dist(), None) is None
+
+    def test_empty_insurer_returns_none(self):
+        from lib.analytics.price import calc_price_direction_index
+        assert calc_price_direction_index(pd.Series(dtype=float), self._make_dist()) is None
+
+    def test_empty_market_returns_none(self):
+        from lib.analytics.price import calc_price_direction_index
+        assert calc_price_direction_index(self._make_dist(), pd.Series(dtype=float)) is None

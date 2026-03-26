@@ -149,6 +149,52 @@ def calc_avg_price_change(df: pd.DataFrame, brand: str | None = None) -> dict | 
     }
 
 
+def calc_price_direction_index(
+    insurer_dist: pd.Series | None,
+    market_dist: pd.Series | None,
+) -> pd.DataFrame | None:
+    """
+    Compare insurer vs market price direction distributions as an index.
+
+    Instead of showing two side-by-side bar charts that look near-identical,
+    express the difference as percentage-point (pp) deviations from the market.
+
+    Parameters
+    ----------
+    insurer_dist : pd.Series | None
+        Normalised distribution for the selected insurer (0–1 proportions),
+        as returned by calc_price_direction_dist.
+    market_dist : pd.Series | None
+        Normalised distribution for the full market.
+
+    Returns
+    -------
+    pd.DataFrame | None
+        Columns: direction, insurer_pct, market_pct, diff_pp
+        - insurer_pct / market_pct are in percentage points (0–100).
+        - diff_pp = insurer_pct − market_pct (positive = insurer above market).
+        Returns None when either input is None or empty.
+    """
+    if insurer_dist is None or market_dist is None:
+        return None
+    if len(insurer_dist) == 0 or len(market_dist) == 0:
+        return None
+
+    all_directions = sorted(set(insurer_dist.index) | set(market_dist.index))
+    rows = []
+    for direction in all_directions:
+        ins_pct = float(insurer_dist.get(direction, 0.0)) * 100
+        mkt_pct = float(market_dist.get(direction, 0.0)) * 100
+        rows.append({
+            "direction": direction,
+            "insurer_pct": ins_pct,
+            "market_pct": mkt_pct,
+            "diff_pp": ins_pct - mkt_pct,
+        })
+
+    return pd.DataFrame(rows)
+
+
 def calc_price_change_comparison(
     df: pd.DataFrame, brand: str
 ) -> dict | None:
