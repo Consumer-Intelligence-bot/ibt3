@@ -232,14 +232,14 @@
 #### Screen 5: Switching & Flows
 
 - [ ] **Add journey map visual:** Recreate old-system flow diagram (see A11)
-- [ ] **Top movers: show % not absolute:** "472/416" should be percentage change or rank change
-- [ ] **Net flow: show % only:** Display "minus 12.4%" not "minus 64"
+- [x] **Top movers: show % not absolute:** Now shows % of total flow volume
+- [x] **Net flow: show % only:** KPI value is now percentage only, raw count in subtitle
 - [ ] **Investigate net flow vs switching contradiction:** Switching rate positive but net flow negative needs explanation or bug fix
-- [ ] **Simplify bar colours:** Red = losing, green = winning. Remove blue bars
-- [ ] **Index line: remove duplicate label:** "Market average 100" on chart AND "Index 100 = market average" in legend. Keep one
+- [x] **Simplify bar colours:** Red/green for over/under index, CI_GREY for neutral (removed CI_BLUE)
+- [x] **Index line: remove duplicate label:** Removed annotation text, kept axis title only
 - [ ] **Index line: align label to line:** Label should sit exactly on the dotted line position
 - [ ] **Index line: make thicker:** Currently too thin and hard to spot
-- [ ] **Fix "market average" label:** Should say "competitor average" or "expected rate" (not whole market)
+- [x] **Fix "market average" label:** Renamed to "Expected rate"
 - [ ] **Departed sentiment box:** Make larger, add market comparison for NPS
 - [ ] **KPI colour logic:** Remove purple for "same." Use green = better, red = worse, grey = on par
 - [ ] **Arrow direction clarity:** Disambiguate: does arrow mean trend direction or vs-market direction? Be consistent across all KPIs

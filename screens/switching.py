@@ -22,6 +22,11 @@ from lib.analytics.flows import (
     calc_top_sources,
     calc_departed_sentiment,
 )
+from lib.analytics.flow_display import (
+    format_flow_pct,
+    format_net_flow_pct,
+    get_index_bar_colour,
+)
 from lib.analytics.rates import (
     calc_retention_rate,
     calc_shopping_rate,
@@ -34,7 +39,6 @@ from lib.components.decision_kpi import decision_kpi, decision_kpi_row
 from lib.components.kpi_cards import kpi_card
 from lib.components.narrative_panel import render_narrative_compact
 from lib.config import (
-    CI_BLUE,
     CI_GREEN,
     CI_GREY,
     CI_LIGHT_GREY,
@@ -183,18 +187,20 @@ def _render_market_view(df_motor, df_mkt, filters, period, n_mkt):
         flow_mat = calc_flow_matrix(df_mkt)
         if not flow_mat.empty:
             row_totals = flow_mat.sum(axis=1).sort_values(ascending=False)
+            total_flow = int(row_totals.sum())
             top_insurers = row_totals.head(8).index.tolist()
             for ins_name in top_insurers:
                 vol = int(row_totals[ins_name])
+                pct_str = format_flow_pct(vol, total_flow) or "—"
                 st.markdown(
                     f'<div style="font-family:{FONT}; font-size:12px; padding:4px 0; '
                     f'border-bottom:1px solid {CI_LIGHT_GREY};">'
                     f'<span style="color:{CI_GREY};">{ins_name}</span>'
-                    f'<span style="float:right; font-weight:700; color:{CI_MAGENTA};">{vol:,}</span>'
+                    f'<span style="float:right; font-weight:700; color:{CI_MAGENTA};">{pct_str}</span>'
                     f'</div>',
                     unsafe_allow_html=True,
                 )
-            st.caption(f"Total flow volume. Cells < {MIN_BASE_FLOW_CELL} suppressed.")
+            st.caption(f"% of total switching volume. Cells < {MIN_BASE_FLOW_CELL} suppressed.")
         else:
             st.info("Insufficient switching data for flow matrix.")
 
@@ -285,9 +291,7 @@ def _render_insurer_view(df_motor, df_mkt, insurer, filters, period, n_mkt):
     switching_trend = "up" if switching_gap < 0 else "down" if switching_gap > 0 else "flat"
 
     net_trend = "up" if net > 0 else "down" if net < 0 else "flat"
-    net_pct_str = ""
-    if nf.get("net_pct") is not None:
-        net_pct_str = f" ({net_sign}{nf['net_pct']:.1%})"
+    net_pct_display = format_net_flow_pct(nf.get("net_pct"))
 
     decision_kpi_row([
         {
@@ -308,8 +312,8 @@ def _render_insurer_view(df_motor, df_mkt, insurer, filters, period, n_mkt):
         },
         {
             "title": "Net Flow",
-            "value": f"{net_sign}{net:,}{net_pct_str}",
-            "change": f"+{nf['gained']:,} gained, -{nf['lost']:,} lost",
+            "value": net_pct_display,
+            "change": f"of renewal base ({net_sign}{net:,} respondents)",
             "trend": net_trend,
             "sample_n": n_ins,
             "colour": CI_GREEN if net > 0 else CI_RED if net < 0 else CI_GREY,
@@ -360,14 +364,16 @@ def _render_insurer_view(df_motor, df_mkt, insurer, filters, period, n_mkt):
             unsafe_allow_html=True,
         )
         if len(sources) > 0:
+            total_gained = int(sources.sum())
             for competitor, count in sources.items():
                 if count < MIN_BASE_FLOW_CELL:
                     continue
+                pct_str = format_flow_pct(int(count), total_gained) or "—"
                 st.markdown(
                     f'<div style="font-family:{FONT}; font-size:12px; padding:3px 0; '
                     f'border-bottom:1px solid {CI_LIGHT_GREY};">'
                     f'<span style="color:{CI_GREY};">{competitor}</span>'
-                    f'<span style="float:right; font-weight:700; color:{CI_GREEN};">+{count}</span>'
+                    f'<span style="float:right; font-weight:700; color:{CI_GREEN};">{pct_str}</span>'
                     f'</div>',
                     unsafe_allow_html=True,
                 )
@@ -380,14 +386,18 @@ def _render_insurer_view(df_motor, df_mkt, insurer, filters, period, n_mkt):
             unsafe_allow_html=True,
         )
         if len(destinations) > 0:
+            total_lost = int(destinations.sum())
             for competitor, count in destinations.items():
                 if count < MIN_BASE_FLOW_CELL:
                     continue
+                pct_str = format_flow_pct(int(count), total_lost) or "—"
+                # Strip the "+" prefix and prepend "−" (minus sign) for lost flows
+                display_str = "\u2212" + pct_str.lstrip("+")
                 st.markdown(
                     f'<div style="font-family:{FONT}; font-size:12px; padding:3px 0; '
                     f'border-bottom:1px solid {CI_LIGHT_GREY};">'
                     f'<span style="color:{CI_GREY};">{competitor}</span>'
-                    f'<span style="float:right; font-weight:700; color:{CI_RED};">\u2212{count}</span>'
+                    f'<span style="float:right; font-weight:700; color:{CI_RED};">{display_str}</span>'
                     f'</div>',
                     unsafe_allow_html=True,
                 )
@@ -456,20 +466,10 @@ def _render_index_chart(df_index: pd.DataFrame, direction: str = "loss"):
 
     n = len(df_index)
 
-    if direction == "loss":
-        colours = [
-            CI_RED if row["index"] > 120
-            else CI_GREEN if row["index"] < 80
-            else CI_BLUE
-            for _, row in df_index.iterrows()
-        ]
-    else:
-        colours = [
-            CI_GREEN if row["index"] > 120
-            else CI_RED if row["index"] < 80
-            else CI_BLUE
-            for _, row in df_index.iterrows()
-        ]
+    colours = [
+        get_index_bar_colour(row["index"], direction)
+        for _, row in df_index.iterrows()
+    ]
 
     fig = go.Figure(go.Bar(
         x=df_index["index"],
@@ -492,10 +492,10 @@ def _render_index_chart(df_index: pd.DataFrame, direction: str = "loss"):
     fig.add_vline(
         x=100,
         line_dash="dot",
-        line_color=CI_MAGENTA,
-        annotation_text="Market avg (100)",
+        line_color=CI_GREY,
+        annotation_text="Expected rate",
         annotation_position="top right",
-        annotation_font_color=CI_MAGENTA,
+        annotation_font_color=CI_GREY,
     )
 
     fig.update_layout(

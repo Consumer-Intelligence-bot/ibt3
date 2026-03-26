@@ -683,3 +683,212 @@ class TestCalcAwarenessRates:
         brands = set(result["brand"].tolist())
         assert "Ghost Brand" not in brands
         assert "Aviva" in brands
+
+
+# ===========================================================================
+# 7. format_flow_pct  (lib/analytics/flow_display.py)
+# ===========================================================================
+
+class TestFormatFlowPct:
+    """
+    lib/analytics/flow_display.py :: format_flow_pct
+
+    Converts a raw switcher count into a percentage string relative to total
+    switching volume, with a leading "+" sign for positive values.
+    """
+
+    def test_positive_count_returns_signed_pct_string(self):
+        """26 out of 168 = 15.5% → '+15.5%'"""
+        from lib.analytics.flow_display import format_flow_pct
+        result = format_flow_pct(26, 168)
+        assert result == "+15.5%"
+
+    def test_zero_count_returns_zero_string(self):
+        """0 out of 168 → '0.0%'"""
+        from lib.analytics.flow_display import format_flow_pct
+        result = format_flow_pct(0, 168)
+        assert result == "0.0%"
+
+    def test_zero_total_returns_none(self):
+        """Division by zero guard: total=0 → None."""
+        from lib.analytics.flow_display import format_flow_pct
+        result = format_flow_pct(26, 0)
+        assert result is None
+
+    def test_negative_count_includes_minus_sign(self):
+        """-10 out of 200 → '-5.0%'"""
+        from lib.analytics.flow_display import format_flow_pct
+        result = format_flow_pct(-10, 200)
+        assert result == "-5.0%"
+
+    def test_100_pct_case(self):
+        """count == total → '+100.0%'"""
+        from lib.analytics.flow_display import format_flow_pct
+        result = format_flow_pct(50, 50)
+        assert result == "+100.0%"
+
+    def test_returns_string_type(self):
+        """Return type must always be str (or None for zero-total)."""
+        from lib.analytics.flow_display import format_flow_pct
+        result = format_flow_pct(10, 100)
+        assert isinstance(result, str)
+
+    def test_rounding_to_one_decimal(self):
+        """1 out of 3 = 33.3%, not 33.33%"""
+        from lib.analytics.flow_display import format_flow_pct
+        result = format_flow_pct(1, 3)
+        assert result == "+33.3%"
+
+    def test_none_total_returns_none(self):
+        """total=None should be treated like zero (guard)."""
+        from lib.analytics.flow_display import format_flow_pct
+        result = format_flow_pct(10, None)
+        assert result is None
+
+    def test_none_count_returns_none(self):
+        """count=None should return None (guard)."""
+        from lib.analytics.flow_display import format_flow_pct
+        result = format_flow_pct(None, 100)
+        assert result is None
+
+
+# ===========================================================================
+# 8. format_net_flow_pct  (lib/analytics/flow_display.py)
+# ===========================================================================
+
+class TestFormatNetFlowPct:
+    """
+    lib/analytics/flow_display.py :: format_net_flow_pct
+
+    Formats a net flow decimal (e.g. 0.124) as a signed percentage string.
+    Accepts pre-computed proportion values in the range [-1, 1].
+    """
+
+    def test_positive_proportion_returns_signed_string(self):
+        """0.124 → '+12.4%'"""
+        from lib.analytics.flow_display import format_net_flow_pct
+        result = format_net_flow_pct(0.124)
+        assert result == "+12.4%"
+
+    def test_negative_proportion_returns_signed_string(self):
+        """-0.05 → '-5.0%'"""
+        from lib.analytics.flow_display import format_net_flow_pct
+        result = format_net_flow_pct(-0.05)
+        assert result == "-5.0%"
+
+    def test_none_returns_em_dash(self):
+        """None → '—' (em dash, Unicode U+2014)."""
+        from lib.analytics.flow_display import format_net_flow_pct
+        result = format_net_flow_pct(None)
+        assert result == "\u2014"
+
+    def test_zero_returns_zero_string(self):
+        """0.0 → '0.0%'"""
+        from lib.analytics.flow_display import format_net_flow_pct
+        result = format_net_flow_pct(0.0)
+        assert result == "0.0%"
+
+    def test_returns_string_type(self):
+        """Always returns str."""
+        from lib.analytics.flow_display import format_net_flow_pct
+        result = format_net_flow_pct(0.05)
+        assert isinstance(result, str)
+
+    def test_rounding_to_one_decimal(self):
+        """0.1234 → '+12.3%' (one decimal place)."""
+        from lib.analytics.flow_display import format_net_flow_pct
+        result = format_net_flow_pct(0.1234)
+        assert result == "+12.3%"
+
+
+# ===========================================================================
+# 9. get_index_bar_colour  (lib/analytics/flow_display.py)
+# ===========================================================================
+
+class TestGetIndexBarColour:
+    """
+    lib/analytics/flow_display.py :: get_index_bar_colour
+
+    Returns a CI brand colour hex string based on the index value and direction.
+    Rules:
+      direction="loss":
+        index > 120 → CI_RED   (losing disproportionately — bad)
+        index < 80  → CI_GREEN (under-indexing losses — good)
+        otherwise   → CI_GREY  (near market average)
+      direction="gain":
+        index > 120 → CI_GREEN (winning disproportionately — good)
+        index < 80  → CI_RED   (under-indexing wins — bad)
+        otherwise   → CI_GREY  (near market average)
+
+    CI_GREY is the charcoal alias (#54585A), NOT the former CI_BLUE (#5BC2E7).
+    """
+
+    def test_loss_high_index_returns_red(self):
+        """Loss direction, index=150 (high) → CI_RED."""
+        from lib.analytics.flow_display import get_index_bar_colour
+        from lib.config import CI_RED
+        assert get_index_bar_colour(150, "loss") == CI_RED
+
+    def test_loss_low_index_returns_green(self):
+        """Loss direction, index=50 (low) → CI_GREEN."""
+        from lib.analytics.flow_display import get_index_bar_colour
+        from lib.config import CI_GREEN
+        assert get_index_bar_colour(50, "loss") == CI_GREEN
+
+    def test_loss_neutral_index_returns_grey_not_blue(self):
+        """Loss direction, index=100 (neutral) → CI_GREY, NOT CI_BLUE."""
+        from lib.analytics.flow_display import get_index_bar_colour
+        from lib.config import CI_GREY, CI_BLUE
+        colour = get_index_bar_colour(100, "loss")
+        assert colour == CI_GREY
+        assert colour != CI_BLUE
+
+    def test_gain_high_index_returns_green(self):
+        """Gain direction, index=150 (high) → CI_GREEN."""
+        from lib.analytics.flow_display import get_index_bar_colour
+        from lib.config import CI_GREEN
+        assert get_index_bar_colour(150, "gain") == CI_GREEN
+
+    def test_gain_low_index_returns_red(self):
+        """Gain direction, index=50 (low) → CI_RED."""
+        from lib.analytics.flow_display import get_index_bar_colour
+        from lib.config import CI_RED
+        assert get_index_bar_colour(50, "gain") == CI_RED
+
+    def test_gain_neutral_index_returns_grey_not_blue(self):
+        """Gain direction, index=100 (neutral) → CI_GREY, NOT CI_BLUE."""
+        from lib.analytics.flow_display import get_index_bar_colour
+        from lib.config import CI_GREY, CI_BLUE
+        colour = get_index_bar_colour(100, "gain")
+        assert colour == CI_GREY
+        assert colour != CI_BLUE
+
+    def test_loss_boundary_exactly_120_is_neutral(self):
+        """index=120 is the upper boundary (not > 120), should return CI_GREY."""
+        from lib.analytics.flow_display import get_index_bar_colour
+        from lib.config import CI_GREY
+        assert get_index_bar_colour(120, "loss") == CI_GREY
+
+    def test_loss_boundary_exactly_80_is_neutral(self):
+        """index=80 is the lower boundary (not < 80), should return CI_GREY."""
+        from lib.analytics.flow_display import get_index_bar_colour
+        from lib.config import CI_GREY
+        assert get_index_bar_colour(80, "loss") == CI_GREY
+
+    def test_gain_boundary_exactly_120_is_neutral(self):
+        """index=120 is upper boundary for gain direction, should return CI_GREY."""
+        from lib.analytics.flow_display import get_index_bar_colour
+        from lib.config import CI_GREY
+        assert get_index_bar_colour(120, "gain") == CI_GREY
+
+    def test_gain_boundary_exactly_80_is_neutral(self):
+        """index=80 is lower boundary for gain direction, should return CI_GREY."""
+        from lib.analytics.flow_display import get_index_bar_colour
+        from lib.config import CI_GREY
+        assert get_index_bar_colour(80, "gain") == CI_GREY
+
+    def test_unknown_direction_returns_grey(self):
+        """An unrecognised direction string falls back to CI_GREY."""
+        from lib.analytics.flow_display import get_index_bar_colour
+        from lib.config import CI_GREY
+        assert get_index_bar_colour(150, "unknown") == CI_GREY
