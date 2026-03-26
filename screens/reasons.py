@@ -15,6 +15,7 @@ import streamlit as st
 from lib.analytics.demographics import apply_filters
 from lib.analytics.narrative_engine import generate_screen_narrative
 from lib.analytics.reasons import calc_reason_ranking, calc_reason_comparison, calc_reason_index
+from lib.analytics.flow_display import format_reason_pct
 from lib.chart_export import apply_export_metadata, render_suppression_html
 from lib.components.context_bar import render_context_bar
 from lib.components.context_footer import render_context_footer
@@ -187,12 +188,12 @@ def _render_insurer_view(df_motor, df_mkt, insurer, filters, period, n_mkt):
 
     # ── Sequential reason panels ─────────────────────────────────
     _INSURER_PANELS = [
-        ("Q8", "Why Customers Shop", "shoppers"),
-        ("Q19", "Why Customers Don't Shop", "non-shoppers"),
-        ("Q18", "Why Customers Stay After Shopping", "shoppers who stayed"),
-        ("Q31", "Why Customers Leave", "switchers from this insurer"),
-        ("Q33", "Why Customers Choose New Insurer", "switchers to this insurer"),
-        ("Q28", "What Would Bring Customers Back", "switchers from this insurer"),
+        ("Q8", f"Why {insurer}'s Customers Shopped Around", "shoppers"),
+        ("Q19", f"Why {insurer}'s Customers Didn't Shop Around", "non-shoppers"),
+        ("Q18", f"Why {insurer}'s Customers Stayed After Shopping", "shoppers who stayed"),
+        ("Q31", f"Why Customers Left {insurer}", "switchers from this insurer"),
+        ("Q33", f"Why Customers Chose {insurer} Over Alternatives", "switchers to this insurer"),
+        ("Q28", f"What Would Bring Customers Back to {insurer}", "switchers from this insurer"),
     ]
 
     for q_code, title, base_desc in _INSURER_PANELS:
@@ -329,8 +330,8 @@ def _render_reason_index_table(
         rows_html.append(
             f'<tr style="border-bottom:1px solid {CI_LIGHT_GREY};">'
             f'<td style="padding:5px 6px;">{r["reason"]}</td>'
-            f'<td style="text-align:right; padding:5px 6px; color:{CI_MAGENTA}; font-weight:bold;">{brand_pct * 100:.0f}%</td>'
-            f'<td style="text-align:right; padding:5px 6px; color:{MARKET_COLOUR};">{market_pct * 100:.0f}%</td>'
+            f'<td style="text-align:right; padding:5px 6px; color:{CI_MAGENTA}; font-weight:bold;">{format_reason_pct(brand_pct)}</td>'
+            f'<td style="text-align:right; padding:5px 6px; color:{MARKET_COLOUR};">{format_reason_pct(market_pct)}</td>'
             f'<td style="text-align:right; padding:5px 6px; color:{idx_colour}; font-weight:bold;">{idx_str}</td>'
             f'</tr>'
         )
