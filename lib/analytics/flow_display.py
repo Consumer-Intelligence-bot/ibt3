@@ -179,9 +179,6 @@ def format_reason_pct(value: float | None) -> str:
     """
     Format a reason percentage proportion for display in tables.
 
-    Distinguishes between true zero and very small values so that rounding
-    artefacts are not reported as "0%" when the true value is non-zero.
-
     Parameters
     ----------
     value : float | None
@@ -202,6 +199,67 @@ def format_reason_pct(value: float | None) -> str:
     if value <= 0.005:
         return "<1%"
     return f"{value * 100:.0f}%"
+
+
+# ---------------------------------------------------------------------------
+# Confidence interval helpers
+# ---------------------------------------------------------------------------
+
+def calc_wilson_ci(
+    successes: int,
+    n: int,
+    z: float = 1.96,
+) -> tuple[float, float] | None:
+    """
+    Calculate a Wilson score confidence interval for a proportion.
+
+    Parameters
+    ----------
+    successes : int
+        Number of successes (numerator).
+    n : int
+        Total observations (denominator).
+    z : float
+        Z-score for the desired confidence level (default 1.96 for 95% CI).
+
+    Returns
+    -------
+    tuple[float, float]
+        (lower, upper) as proportions in [0, 1].
+    None
+        When n is 0 (division-by-zero guard).
+    """
+    if n == 0:
+        return None
+
+    p_hat = successes / n
+    z2 = z * z
+    denominator = 1 + z2 / n
+    centre = (p_hat + z2 / (2 * n)) / denominator
+    margin = (z / denominator) * ((p_hat * (1 - p_hat) / n + z2 / (4 * n * n)) ** 0.5)
+
+    lower = max(0.0, centre - margin)
+    upper = min(1.0, centre + margin)
+    return (lower, upper)
+
+
+def format_ci_range(lower: float, upper: float) -> str:
+    """
+    Format a confidence interval as a display string.
+
+    Parameters
+    ----------
+    lower : float
+        Lower bound as a proportion (e.g. 0.535).
+    upper : float
+        Upper bound as a proportion (e.g. 0.575).
+
+    Returns
+    -------
+    str
+        Formatted string, e.g. "53.5%–57.5%" (en dash separator).
+    """
+    return f"{lower * 100:.1f}%\u2013{upper * 100:.1f}%"
 
 
 def get_index_bar_colour(index_value: float, direction: str) -> str:

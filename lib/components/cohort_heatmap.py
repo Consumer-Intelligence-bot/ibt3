@@ -60,8 +60,8 @@ def render_cohort_heatmap(heatmap_df: pd.DataFrame, insurer: str | None = None):
                 ]
                 if len(cell) == 0 or cell.iloc[0]["suppressed"]:
                     rows_html += (
-                        f'<td style="text-align:center; padding:6px 8px; '
-                        f'color:{CI_LIGHT_GREY};">n/a</td>'
+                        f'<td style="text-align:center; padding:6px 8px; font-size:10px; '
+                        f'color:{CI_LIGHT_GREY};">Suppressed (n &lt; {MIN_BASE_INDICATIVE})</td>'
                     )
                 else:
                     delta = cell.iloc[0]["delta"]

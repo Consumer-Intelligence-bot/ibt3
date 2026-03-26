@@ -15,13 +15,14 @@ import streamlit as st
 from lib.analytics.cohort_heatmap import calc_cohort_heatmap
 from lib.analytics.demographics import apply_filters
 from lib.analytics.narrative_engine import generate_screen_narrative
+from lib.analytics.flow_display import calc_wilson_ci, format_ci_range
 from lib.analytics.rates import (
     calc_shopping_rate,
     calc_switching_rate,
     calc_retention_rate,
     calc_conversion_rate,
 )
-from lib.analytics.reasons import calc_reason_ranking, calc_reason_comparison
+from lib.analytics.reasons import calc_reason_ranking, calc_reason_comparison, calc_reason_index
 from lib.chart_export import render_suppression_html
 from lib.components.cohort_heatmap import render_cohort_heatmap
 from lib.components.context_bar import render_context_bar
@@ -114,6 +115,7 @@ def _render_market_view(df_mkt, filters, period, n_mkt):
         {
             "title": "Conversion Rate",
             "value": fmt_pct(conversion_rate),
+            "caption": "% of shoppers who switched to a new insurer after comparing quotes",
             "sample_n": n_mkt,
             "colour": CI_GREY,
         },
@@ -178,7 +180,9 @@ def _render_market_view(df_mkt, filters, period, n_mkt):
         # Q8: Why customers shop
         st.markdown(
             f'<div style="font-size:11px; font-weight:700; text-transform:uppercase; '
-            f'letter-spacing:0.8px; color:{CI_GREY}; margin-bottom:8px;">Why Customers Shop (Q8)</div>',
+            f'letter-spacing:0.8px; color:{CI_GREY}; margin-bottom:4px;">Why New Customers Shopped (Q8)</div>'
+            f'<div style="font-size:10px; color:{CI_GREY}; margin-bottom:8px; font-style:italic;">'
+            f'Why new customers shopped around before joining their current insurer</div>',
             unsafe_allow_html=True,
         )
         n_shoppers = int(df_mkt["IsShopper"].sum()) if "IsShopper" in df_mkt.columns else 0
@@ -283,12 +287,21 @@ def _render_insurer_view(df_motor, df_mkt, insurer, filters, period, n_mkt):
     conversion_trend = "up" if conversion_gap > 0 else "down" if conversion_gap < 0 else "flat"
     conversion_sign = "+" if conversion_gap > 0 else ""
 
+    # Wilson 95% CI on shopping and conversion rates
+    shop_ci = calc_wilson_ci(
+        int((ins_shopping or 0) * n_ins), n_ins
+    ) if ins_shopping is not None else None
+    conv_ci = calc_wilson_ci(
+        int((ins_conversion or 0) * n_ins), n_ins
+    ) if ins_conversion is not None else None
+
     decision_kpi_row([
         {
             "title": "Shopping Rate",
             "value": fmt_pct(ins_shopping),
             "change": f"{shopping_sign}{shopping_gap:.1f}pp vs market",
             "trend": shopping_trend,
+            "caption": format_ci_range(*shop_ci) if shop_ci else f"n={n_ins:,}",
             "sample_n": n_ins,
             "colour": CI_MAGENTA,
         },
@@ -297,6 +310,7 @@ def _render_insurer_view(df_motor, df_mkt, insurer, filters, period, n_mkt):
             "value": fmt_pct(ins_conversion),
             "change": f"{conversion_sign}{conversion_gap:.1f}pp vs market",
             "trend": conversion_trend,
+            "caption": (format_ci_range(*conv_ci) if conv_ci else f"n={n_ins:,}") + " — % shoppers who switched",
             "sample_n": n_ins,
             "colour": CI_RED,
         },
@@ -320,19 +334,28 @@ def _render_insurer_view(df_motor, df_mkt, insurer, filters, period, n_mkt):
         # Q8 insurer vs market comparison
         st.markdown(
             f'<div style="font-family:{FONT}; font-size:12px; font-weight:700; '
-            f'color:{CI_MAGENTA}; margin:16px 0 6px 0;">Why Customers Shop (Q8)</div>',
+            f'color:{CI_MAGENTA}; margin:16px 0 2px 0;">'
+            f'Why new {insurer} customers shopped around before joining (Q8)</div>',
             unsafe_allow_html=True,
         )
         q8_comp = calc_reason_comparison(df_mkt, "Q8", insurer, top_n=5)
         if q8_comp:
             _render_comparison_columns(q8_comp, insurer)
+            # Index table: how insurer's shoppers compare to market shoppers
+            indexed = calc_reason_index(
+                q8_comp.get("insurer", []),
+                q8_comp.get("market", []),
+            )
+            if indexed:
+                _render_reason_index_table(indexed)
         else:
             st.info("No Q8 data available.")
 
         # Q19 insurer vs market comparison
         st.markdown(
             f'<div style="font-family:{FONT}; font-size:12px; font-weight:700; '
-            f'color:{CI_GREEN}; margin:16px 0 6px 0;">Why Customers Don\'t Shop (Q19)</div>',
+            f'color:{CI_GREEN}; margin:16px 0 2px 0;">'
+            f'Why existing {insurer} customers chose not to shop around (Q19)</div>',
             unsafe_allow_html=True,
         )
         q19_comp = calc_reason_comparison(df_mkt, "Q19", insurer, top_n=5)
@@ -397,6 +420,39 @@ def _render_reason_bar(reasons: list[dict], colour: str):
     )
 
     st.plotly_chart(fig, use_container_width=True)
+
+
+def _render_reason_index_table(indexed: list[dict]):
+    """Render a compact index table showing insurer vs market over/under-index."""
+    rows_html = (
+        f'<table style="width:100%; border-collapse:collapse; font-size:11px; margin-top:6px;">'
+        f'<thead><tr style="border-bottom:2px solid {CI_LIGHT_GREY};">'
+        f'<th style="text-align:left; padding:4px 6px; color:{CI_GREY};">Reason</th>'
+        f'<th style="text-align:right; padding:4px 6px; color:{CI_GREY};">Index</th>'
+        f'</tr></thead><tbody>'
+    )
+    for row in indexed:
+        index_val = row.get("index")
+        if index_val is None:
+            index_str = "\u2014"
+            colour = CI_GREY
+        else:
+            index_str = f"{index_val:.0f}"
+            colour = CI_GREEN if index_val >= 110 else (CI_RED if index_val <= 90 else CI_GREY)
+        rows_html += (
+            f'<tr style="border-bottom:1px solid {CI_LIGHT_GREY};">'
+            f'<td style="padding:4px 6px; color:{CI_GREY};">{row["reason"]}</td>'
+            f'<td style="text-align:right; padding:4px 6px; color:{colour}; '
+            f'font-weight:bold;">{index_str}</td>'
+            f'</tr>'
+        )
+    rows_html += '</tbody></table>'
+    st.markdown(
+        f'<div style="font-size:10px; color:{CI_GREY}; margin-top:6px; font-style:italic;">'
+        f'Index: 100 = market average. Above 110 = over-index (dark green), below 90 = under-index (red).</div>',
+        unsafe_allow_html=True,
+    )
+    st.markdown(rows_html, unsafe_allow_html=True)
 
 
 def _render_comparison_columns(comparison: dict, insurer: str):

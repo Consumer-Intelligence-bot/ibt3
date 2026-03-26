@@ -41,6 +41,7 @@ def decision_kpi(
     trend: str = "flat",
     sample_n: int | None = None,
     colour: str | None = None,
+    caption: str = "",
 ):
     """Render a single Decision Screen KPI card.
 
@@ -58,6 +59,9 @@ def decision_kpi(
         Sample size for confidence badge. None to hide badge.
     colour : str | None
         Accent colour for the card. Defaults to CI_PURPLE.
+    caption : str
+        Optional small text below the badge, e.g. a CI range or definition.
+        Empty string to hide.
     """
     if colour is None:
         colour = CI_PURPLE
@@ -84,6 +88,14 @@ def decision_kpi(
             f'letter-spacing:0.3px;">n={sample_n:,}</div>'
         )
 
+    # Optional caption (CI range, definition, etc.)
+    caption_html = ""
+    if caption:
+        caption_html = (
+            f'<div style="font-size:10px; color:{CI_CHARCOAL_60}; '
+            f'margin-top:6px; font-style:italic;">{caption}</div>'
+        )
+
     st.markdown(
         f'<div style="'
         f'background:white; border:1px solid {CI_CHARCOAL_20}; '
@@ -96,6 +108,7 @@ def decision_kpi(
         f'line-height:1.1;">{value}</div>'
         f'{change_html}'
         f'{badge_html}'
+        f'{caption_html}'
         f'</div>',
         unsafe_allow_html=True,
     )
