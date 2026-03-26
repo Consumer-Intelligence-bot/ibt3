@@ -35,7 +35,7 @@ def render_narrative_panel(narrative: dict | None, screen_name: str = ""):
         headline = narrative.get("headline", "")
         if headline:
             st.markdown(
-                f'<div style="font-family:{FONT}; font-size:18px; font-weight:700; '
+                f'<div style="font-family:{FONT}; font-size:20px; font-weight:700; '
                 f'color:{CI_CHARCOAL}; margin-bottom:8px; line-height:1.3;">{headline}</div>',
                 unsafe_allow_html=True,
             )
@@ -43,7 +43,7 @@ def render_narrative_panel(narrative: dict | None, screen_name: str = ""):
         subtitle = narrative.get("subtitle", "")
         if subtitle:
             st.markdown(
-                f'<div style="font-family:{FONT}; font-size:13px; color:{CI_CHARCOAL_60}; '
+                f'<div style="font-family:{FONT}; font-size:15px; color:{CI_CHARCOAL_60}; '
                 f'font-style:italic; margin-bottom:14px;">{subtitle}</div>',
                 unsafe_allow_html=True,
             )
@@ -51,7 +51,7 @@ def render_narrative_panel(narrative: dict | None, screen_name: str = ""):
         paragraph = narrative.get("paragraph", "")
         if paragraph:
             st.markdown(
-                f'<div style="font-family:{FONT}; font-size:13px; color:{CI_CHARCOAL}; '
+                f'<div style="font-family:{FONT}; font-size:15px; color:{CI_CHARCOAL}; '
                 f'line-height:1.7;">{paragraph}</div>',
                 unsafe_allow_html=True,
             )
@@ -59,7 +59,7 @@ def render_narrative_panel(narrative: dict | None, screen_name: str = ""):
         findings = narrative.get("findings", [])
         for finding in findings:
             st.markdown(
-                f'<div style="font-family:{FONT}; font-size:13px; color:{CI_CHARCOAL}; '
+                f'<div style="font-family:{FONT}; font-size:14px; color:{CI_CHARCOAL}; '
                 f'margin:12px 0; padding:14px 18px; background:white; '
                 f'border-left:3px solid {CI_PURPLE}; border-radius:0 12px 12px 0;">'
                 f'<div style="margin-bottom:6px;"><span style="font-weight:700; '
@@ -133,7 +133,7 @@ def render_narrative_compact(narrative: dict | None, screen_name: str = ""):
     # Headline
     if headline:
         st.markdown(
-            f'<div style="font-size:15px; font-weight:700; color:{CI_CHARCOAL}; '
+            f'<div style="font-size:17px; font-weight:700; color:{CI_CHARCOAL}; '
             f'line-height:1.3; margin-bottom:6px;">{headline}</div>',
             unsafe_allow_html=True,
         )
@@ -141,7 +141,7 @@ def render_narrative_compact(narrative: dict | None, screen_name: str = ""):
     # Subtitle
     if subtitle:
         st.markdown(
-            f'<div style="font-size:12px; color:{CI_CHARCOAL_60}; '
+            f'<div style="font-size:14px; color:{CI_CHARCOAL_60}; '
             f'font-style:italic; margin-bottom:8px;">{subtitle}</div>',
             unsafe_allow_html=True,
         )
@@ -149,7 +149,7 @@ def render_narrative_compact(narrative: dict | None, screen_name: str = ""):
     # Paragraph
     if paragraph:
         st.markdown(
-            f'<div style="font-size:12px; color:{CI_CHARCOAL}; '
+            f'<div style="font-size:14px; color:{CI_CHARCOAL}; '
             f'line-height:1.6; margin-bottom:8px;">{paragraph}</div>',
             unsafe_allow_html=True,
         )
@@ -159,10 +159,10 @@ def render_narrative_compact(narrative: dict | None, screen_name: str = ""):
         fact = finding.get("fact", "")
         observation = finding.get("observation", "")
         st.markdown(
-            f'<div style="font-size:11px; color:{CI_CHARCOAL}; '
+            f'<div style="font-size:13px; color:{CI_CHARCOAL}; '
             f'padding:6px 10px; margin:4px 0; background:{CI_CHARCOAL_20}; '
             f'border-radius:8px;">'
-            f'<span style="font-weight:700; color:{CI_PURPLE}; font-size:9px; '
+            f'<span style="font-weight:700; color:{CI_PURPLE}; font-size:10px; '
             f'text-transform:uppercase; letter-spacing:0.5px;">Fact</span> '
             f'{fact}'
             f'{"  —  " + observation if observation else ""}'

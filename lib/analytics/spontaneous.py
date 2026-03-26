@@ -149,10 +149,10 @@ def calc_toma_share(metrics: pd.DataFrame, top_n: int = 8):
         other = 0
         for _, r in month_data.iterrows():
             if r["brand"] in top_brands:
-                row[r["brand"]] = round(r["toma"] * 100, 1)
+                row[r["brand"]] = round(r["toma"], 4)
             else:
-                other += r["toma"] * 100
-        row["Other"] = round(other, 1)
+                other += r["toma"]
+        row["Other"] = round(other, 4)
         rows.append(row)
 
     return pd.DataFrame(rows), top_brands

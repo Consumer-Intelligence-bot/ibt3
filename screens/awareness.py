@@ -84,7 +84,14 @@ def _render_prompted(df_motor, filters):
     selected_months = filters["selected_months"]
     insurer = filters["insurer"]
 
-    df_main = apply_filters(df_motor, product=product, selected_months=selected_months)
+    df_main = apply_filters(
+        df_motor,
+        product=product,
+        selected_months=selected_months,
+        age_band=filters.get("age_band"),
+        region=filters.get("region"),
+        payment_type=filters.get("payment_type"),
+    )
     if df_main.empty:
         st.warning("No data for selected filters.")
         return
@@ -199,13 +206,13 @@ def _render_market_prompted(df_main, level, product, period, n):
             df_main, level, periods["period_a_months"], periods["period_b_months"]
         )
         if comparison is not None and not comparison.empty:
-            comparison = comparison.sort_values("change_pp", ascending=False).head(10)
+            comparison = comparison.sort_values("rate_change_pp", ascending=False).head(10)
             fig = go.Figure(go.Bar(
-                x=comparison["change_pp"],
+                x=comparison["rate_change_pp"],
                 y=comparison["brand"],
                 orientation="h",
-                marker_color=[CI_GREEN if c > 0 else CI_RED for c in comparison["change_pp"]],
-                text=[f"{c:+.1f}pp" for c in comparison["change_pp"]],
+                marker_color=[CI_GREEN if c > 0 else CI_RED for c in comparison["rate_change_pp"]],
+                text=[f"{c:+.1f}pp" for c in comparison["rate_change_pp"]],
                 textposition="outside",
             ))
             fig.update_layout(
@@ -376,7 +383,14 @@ def _render_unprompted(df_motor, filters):
         st.info("Unprompted awareness is not available for Pet insurance.")
         return
 
-    df_main = apply_filters(df_motor, product=product, selected_months=selected_months)
+    df_main = apply_filters(
+        df_motor,
+        product=product,
+        selected_months=selected_months,
+        age_band=filters.get("age_band"),
+        region=filters.get("region"),
+        payment_type=filters.get("payment_type"),
+    )
     if df_main.empty:
         st.warning("No data for selected filters.")
         return
