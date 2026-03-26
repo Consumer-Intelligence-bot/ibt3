@@ -3,6 +3,8 @@ Screen 4: Channels & PCWs.
 
 Market View: Shopping channels (Q9b), PCW usage (Q11), PCW NPS.
 Insurer View: Insurer vs market channel usage, quote reach.
+
+Layout: Decision Screen pattern (context bar, narrative, KPIs, 70/30 split, footer).
 """
 
 import pandas as pd
@@ -18,9 +20,11 @@ from lib.analytics.channels import (
     calc_quote_reach,
 )
 from lib.analytics.demographics import apply_filters
-from lib.chart_export import apply_export_metadata, render_suppression_html
-from lib.components.kpi_cards import kpi_card
-from lib.components.narrative_panel import render_narrative_panel
+from lib.chart_export import render_suppression_html
+from lib.components.context_bar import render_context_bar
+from lib.components.context_footer import render_context_footer
+from lib.components.decision_kpi import decision_kpi_row
+from lib.components.narrative_panel import render_narrative_compact
 from lib.components.paired_bars import paired_bar_chart
 from lib.config import (
     CI_BLUE,
@@ -31,11 +35,12 @@ from lib.config import (
     CI_RED,
     CI_WHITE,
     CI_VIOLET,
+    FONT,
     MARKET_COLOUR,
     MIN_BASE_PUBLISHABLE,
     MIN_BASE_REASON,
 )
-from lib.formatting import fmt_pct, section_divider, period_label, FONT
+from lib.formatting import fmt_pct, period_label
 from lib.question_ref import get_question_text
 from lib.state import get_ss_data
 
@@ -75,48 +80,83 @@ def render(filters: dict):
         _render_market_view(df_mkt, filters, period, n_mkt)
 
 
+# ---------------------------------------------------------------------------
+# Market view
+# ---------------------------------------------------------------------------
+
 def _render_market_view(df_mkt, filters, period, n_mkt):
     """Market-level channel and PCW overview."""
-    st.subheader("Channels & PCWs: Market View")
-
+    product = filters["product"]
     n_shoppers = int(df_mkt["IsShopper"].sum()) if "IsShopper" in df_mkt.columns else 0
 
-    # --- Shopping Channels (Q9b) ---
-    section_divider("Shopping Channels (Q9b)")
-    st.caption(get_question_text("Q9b"))
-    st.caption("Multi-select: totals exceed 100%.")
+    # -- Context bar --
+    render_context_bar(
+        "Channels & PCWs",
+        product=product,
+        period=period,
+        n_market=n_mkt,
+    )
 
-    ch = calc_channel_usage(df_mkt)
-    if ch is not None and len(ch) > 0:
-        ch_sorted = ch.sort_values(ascending=True)
-        fig = go.Figure(go.Bar(
-            x=ch_sorted.values,
-            y=ch_sorted.index,
-            orientation="h",
-            marker_color=CI_GREEN,
-            text=[f"{v:.0%}" for v in ch_sorted.values],
-            textposition="outside",
-        ))
-        fig.update_layout(
-            xaxis_tickformat=".0%",
-            height=max(250, len(ch) * 35 + 80),
-            margin=dict(l=10, r=50, t=10, b=40),
-            font=dict(family=FONT, size=11, color=CI_GREY),
-            plot_bgcolor=CI_WHITE,
-            paper_bgcolor=CI_WHITE,
+    # -- KPI row --
+    mismatch = calc_quote_buy_mismatch(df_mkt)
+    decision_kpi_row([
+        {
+            "title": "Shoppers",
+            "value": f"{n_shoppers:,}",
+            "sample_n": n_shoppers,
+            "colour": CI_MAGENTA,
+        },
+        {
+            "title": "Quote/Buy Mismatch",
+            "value": fmt_pct(mismatch) if mismatch is not None else "--",
+            "sample_n": n_shoppers,
+            "colour": CI_RED,
+        },
+    ])
+
+    # -- 70 / 30 split --
+    col_primary, col_secondary = st.columns([7, 3])
+
+    with col_primary:
+        # Shopping Channels (Q9b)
+        st.markdown(
+            f'<div style="font-family:{FONT}; font-size:12px; font-weight:700; '
+            f'color:{CI_GREEN}; margin-bottom:6px;">Shopping Channels (Q9b)</div>',
+            unsafe_allow_html=True,
         )
-        st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.info("No channel data available.")
 
-    # --- PCW Usage (Q11) ---
-    section_divider("PCW Market Share (Q11)")
-    st.caption(get_question_text("Q11"))
+        ch = calc_channel_usage(df_mkt)
+        if ch is not None and len(ch) > 0:
+            ch_sorted = ch.sort_values(ascending=True)
+            fig = go.Figure(go.Bar(
+                x=ch_sorted.values,
+                y=ch_sorted.index,
+                orientation="h",
+                marker_color=CI_GREEN,
+                text=[f"{v:.0%}" for v in ch_sorted.values],
+                textposition="outside",
+            ))
+            fig.update_layout(
+                xaxis_tickformat=".0%",
+                height=max(250, len(ch) * 35 + 80),
+                margin=dict(l=10, r=50, t=10, b=40),
+                font=dict(family=FONT, size=11, color=CI_GREY),
+                plot_bgcolor=CI_WHITE,
+                paper_bgcolor=CI_WHITE,
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("No channel data available.")
 
-    pcw = calc_pcw_usage(df_mkt)
-    if pcw is not None and len(pcw) > 0:
-        col_pie, col_table = st.columns([2, 1])
-        with col_pie:
+        # PCW Usage (Q11)
+        st.markdown(
+            f'<div style="font-family:{FONT}; font-size:12px; font-weight:700; '
+            f'color:{CI_MAGENTA}; margin:16px 0 6px 0;">PCW Market Share (Q11)</div>',
+            unsafe_allow_html=True,
+        )
+
+        pcw = calc_pcw_usage(df_mkt)
+        if pcw is not None and len(pcw) > 0:
             fig_pcw = go.Figure(go.Pie(
                 labels=pcw.index,
                 values=pcw.values,
@@ -125,38 +165,37 @@ def _render_market_view(df_mkt, filters, period, n_mkt):
                 marker=dict(line=dict(color="white", width=2)),
             ))
             fig_pcw.update_layout(
-                height=350,
+                height=300,
                 margin=dict(l=20, r=20, t=20, b=40),
                 font=dict(family=FONT),
             )
             st.plotly_chart(fig_pcw, use_container_width=True)
+        else:
+            st.info("No PCW data available.")
 
-        with col_table:
+    with col_secondary:
+        # PCW table
+        if pcw is not None and len(pcw) > 0:
+            st.markdown(
+                f'<div style="font-size:11px; font-weight:700; text-transform:uppercase; '
+                f'letter-spacing:0.8px; color:{CI_GREY}; margin-bottom:8px;">PCW Usage</div>',
+                unsafe_allow_html=True,
+            )
             pcw_df = pd.DataFrame({"PCW": pcw.index, "Usage": [f"{v:.0%}" for v in pcw.values]})
             st.dataframe(pcw_df, use_container_width=True, hide_index=True)
-    else:
-        st.info("No PCW data available.")
 
-    # --- Quote/Buy Mismatch ---
-    section_divider("Quote vs Buy Mismatch")
-    mismatch = calc_quote_buy_mismatch(df_mkt)
-    if mismatch is not None:
-        kpi_card(
-            "Quote/Buy Mismatch Rate",
-            fmt_pct(mismatch),
-            "Shoppers who quoted via one channel but bought via another",
-            CI_RED,
-        )
-    else:
-        st.info("No mismatch data available.")
-
-    # Footer
-    st.markdown("---")
-    st.caption(
-        f"Channels & PCWs | Market | {filters['product']} | {period} | "
-        f"n={n_mkt:,} | Shoppers: {n_shoppers:,}"
+    # -- Context footer --
+    render_context_footer(
+        screen_name="channels_market",
+        product=product,
+        period=period,
+        sample_n=n_mkt,
     )
 
+
+# ---------------------------------------------------------------------------
+# Insurer view
+# ---------------------------------------------------------------------------
 
 def _render_insurer_view(df_motor, df_mkt, insurer, filters, period, n_mkt):
     """Insurer-level channel analysis."""
@@ -175,17 +214,26 @@ def _render_insurer_view(df_motor, df_mkt, insurer, filters, period, n_mkt):
 
     n_ins = len(df_ins)
 
-    st.subheader(f"Channels & PCWs: {insurer}")
+    # -- Calculate metrics upfront (needed for narrative) --
+    ch_ins = calc_channel_usage(df_mkt, insurer)
+    ch_mkt = calc_channel_usage(df_mkt)
+    pcw_ins = calc_pcw_usage(df_mkt, insurer)
+    pcw_mkt = calc_pcw_usage(df_mkt)
+    n_shoppers = int(df_mkt["IsShopper"].sum()) if "IsShopper" in df_mkt.columns else 0
+    quote_reach = calc_quote_reach(df_mkt, insurer)
+    reach_pct = quote_reach / n_shoppers if n_shoppers > 0 else 0
 
-    st.markdown(
-        f'<div style="background:{CI_LIGHT_GREY}; padding:10px 16px; border-radius:4px; '
-        f'font-family:{FONT}; font-size:13px; color:{CI_GREY}; margin-bottom:16px;">'
-        f"<b>{insurer}</b> &nbsp;|&nbsp; {product} &nbsp;|&nbsp; {period} "
-        f"&nbsp;|&nbsp; Insurer n={n_ins:,} &nbsp;|&nbsp; Market n={n_mkt:,}"
-        f"</div>",
-        unsafe_allow_html=True,
+    # -- Context bar --
+    render_context_bar(
+        "Channels & PCWs",
+        insurer=insurer,
+        product=product,
+        period=period,
+        n_insurer=n_ins,
+        n_market=n_mkt,
     )
 
+    # -- Suppression check --
     if n_ins < MIN_BASE_PUBLISHABLE:
         st.markdown(
             render_suppression_html(insurer, n_ins, MIN_BASE_PUBLISHABLE),
@@ -193,89 +241,116 @@ def _render_insurer_view(df_motor, df_mkt, insurer, filters, period, n_mkt):
         )
         return
 
-    # --- Channel usage: insurer vs market ---
-    section_divider("Shopping Channels: Insurer vs Market (Q9b)")
-
-    ch_ins = calc_channel_usage(df_mkt, insurer)
-    ch_mkt = calc_channel_usage(df_mkt)
-
-    if ch_ins is not None and ch_mkt is not None:
-        # Align channels
-        all_channels = sorted(set(ch_ins.index) | set(ch_mkt.index))
-        labels = all_channels
-        ins_vals = [ch_ins.get(c, 0) for c in all_channels]
-        mkt_vals = [ch_mkt.get(c, 0) for c in all_channels]
-
-        paired_bar_chart(
-            labels, ins_vals, mkt_vals,
-            insurer_label=insurer, market_label="Market",
-            title="Channel Usage Among Shoppers",
-            insurer_colour=CI_VIOLET,
-        )
-    else:
-        st.info("Insufficient channel data for comparison.")
-
-    # --- PCW usage: insurer vs market ---
-    section_divider("PCW Usage: Insurer vs Market (Q11)")
-
-    pcw_ins = calc_pcw_usage(df_mkt, insurer)
-    pcw_mkt = calc_pcw_usage(df_mkt)
-
-    if pcw_ins is not None and pcw_mkt is not None:
-        all_pcws = sorted(set(pcw_ins.index) | set(pcw_mkt.index))
-        labels = all_pcws
-        ins_vals = [pcw_ins.get(p, 0) for p in all_pcws]
-        mkt_vals = [pcw_mkt.get(p, 0) for p in all_pcws]
-
-        paired_bar_chart(
-            labels, ins_vals, mkt_vals,
-            insurer_label=insurer, market_label="Market",
-            title="PCW Usage Among PCW Shoppers",
-            insurer_colour=CI_VIOLET,
-        )
-    else:
-        st.info("Insufficient PCW data for comparison.")
-
-    # --- Quote reach ---
-    section_divider("Quote Reach (Q13b)")
-
-    quote_reach = calc_quote_reach(df_mkt, insurer)
-    n_shoppers = int(df_mkt["IsShopper"].sum()) if "IsShopper" in df_mkt.columns else 0
-    reach_pct = quote_reach / n_shoppers if n_shoppers > 0 else 0
-
-    col1, col2 = st.columns(2)
-    with col1:
-        kpi_card("Quote Reach", f"{quote_reach:,}", "Shoppers who got a quote from this insurer", CI_MAGENTA)
-    with col2:
-        kpi_card("Reach %", fmt_pct(reach_pct), f"Of {n_shoppers:,} total shoppers", CI_MAGENTA)
-
-    # --- AI Narrative ---
-    section_divider("AI Narrative")
+    # -- AI Narrative (top of screen) --
     top_ch = ch_ins.idxmax() if ch_ins is not None and len(ch_ins) > 0 else "N/A"
     pcw_rate = f"{pcw_ins.sum():.0%}" if pcw_ins is not None else "N/A"
     narrative = generate_screen_narrative("channels", {
         "insurer": insurer,
-        "product": filters["product"],
+        "product": product,
         "top_channel": top_ch,
         "pcw_usage_rate": pcw_rate,
         "quote_reach": quote_reach,
     })
-    render_narrative_panel(narrative, "channels")
+    render_narrative_compact(narrative, "channels")
 
-    # --- Cross-screen links ---
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("View Shopping Behaviour", key="channels_to_shopping"):
+    # -- KPI row --
+    decision_kpi_row([
+        {
+            "title": "Quote Reach",
+            "value": f"{quote_reach:,}",
+            "change": f"{fmt_pct(reach_pct)} of {n_shoppers:,} shoppers",
+            "trend": "up" if reach_pct > 0.1 else "flat",
+            "sample_n": n_ins,
+            "colour": CI_MAGENTA,
+        },
+        {
+            "title": "Top Channel",
+            "value": top_ch,
+            "sample_n": n_ins,
+            "colour": CI_VIOLET,
+        },
+    ])
+
+    # -- 70 / 30 split --
+    col_primary, col_secondary = st.columns([7, 3])
+
+    with col_primary:
+        # Channel usage: insurer vs market (Q9b)
+        if ch_ins is not None and ch_mkt is not None:
+            all_channels = sorted(set(ch_ins.index) | set(ch_mkt.index))
+            labels = all_channels
+            ins_vals = [ch_ins.get(c, 0) for c in all_channels]
+            mkt_vals = [ch_mkt.get(c, 0) for c in all_channels]
+
+            paired_bar_chart(
+                labels, ins_vals, mkt_vals,
+                insurer_label=insurer, market_label="Market",
+                title="Channel Usage Among Shoppers",
+                insurer_colour=CI_VIOLET,
+            )
+        else:
+            st.info("Insufficient channel data for comparison.")
+
+        # PCW usage: insurer vs market (Q11)
+        if pcw_ins is not None and pcw_mkt is not None:
+            all_pcws = sorted(set(pcw_ins.index) | set(pcw_mkt.index))
+            labels = all_pcws
+            ins_vals = [pcw_ins.get(p, 0) for p in all_pcws]
+            mkt_vals = [pcw_mkt.get(p, 0) for p in all_pcws]
+
+            paired_bar_chart(
+                labels, ins_vals, mkt_vals,
+                insurer_label=insurer, market_label="Market",
+                title="PCW Usage Among PCW Shoppers",
+                insurer_colour=CI_VIOLET,
+            )
+        else:
+            st.info("Insufficient PCW data for comparison.")
+
+    with col_secondary:
+        # Quote reach detail
+        st.markdown(
+            f'<div style="font-size:11px; font-weight:700; text-transform:uppercase; '
+            f'letter-spacing:0.8px; color:{CI_GREY}; margin-bottom:8px;">Quote Reach (Q13b)</div>',
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            f'<div style="font-family:{FONT}; font-size:12px; padding:4px 0; '
+            f'border-bottom:1px solid {CI_LIGHT_GREY};">'
+            f'<span style="color:{CI_GREY};">Shoppers quoted</span>'
+            f'<span style="float:right; font-weight:700; color:{CI_MAGENTA};">{quote_reach:,}</span>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            f'<div style="font-family:{FONT}; font-size:12px; padding:4px 0; '
+            f'border-bottom:1px solid {CI_LIGHT_GREY};">'
+            f'<span style="color:{CI_GREY};">Reach %</span>'
+            f'<span style="float:right; font-weight:700; color:{CI_MAGENTA};">{fmt_pct(reach_pct)}</span>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+
+        # Cross-screen links
+        st.markdown(
+            f'<div style="font-size:11px; font-weight:700; text-transform:uppercase; '
+            f'letter-spacing:0.8px; color:{CI_GREY}; margin:16px 0 6px 0;">Explore</div>',
+            unsafe_allow_html=True,
+        )
+        if st.button("Shopping Behaviour", key="channels_to_shopping"):
             from lib.state import navigate_to
             navigate_to("shopping")
-    with col2:
-        if st.button("View Pre-Renewal Context", key="channels_to_prerenewal"):
+        if st.button("Pre-Renewal Context", key="channels_to_prerenewal"):
             from lib.state import navigate_to
             navigate_to("pre_renewal")
+        if st.button("Compare Insurers", key="channels_to_comparison"):
+            from lib.state import navigate_to
+            navigate_to("comparison")
 
-    # Footer
-    st.markdown("---")
-    st.caption(
-        f"Channels & PCWs | {insurer} | {filters['product']} | {period} | "
-        f"Insurer n={n_ins:,} | Market n={n_mkt:,}"
+    # -- Context footer --
+    render_context_footer(
+        screen_name="channels",
+        product=product,
+        period=period,
+        sample_n=n_ins,
     )

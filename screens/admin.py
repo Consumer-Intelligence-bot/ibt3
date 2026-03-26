@@ -246,7 +246,7 @@ def render(filters: dict):
             fig_qc.add_hline(y=0.02, line_dash="dash", line_color=CI_RED, annotation_text="2% threshold")
             fig_qc.update_layout(
                 height=250, margin=dict(t=30), yaxis_tickformat=".1%",
-                font=dict(family="DM Sans, sans-serif"), plot_bgcolor="white", paper_bgcolor="white",
+                font=dict(family="Montserrat, sans-serif"), plot_bgcolor="white", paper_bgcolor="white",
             )
             st.plotly_chart(fig_qc, use_container_width=True)
         else:
@@ -260,7 +260,7 @@ def render(filters: dict):
     by_month["month_label"] = by_month["RenewalYearMonth"].apply(format_year_month)
     fig_dist = go.Figure(go.Bar(x=by_month["month_label"], y=by_month["count"], marker_color=CI_GREY))
     fig_dist.update_layout(
-        height=250, margin=dict(t=10), font=dict(family="DM Sans, sans-serif"),
+        height=250, margin=dict(t=10), font=dict(family="Montserrat, sans-serif"),
         plot_bgcolor="white", paper_bgcolor="white",
     )
     st.plotly_chart(fig_dist, use_container_width=True)
@@ -337,5 +337,5 @@ def render(filters: dict):
                 styles[ci_idx] = f"background-color: {CI_YELLOW}; color: {CI_GREY}"
             return styles
 
-        styled = df_quality.style.apply(_style_quality, axis=1).set_properties(**{"font-family": "DM Sans, sans-serif"})
+        styled = df_quality.style.apply(_style_quality, axis=1).set_properties(**{"font-family": "Montserrat, sans-serif"})
         st.dataframe(styled, use_container_width=True, hide_index=True)

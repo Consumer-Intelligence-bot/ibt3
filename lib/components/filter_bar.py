@@ -31,7 +31,7 @@ def render_filter_bar():
         return
 
     st.markdown(
-        f'<div style="background:{CI_LIGHT_GREY}; padding:8px 16px; border-radius:4px; '
+        f'<div style="background:{CI_LIGHT_GREY}; padding:8px 16px; border-radius:12px; '
         f'font-family:{FONT}; font-size:12px; color:{CI_GREY}; margin-bottom:12px;">'
         f'<b>Active filters:</b></div>',
         unsafe_allow_html=True,

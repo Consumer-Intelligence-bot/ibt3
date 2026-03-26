@@ -13,16 +13,17 @@ import streamlit as st
 
 from lib.analytics.narrative_engine import generate_screen_narrative
 from lib.chart_export import apply_export_metadata, confidence_tooltip
-from lib.components.kpi_cards import kpi_card
-from lib.components.narrative_panel import render_narrative_panel
+from lib.components.context_bar import render_context_bar
+from lib.components.context_footer import render_context_footer
+from lib.components.decision_kpi import decision_kpi_row
+from lib.components.narrative_panel import render_narrative_compact
 from lib.config import (
     CI_BLUE, CI_DARK, CI_GREEN, CI_GREY, CI_LGREY, CI_LIGHT_GREY,
     CI_MAGENTA, CI_RED, CI_VIOLET, CI_WHITE,
-    MIN_BASE_INDICATIVE, SISTER_BRANDS, Z_95,
+    FONT, MIN_BASE_INDICATIVE, SISTER_BRANDS, Z_95,
 )
-from lib.formatting import FONT, section_divider
 from lib.narrative import generate_claims_narrative
-from lib.state import format_month
+from lib.state import format_month, navigate_to
 
 
 def _confidence_interval(mean, std, n):
@@ -78,8 +79,6 @@ def render(filters: dict):
     """Render the Claims Intelligence screen."""
     product = filters["product"]
 
-    st.subheader(f"Claims Intelligence: {product}")
-
     # Pet guard
     if product == "Pet":
         st.info("Claims data is not available for Pet insurance.")
@@ -124,7 +123,7 @@ def render(filters: dict):
     insurer_list = sorted(eligible["CurrentCompany"].dropna().unique().tolist())
 
     if not insurer:
-        # Market overview: show bar chart of all insurers
+        # Market overview: show bar chart when no insurer selected
         _render_market_overview(eligible, market_mean, total_n, period_text, product)
         return
 
@@ -154,14 +153,13 @@ def render(filters: dict):
         st.warning(f"Insufficient data for {insurer}. Minimum 30 claimants required.")
         return
 
-    # Period banner
-    st.markdown(
-        f'<div style="background:{CI_LIGHT_GREY}; padding:10px 16px; border-radius:4px; '
-        f'font-family:{FONT}; font-size:13px; color:{CI_GREY}; margin-bottom:16px;">'
-        f"<b>{insurer}</b> &nbsp;|&nbsp; {product} &nbsp;|&nbsp; {period_text} "
-        f"&nbsp;|&nbsp; n={ins_n:,}"
-        f"</div>",
-        unsafe_allow_html=True,
+    # --- Context bar ---
+    render_context_bar(
+        "Claims Intelligence",
+        insurer=insurer,
+        product=product,
+        period=period_text,
+        n_insurer=ins_n,
     )
 
     # Sister brand note
@@ -185,53 +183,13 @@ def render(filters: dict):
         unsafe_allow_html=True,
     )
 
-    # Key metrics
-    section_divider("Key Metrics")
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        kpi_card("Overall Satisfaction", f"{ins_mean:.2f}", "Q52 mean (1-5)", CI_VIOLET)
-    with col2:
-        kpi_card("Market Average", f"{market_mean:.2f}", f"n={int(total_n):,}", CI_GREY)
-    with col3:
-        g_col = _gap_colour(gap)
-        kpi_card("Gap to Market", f"{gap:+.2f}", f"Rank {rank} of {total_insurers}" if rank else "", g_col)
-    with col4:
-        idx_col = CI_GREEN if index_score and index_score > 100 else CI_RED if index_score and index_score < 100 else CI_GREY
-        kpi_card("Index vs Market", f"{index_score:.0f}" if index_score else "\u2014", "100 = market average", idx_col)
-
-    # Star rating
-    section_divider("Star Rating")
-    if stars is not None:
-        filled = "\u2605" * stars
-        empty = "\u2606" * (5 - stars)
-        star_desc = {5: "Top quintile", 4: "Second quintile", 3: "Middle quintile", 2: "Fourth quintile", 1: "Bottom quintile"}
-        ci_text = f"95% CI: {ci_lo:.2f} \u2013 {ci_hi:.2f}" if ci_lo and ci_hi else ""
-
-        st.markdown(
-            f'<div style="text-align:center; font-family:{FONT};">'
-            f'<span style="font-size:48px; color:{CI_VIOLET};">{filled}{empty}</span>'
-            f'<div style="font-size:13px; color:{CI_GREY}; margin-top:6px;">'
-            f'{star_desc.get(stars, "")} &nbsp;|&nbsp; {ci_text}</div></div>',
-            unsafe_allow_html=True,
-        )
-
-    # All insurers bar chart
-    section_divider("Overall Satisfaction by Insurer")
-    _render_insurer_bar_chart(eligible, insurer, market_mean, total_n, period_text)
-
-    # Q53 Journey Statements
-    if not q53_df.empty:
-        _render_q53_journey(q53_df, eligible, insurer, market_mean, period_text)
-
-    # AI Narrative (claims-specific via lib/narrative.py, plus screen narrative)
-    section_divider("AI Claims Narrative")
+    # --- AI Narrative (generated before KPI row) ---
     diagnostics = _get_diagnostics(q53_df, eligible, insurer)
     narrative = generate_claims_narrative(insurer, ins_mean, market_mean, gap, stars, diagnostics)
-    render_narrative_panel(narrative, "claims")
 
-    # Also try screen-level narrative engine as fallback
+    # Fallback to screen-level narrative engine
     if narrative is None:
-        screen_narrative = generate_screen_narrative("claims", {
+        narrative = generate_screen_narrative("claims", {
             "insurer": insurer,
             "product": product,
             "satisfaction": ins_mean,
@@ -239,33 +197,111 @@ def render(filters: dict):
             "stars": stars or 0,
             "gap": gap,
         })
-        render_narrative_panel(screen_narrative, "claims_fallback")
 
-    # --- Cross-screen links ---
-    col1, col2 = st.columns(2)
-    with col1:
+    render_narrative_compact(narrative, "claims")
+
+    # --- KPI row ---
+    g_trend = "up" if gap > 0.1 else "down" if gap < -0.1 else "flat"
+    idx_trend = "up" if index_score and index_score > 100 else "down" if index_score and index_score < 100 else "flat"
+
+    decision_kpi_row([
+        {
+            "title": "Overall Satisfaction",
+            "value": f"{ins_mean:.2f}",
+            "change": "Q52 mean (1-5)",
+            "trend": "flat",
+            "sample_n": ins_n,
+            "colour": CI_VIOLET,
+        },
+        {
+            "title": "Market Average",
+            "value": f"{market_mean:.2f}",
+            "sample_n": int(total_n),
+            "colour": CI_GREY,
+        },
+        {
+            "title": "Gap to Market",
+            "value": f"{gap:+.2f}",
+            "change": f"Rank {rank} of {total_insurers}" if rank else "",
+            "trend": g_trend,
+            "colour": _gap_colour(gap),
+        },
+        {
+            "title": "Index vs Market",
+            "value": f"{index_score:.0f}" if index_score else "\u2014",
+            "change": "100 = market average",
+            "trend": idx_trend,
+            "colour": CI_GREEN if index_score and index_score > 100 else CI_RED if index_score and index_score < 100 else CI_GREY,
+        },
+    ])
+
+    # --- Primary / Secondary layout ---
+    col_primary, col_secondary = st.columns([7, 3])
+
+    with col_primary:
+        # All insurers bar chart
+        _render_insurer_bar_chart(eligible, insurer, market_mean, total_n, period_text)
+
+        # Q53 Journey Statements
+        if not q53_df.empty:
+            _render_q53_journey(q53_df, eligible, insurer, market_mean, period_text)
+
+    with col_secondary:
+        # Star rating (compact)
+        if stars is not None:
+            filled = "\u2605" * stars
+            empty = "\u2606" * (5 - stars)
+            star_desc = {5: "Top quintile", 4: "Second quintile", 3: "Middle quintile", 2: "Fourth quintile", 1: "Bottom quintile"}
+            ci_text = f"95% CI: {ci_lo:.2f} \u2013 {ci_hi:.2f}" if ci_lo and ci_hi else ""
+
+            st.markdown(
+                f'<div style="text-align:center; font-family:{FONT};">'
+                f'<span style="font-size:48px; color:{CI_VIOLET};">{filled}{empty}</span>'
+                f'<div style="font-size:13px; color:{CI_GREY}; margin-top:6px;">'
+                f'{star_desc.get(stars, "")} &nbsp;|&nbsp; {ci_text}</div></div>',
+                unsafe_allow_html=True,
+            )
+
+        # Cross-screen links
+        st.markdown(
+            f'<div style="margin-top:24px; font-family:{FONT}; font-size:11px; '
+            f'font-weight:600; text-transform:uppercase; letter-spacing:0.8px; '
+            f'color:{CI_GREY}; margin-bottom:8px;">Related screens</div>',
+            unsafe_allow_html=True,
+        )
         if st.button("View Satisfaction & Loyalty", key="claims_to_satisfaction"):
-            from lib.state import navigate_to
             navigate_to("satisfaction")
-    with col2:
         if st.button("View Switching & Flows", key="claims_to_switching"):
-            from lib.state import navigate_to
             navigate_to("switching")
 
-    # Footer
-    st.markdown("---")
-    st.caption(f"Claims Intelligence | {insurer} | {product} | {period_text} | n={ins_n:,}")
+    # --- Context footer ---
+    render_context_footer(
+        screen_name="claims",
+        product=product,
+        period=period_text,
+        sample_n=ins_n,
+    )
 
 
 def _render_market_overview(eligible, market_mean, total_n, period_text, product):
     """Show all-insurer bar chart when no insurer selected."""
+    render_context_bar(
+        "Claims Intelligence",
+        product=product,
+        period=period_text,
+        n_market=int(total_n),
+    )
+
     st.info("Select an insurer from the sidebar for detailed claims analysis. Showing market overview below.")
 
-    section_divider("Overall Satisfaction by Insurer")
     _render_insurer_bar_chart(eligible, None, market_mean, total_n, period_text)
 
-    st.markdown("---")
-    st.caption(f"Claims Intelligence | Market | {product} | {period_text} | n={int(total_n):,}")
+    render_context_footer(
+        screen_name="claims",
+        product=product,
+        period=period_text,
+        sample_n=int(total_n),
+    )
 
 
 def _render_insurer_bar_chart(eligible, selected_insurer, market_mean, total_n, period_text):
@@ -342,7 +378,11 @@ def _render_q53_journey(q53_df, eligible, insurer, market_mean, period_text):
     if diag.empty:
         return
 
-    section_divider("Claims Journey Statements (Q53)")
+    st.markdown(
+        f'<div style="font-size:14px; font-weight:700; color:{CI_GREY}; '
+        f'font-family:{FONT}; margin:16px 0 8px 0;">Claims Journey Statements (Q53)</div>',
+        unsafe_allow_html=True,
+    )
 
     diag["gap"] = diag["Q53_mean"] - diag["market_mean"]
     diag = diag.sort_values("gap")

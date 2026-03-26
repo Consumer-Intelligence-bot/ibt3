@@ -29,8 +29,11 @@ from lib.analytics.spontaneous import (
     calc_toma_share,
 )
 from lib.chart_export import apply_export_metadata
+from lib.components.context_bar import render_context_bar
+from lib.components.context_footer import render_context_footer
+from lib.components.decision_kpi import decision_kpi_row
 from lib.components.kpi_cards import kpi_card
-from lib.components.narrative_panel import render_narrative_panel
+from lib.components.narrative_panel import render_narrative_compact
 from lib.config import (
     BUMP_COLOURS,
     CI_GREEN,
@@ -43,7 +46,7 @@ from lib.config import (
     MARKET_COLOUR,
     MIN_BASE_PUBLISHABLE,
 )
-from lib.formatting import FONT, fmt_pct, section_divider, period_label
+from lib.formatting import FONT, fmt_pct, period_label
 from lib.state import format_year_month, get_ss_data, render_dual_period_selector
 
 
@@ -116,7 +119,12 @@ def _render_prompted(df_motor, filters):
 
 def _render_market_prompted(df_main, level, product, period, n):
     """Market-level prompted awareness."""
-    st.subheader("Awareness: Market View")
+    render_context_bar(
+        "Awareness & Consideration",
+        product=product,
+        period=period,
+        n_market=n,
+    )
 
     # Awareness rates by brand
     rates = calc_awareness_rates(df_main, level)
@@ -128,59 +136,63 @@ def _render_market_prompted(df_main, level, product, period, n):
     latest_month = rates["month"].max()
     latest = rates[rates["month"] == latest_month].sort_values("rate", ascending=False)
 
-    section_divider("Current Awareness Ranking")
+    # --- Primary (70%) / Secondary (30%) layout ---
+    col_primary, col_secondary = st.columns([7, 3])
 
-    # Top 10 bar chart
-    top10 = latest.head(10)
-    if not top10.empty:
-        fig = go.Figure(go.Bar(
-            x=top10["rate"],
-            y=top10["brand"],
-            orientation="h",
-            marker_color=CI_MAGENTA,
-            text=[f"{r:.0%}" for r in top10["rate"]],
-            textposition="outside",
-        ))
-        fig.update_layout(
-            xaxis_tickformat=".0%",
-            height=max(300, len(top10) * 35 + 80),
-            margin=dict(l=10, r=50, t=10, b=40),
-            font=dict(family=FONT, size=11, color=CI_GREY),
-            plot_bgcolor=CI_WHITE, paper_bgcolor=CI_WHITE,
-            yaxis=dict(autorange="reversed"),
-        )
-        st.plotly_chart(fig, use_container_width=True)
-
-    # Trend lines (top 5 brands)
-    section_divider("Awareness Trends (Top 5)")
-
-    top5_brands = latest.head(5)["brand"].tolist()
-    trend_data = rates[rates["brand"].isin(top5_brands)]
-
-    if not trend_data.empty:
-        fig = go.Figure()
-        for i, brand in enumerate(top5_brands):
-            brand_data = trend_data[trend_data["brand"] == brand].sort_values("month")
-            fig.add_trace(go.Scatter(
-                x=[format_year_month(m) for m in brand_data["month"]],
-                y=brand_data["rate"],
-                mode="lines+markers",
-                name=brand,
-                line=dict(color=BUMP_COLOURS[i % len(BUMP_COLOURS)], width=2),
-                marker=dict(size=4),
+    with col_primary:
+        # Top 10 bar chart
+        st.markdown("**Current Awareness Ranking**")
+        top10 = latest.head(10)
+        if not top10.empty:
+            fig = go.Figure(go.Bar(
+                x=top10["rate"],
+                y=top10["brand"],
+                orientation="h",
+                marker_color=CI_MAGENTA,
+                text=[f"{r:.0%}" for r in top10["rate"]],
+                textposition="outside",
             ))
-        fig.update_layout(
-            height=350,
-            yaxis=dict(title="Awareness Rate", tickformat=".0%", gridcolor=CI_LIGHT_GREY),
-            plot_bgcolor=CI_WHITE, paper_bgcolor=CI_WHITE,
-            font=dict(family=FONT, size=11, color=CI_GREY),
-            margin=dict(l=10, r=20, t=10, b=40),
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
-        )
-        st.plotly_chart(fig, use_container_width=True)
+            fig.update_layout(
+                xaxis_tickformat=".0%",
+                height=max(300, len(top10) * 35 + 80),
+                margin=dict(l=10, r=50, t=10, b=40),
+                font=dict(family=FONT, size=11, color=CI_GREY),
+                plot_bgcolor=CI_WHITE, paper_bgcolor=CI_WHITE,
+                yaxis=dict(autorange="reversed"),
+            )
+            st.plotly_chart(fig, use_container_width=True)
 
-    # Dual period comparison
-    section_divider("Period Comparison")
+    with col_secondary:
+        # Trend lines (top 5 brands)
+        st.markdown("**Awareness Trends (Top 5)**")
+
+        top5_brands = latest.head(5)["brand"].tolist()
+        trend_data = rates[rates["brand"].isin(top5_brands)]
+
+        if not trend_data.empty:
+            fig = go.Figure()
+            for i, brand in enumerate(top5_brands):
+                brand_data = trend_data[trend_data["brand"] == brand].sort_values("month")
+                fig.add_trace(go.Scatter(
+                    x=[format_year_month(m) for m in brand_data["month"]],
+                    y=brand_data["rate"],
+                    mode="lines+markers",
+                    name=brand,
+                    line=dict(color=BUMP_COLOURS[i % len(BUMP_COLOURS)], width=2),
+                    marker=dict(size=4),
+                ))
+            fig.update_layout(
+                height=300,
+                yaxis=dict(title="Awareness Rate", tickformat=".0%", gridcolor=CI_LIGHT_GREY),
+                plot_bgcolor=CI_WHITE, paper_bgcolor=CI_WHITE,
+                font=dict(family=FONT, size=11, color=CI_GREY),
+                margin=dict(l=10, r=20, t=10, b=40),
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+    # Period comparison stays below the main layout
+    st.markdown("**Period Comparison**")
     periods = render_dual_period_selector()
     if periods:
         comparison = calc_dual_period_comparison(
@@ -209,14 +221,16 @@ def _render_market_prompted(df_main, level, product, period, n):
         else:
             st.info("Insufficient data for period comparison.")
 
-    st.markdown("---")
-    st.caption(f"Awareness | Market | {product} | {period} | n={n:,}")
+    render_context_footer(
+        screen_name="awareness_market",
+        product=product,
+        period=period,
+        sample_n=n,
+    )
 
 
 def _render_insurer_prompted(df_main, insurer, level, product, period, n):
     """Insurer-level prompted awareness."""
-    st.subheader(f"Awareness: {insurer}")
-
     rates = calc_awareness_rates(df_main, level)
     if rates.empty:
         st.warning("No awareness data available.")
@@ -229,72 +243,31 @@ def _render_insurer_prompted(df_main, insurer, level, product, period, n):
         st.warning(f"No awareness data for {insurer}.")
         return
 
-    # KPIs
+    # Compute KPI values
     latest_month = rates["month"].max()
     latest_all = rates[rates["month"] == latest_month].sort_values("rate", ascending=False)
     ins_latest = latest_all[latest_all["brand"] == insurer]
 
+    ins_rate = 0.0
+    ins_rank = None
+    avg_rate = 0.0
+    total_brands = len(latest_all)
+
     if not ins_latest.empty:
         ins_rate = ins_latest.iloc[0]["rate"]
         ins_rank = latest_all.index.get_loc(ins_latest.index[0]) + 1 if ins_latest.index[0] in latest_all.index else None
+        avg_rate = latest_all["rate"].mean()
 
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            kpi_card(f"{insurer} Awareness", fmt_pct(ins_rate), f"n={n:,}", CI_MAGENTA)
-        with col2:
-            avg_rate = latest_all["rate"].mean()
-            kpi_card("Market Average", fmt_pct(avg_rate), f"{len(latest_all)} brands", MARKET_COLOUR)
-        with col3:
-            kpi_card("Rank", f"{ins_rank}" if ins_rank else "\u2014", f"of {len(latest_all)} brands", CI_GREY)
-
-    # Trend
-    section_divider("Awareness Trend")
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(
-        x=[format_year_month(m) for m in insurer_data["month"]],
-        y=insurer_data["rate"],
-        mode="lines+markers",
-        name=insurer,
-        line=dict(color=CI_MAGENTA, width=2),
-    ))
-    # Add market average line
-    mkt_avg = rates.groupby("month")["rate"].mean().reset_index()
-    fig.add_trace(go.Scatter(
-        x=[format_year_month(m) for m in mkt_avg["month"]],
-        y=mkt_avg["rate"],
-        mode="lines",
-        name="Market Avg",
-        line=dict(color=CI_GREY, width=1, dash="dot"),
-    ))
-    fig.update_layout(
-        height=300,
-        yaxis=dict(title="Awareness Rate", tickformat=".0%", gridcolor=CI_LIGHT_GREY),
-        plot_bgcolor=CI_WHITE, paper_bgcolor=CI_WHITE,
-        font=dict(family=FONT, size=11, color=CI_GREY),
-        margin=dict(l=10, r=20, t=10, b=40),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
+    render_context_bar(
+        "Awareness & Consideration",
+        insurer=insurer,
+        product=product,
+        period=period,
+        n_insurer=n,
+        n_market=n,
     )
-    st.plotly_chart(fig, use_container_width=True)
 
-    # Slopegraph
-    section_divider("Slopegraph: Start vs End of Period")
-    slopegraph = calc_awareness_slopegraph(df_main, insurer, level)
-    if slopegraph is not None:
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            kpi_card("Start Rate", fmt_pct(slopegraph.get("start_rate")), format_year_month(slopegraph.get("start_month", 0)), CI_GREY)
-        with col2:
-            kpi_card("End Rate", fmt_pct(slopegraph.get("end_rate")), format_year_month(slopegraph.get("end_month", 0)), CI_MAGENTA)
-        with col3:
-            change = slopegraph.get("change", 0) * 100
-            colour = CI_GREEN if change > 0 else CI_RED if change < 0 else CI_GREY
-            kpi_card("Change", f"{change:+.1f}pp", "", colour)
-
-    # --- AI Narrative ---
-    section_divider("AI Narrative")
-    ins_rate_val = ins_rate if not ins_latest.empty else 0
-    rank_val = ins_rank if ins_rank else 0
-    total_val = len(latest_all)
+    # --- AI Narrative (at top) ---
     slopegraph_data = calc_awareness_slopegraph(df_main, insurer, level)
     change_val = 0.0
     if slopegraph_data is not None:
@@ -302,26 +275,96 @@ def _render_insurer_prompted(df_main, insurer, level, product, period, n):
     narrative = generate_screen_narrative("awareness", {
         "insurer": insurer,
         "product": product,
-        "awareness_rate": ins_rate_val,
-        "rank": rank_val,
-        "total_brands": total_val,
+        "awareness_rate": ins_rate,
+        "rank": ins_rank if ins_rank else 0,
+        "total_brands": total_brands,
         "change_pp": change_val,
     })
-    render_narrative_panel(narrative, "awareness")
+    render_narrative_compact(narrative, "awareness")
 
-    # --- Cross-screen links ---
-    col1, col2 = st.columns(2)
-    with col1:
+    # --- KPIs: Awareness Rate, Market Avg, Rank ---
+    trend_dir = "up" if change_val > 0 else "down" if change_val < 0 else "flat"
+    decision_kpi_row([
+        {
+            "title": f"{insurer} Awareness",
+            "value": fmt_pct(ins_rate),
+            "change": f"{change_val:+.1f}pp" if change_val != 0 else "",
+            "trend": trend_dir,
+            "sample_n": n,
+            "colour": CI_MAGENTA,
+        },
+        {
+            "title": "Market Average",
+            "value": fmt_pct(avg_rate),
+            "colour": MARKET_COLOUR,
+        },
+        {
+            "title": "Rank",
+            "value": f"{ins_rank}" if ins_rank else "\u2014",
+            "change": f"of {total_brands} brands",
+            "colour": CI_GREY,
+        },
+    ])
+
+    # --- Primary (70%) / Secondary (30%) layout ---
+    col_primary, col_secondary = st.columns([7, 3])
+
+    with col_primary:
+        # Trend chart
+        st.markdown("**Awareness Trend**")
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(
+            x=[format_year_month(m) for m in insurer_data["month"]],
+            y=insurer_data["rate"],
+            mode="lines+markers",
+            name=insurer,
+            line=dict(color=CI_MAGENTA, width=2),
+        ))
+        # Add market average line
+        mkt_avg = rates.groupby("month")["rate"].mean().reset_index()
+        fig.add_trace(go.Scatter(
+            x=[format_year_month(m) for m in mkt_avg["month"]],
+            y=mkt_avg["rate"],
+            mode="lines",
+            name="Market Avg",
+            line=dict(color=CI_GREY, width=1, dash="dot"),
+        ))
+        fig.update_layout(
+            height=300,
+            yaxis=dict(title="Awareness Rate", tickformat=".0%", gridcolor=CI_LIGHT_GREY),
+            plot_bgcolor=CI_WHITE, paper_bgcolor=CI_WHITE,
+            font=dict(family=FONT, size=11, color=CI_GREY),
+            margin=dict(l=10, r=20, t=10, b=40),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+    with col_secondary:
+        # Slopegraph KPIs
+        slopegraph = calc_awareness_slopegraph(df_main, insurer, level)
+        if slopegraph is not None:
+            st.markdown("**Start vs End of Period**")
+            kpi_card("Start Rate", fmt_pct(slopegraph.get("start_rate")), format_year_month(slopegraph.get("start_month", 0)), CI_GREY)
+            kpi_card("End Rate", fmt_pct(slopegraph.get("end_rate")), format_year_month(slopegraph.get("end_month", 0)), CI_MAGENTA)
+            change = slopegraph.get("change", 0) * 100
+            colour = CI_GREEN if change > 0 else CI_RED if change < 0 else CI_GREY
+            kpi_card("Change", f"{change:+.1f}pp", "", colour)
+
+        # Cross-screen links
+        st.markdown("**Related screens**")
         if st.button("View Shopping Behaviour", key="awareness_to_shopping"):
             from lib.state import navigate_to
             navigate_to("shopping")
-    with col2:
         if st.button("View Switching & Flows", key="awareness_to_switching"):
             from lib.state import navigate_to
             navigate_to("switching")
 
-    st.markdown("---")
-    st.caption(f"Awareness | {insurer} | {product} | {period} | n={n:,}")
+    render_context_footer(
+        screen_name="awareness_insurer",
+        product=product,
+        period=period,
+        sample_n=n,
+    )
 
 
 def _render_unprompted(df_motor, filters):
@@ -332,8 +375,6 @@ def _render_unprompted(df_motor, filters):
     if product == "Pet":
         st.info("Unprompted awareness is not available for Pet insurance.")
         return
-
-    st.subheader("Unprompted Brand Awareness (Q1)")
 
     df_main = apply_filters(df_motor, product=product, selected_months=selected_months)
     if df_main.empty:
@@ -349,6 +390,13 @@ def _render_unprompted(df_motor, filters):
     n = len(df_main)
     period = period_label(selected_months)
 
+    render_context_bar(
+        "Unprompted Brand Awareness (Q1)",
+        product=product,
+        period=period,
+        n_market=n,
+    )
+
     with st.spinner("Computing spontaneous awareness metrics..."):
         metrics = calc_spontaneous_metrics(df_main)
 
@@ -356,68 +404,73 @@ def _render_unprompted(df_motor, filters):
         st.warning("Unable to compute Q1 metrics.")
         return
 
-    # TOMA Share
-    section_divider("Share of Mind (TOMA)")
+    # --- Primary (70%) / Secondary (30%) layout ---
+    col_primary, col_secondary = st.columns([7, 3])
 
-    toma_share, top_brands = calc_toma_share(metrics)
-    if toma_share is not None and not toma_share.empty and top_brands:
-        if "month" in toma_share.columns:
-            toma_share = toma_share.set_index("month")
-        fig = go.Figure()
-        for i, brand in enumerate(top_brands):
-            if brand not in toma_share.columns:
-                continue
-            month_labels = [format_year_month(m) for m in toma_share.index]
-            fig.add_trace(go.Scatter(
-                x=month_labels,
-                y=toma_share[brand],
-                mode="lines",
-                name=brand,
-                stackgroup="one",
-                line=dict(color=BUMP_COLOURS[i % len(BUMP_COLOURS)]),
-            ))
-        fig.update_layout(
-            height=400,
-            yaxis=dict(title="Share of TOMA", tickformat=".0%", gridcolor=CI_LIGHT_GREY),
-            plot_bgcolor=CI_WHITE, paper_bgcolor=CI_WHITE,
-            font=dict(family=FONT, size=11, color=CI_GREY),
-            margin=dict(l=10, r=20, t=10, b=40),
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
-        )
-        st.plotly_chart(fig, use_container_width=True)
+    with col_primary:
+        # TOMA Share
+        st.markdown("**Share of Mind (TOMA)**")
 
-    # TOMA Rankings (Bump chart)
-    section_divider("TOMA Rankings")
+        toma_share, top_brands = calc_toma_share(metrics)
+        if toma_share is not None and not toma_share.empty and top_brands:
+            if "month" in toma_share.columns:
+                toma_share = toma_share.set_index("month")
+            fig = go.Figure()
+            for i, brand in enumerate(top_brands):
+                if brand not in toma_share.columns:
+                    continue
+                month_labels = [format_year_month(m) for m in toma_share.index]
+                fig.add_trace(go.Scatter(
+                    x=month_labels,
+                    y=toma_share[brand],
+                    mode="lines",
+                    name=brand,
+                    stackgroup="one",
+                    line=dict(color=BUMP_COLOURS[i % len(BUMP_COLOURS)]),
+                ))
+            fig.update_layout(
+                height=320,
+                yaxis=dict(title="Share of TOMA", tickformat=".0%", gridcolor=CI_LIGHT_GREY),
+                plot_bgcolor=CI_WHITE, paper_bgcolor=CI_WHITE,
+                font=dict(family=FONT, size=11, color=CI_GREY),
+                margin=dict(l=10, r=20, t=10, b=40),
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
+            )
+            st.plotly_chart(fig, use_container_width=True)
 
-    toma_ranks, rank_top_brands = calc_toma_ranks(metrics)
-    if toma_ranks is not None and not toma_ranks.empty and rank_top_brands:
-        if "month" in toma_ranks.columns:
-            toma_ranks = toma_ranks.set_index("month")
-        fig = go.Figure()
-        for i, brand in enumerate(rank_top_brands):
-            if brand not in toma_ranks.columns:
-                continue
-            month_labels = [format_year_month(m) for m in toma_ranks.index]
-            fig.add_trace(go.Scatter(
-                x=month_labels,
-                y=toma_ranks[brand],
-                mode="lines+markers",
-                name=brand,
-                line=dict(color=BUMP_COLOURS[i % len(BUMP_COLOURS)], width=2),
-                marker=dict(size=5),
-            ))
-        fig.update_layout(
-            height=400,
-            yaxis=dict(title="Rank", autorange="reversed", gridcolor=CI_LIGHT_GREY),
-            plot_bgcolor=CI_WHITE, paper_bgcolor=CI_WHITE,
-            font=dict(family=FONT, size=11, color=CI_GREY),
-            margin=dict(l=10, r=20, t=10, b=40),
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
-        )
-        st.plotly_chart(fig, use_container_width=True)
+    with col_secondary:
+        # TOMA Rankings (Bump chart)
+        st.markdown("**TOMA Rankings**")
 
-    # Salience Gap
-    section_divider("Salience Gap: Total Awareness vs TOMA")
+        toma_ranks, rank_top_brands = calc_toma_ranks(metrics)
+        if toma_ranks is not None and not toma_ranks.empty and rank_top_brands:
+            if "month" in toma_ranks.columns:
+                toma_ranks = toma_ranks.set_index("month")
+            fig = go.Figure()
+            for i, brand in enumerate(rank_top_brands):
+                if brand not in toma_ranks.columns:
+                    continue
+                month_labels = [format_year_month(m) for m in toma_ranks.index]
+                fig.add_trace(go.Scatter(
+                    x=month_labels,
+                    y=toma_ranks[brand],
+                    mode="lines+markers",
+                    name=brand,
+                    line=dict(color=BUMP_COLOURS[i % len(BUMP_COLOURS)], width=2),
+                    marker=dict(size=5),
+                ))
+            fig.update_layout(
+                height=200,
+                yaxis=dict(title="Rank", autorange="reversed", gridcolor=CI_LIGHT_GREY),
+                plot_bgcolor=CI_WHITE, paper_bgcolor=CI_WHITE,
+                font=dict(family=FONT, size=11, color=CI_GREY),
+                margin=dict(l=10, r=20, t=10, b=40),
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+    # Salience Gap stays below the main layout
+    st.markdown("**Salience Gap: Total Awareness vs TOMA**")
 
     salience = calc_salience_gap(metrics)
     if salience is not None and not salience.empty:
@@ -432,7 +485,7 @@ def _render_unprompted(df_motor, filters):
         ))
         fig.add_shape(type="line", x0=0, y0=0, x1=1, y1=1, line=dict(dash="dot", color=CI_GREY))
         fig.update_layout(
-            height=400,
+            height=320,
             xaxis=dict(title="Total Mention Rate", tickformat=".0%"),
             yaxis=dict(title="TOMA Rate", tickformat=".0%"),
             plot_bgcolor=CI_WHITE, paper_bgcolor=CI_WHITE,
@@ -442,5 +495,9 @@ def _render_unprompted(df_motor, filters):
         st.plotly_chart(fig, use_container_width=True)
         st.caption("Brands above the diagonal have disproportionately high top-of-mind awareness relative to total mentions.")
 
-    st.markdown("---")
-    st.caption(f"Unprompted Awareness | Market | {product} | {period} | n={n:,}")
+    render_context_footer(
+        screen_name="unprompted_awareness",
+        product=product,
+        period=period,
+        sample_n=n,
+    )

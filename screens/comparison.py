@@ -147,7 +147,7 @@ def render(filters: dict):
             "Net Flow": "{:+,}",
             "n": "{:,}",
         })
-        .set_properties(**{"font-family": "Verdana, sans-serif", "font-size": "12px"})
+        .set_properties(**{"font-family": "Montserrat, sans-serif", "font-size": "12px"})
     )
 
     st.dataframe(styled, use_container_width=True, hide_index=True, height=min(800, len(rows) * 35 + 40))

@@ -28,8 +28,11 @@ from lib.analytics.price import (
 )
 from lib.analytics.rates import calc_shopping_rate
 from lib.chart_export import render_suppression_html
+from lib.components.context_bar import render_context_bar
+from lib.components.context_footer import render_context_footer
+from lib.components.decision_kpi import decision_kpi_row
 from lib.components.kpi_cards import kpi_card
-from lib.components.narrative_panel import render_narrative_panel
+from lib.components.narrative_panel import render_narrative_compact
 from lib.config import (
     CI_GREEN,
     CI_GREY,
@@ -42,7 +45,7 @@ from lib.config import (
     MARKET_COLOUR,
     MIN_BASE_PUBLISHABLE,
 )
-from lib.formatting import fmt_pct, section_divider, period_label, FONT
+from lib.formatting import fmt_pct, period_label, FONT
 from lib.state import get_ss_data
 
 
@@ -104,21 +107,52 @@ def render(filters: dict):
 
 def _render_market_view(df_mkt, filters, period, n_mkt):
     """Market-level pre-renewal context."""
-    st.subheader("Pre-Renewal Context: Market View")
+    render_context_bar(
+        "Pre-Renewal Context",
+        product=filters["product"],
+        period=period,
+        n_market=n_mkt,
+    )
 
-    # --- Price Direction Distribution (Q6) ---
-    section_divider("Price Direction at Renewal (Q6)")
-    st.caption("Q6: Was your renewal price higher, lower, or about the same?")
-
+    # --- KPIs: % Higher, % Lower, % Unchanged from price_dist ---
     price_dist = calc_price_direction_dist(df_mkt)
     if price_dist is not None:
-        _render_price_direction_chart(price_dist, "Market")
-    else:
-        st.info("No Q6 data available.")
+        pct_h = float(price_dist.get("Higher", 0))
+        pct_l = float(price_dist.get("Lower", 0))
+        pct_u = float(price_dist.get("Unchanged", 0))
+        decision_kpi_row([
+            {"title": "% Higher", "value": fmt_pct(pct_h), "colour": CI_RED},
+            {"title": "% Lower", "value": fmt_pct(pct_l), "colour": CI_GREEN},
+            {"title": "% Unchanged", "value": fmt_pct(pct_u), "colour": CI_GREY},
+        ])
 
-    # --- Price Change Bands (Q6a / Q6b) ---
-    section_divider("Price Change Magnitude (Q6a / Q6b)")
+    # --- Primary (70%) / Secondary (30%) layout ---
+    col_primary, col_secondary = st.columns([7, 3])
 
+    with col_primary:
+        # Price Direction Distribution (Q6)
+        if price_dist is not None:
+            st.markdown("**Price Direction at Renewal (Q6)**")
+            _render_price_direction_chart(price_dist, "Market")
+        else:
+            st.info("No Q6 data available.")
+
+        # Price-Shopping Crossover
+        crossover = calc_price_shopping_crossover(df_mkt)
+        if crossover is not None and not crossover.empty:
+            st.markdown("**Price Direction vs Shopping Rate**")
+            _render_crossover_chart(crossover)
+
+    with col_secondary:
+        # Tenure Distribution (Q21)
+        tenure = calc_tenure_distribution(df_mkt)
+        if tenure is not None:
+            st.markdown("**Tenure with Current Insurer (Q21)**")
+            _render_tenure_chart(tenure)
+        else:
+            st.info("No Q21 tenure data available.")
+
+    # --- Price Change Bands (Q6a / Q6b) - below the main layout ---
     col_higher, col_lower = st.columns(2)
 
     with col_higher:
@@ -137,29 +171,10 @@ def _render_market_view(df_mkt, filters, period, n_mkt):
         else:
             st.info("No Q6b data available.")
 
-    # --- Price to Shopping Crossover ---
-    section_divider("Price Direction vs Shopping Rate")
-
-    crossover = calc_price_shopping_crossover(df_mkt)
-    if crossover is not None and not crossover.empty:
-        _render_crossover_chart(crossover)
-    else:
-        st.info("Insufficient data for price-to-shopping crossover.")
-
-    # --- Tenure Distribution (Q21) ---
-    section_divider("Tenure with Current Insurer (Q21)")
-
-    tenure = calc_tenure_distribution(df_mkt)
-    if tenure is not None:
-        _render_tenure_chart(tenure)
-    else:
-        st.info("No Q21 tenure data available.")
-
     # --- Tenure vs Retention ---
-    section_divider("Tenure vs Retention Rate")
-
     tenure_ret = calc_tenure_retention_crossover(df_mkt)
     if tenure_ret is not None and not tenure_ret.empty:
+        st.markdown("**Tenure vs Retention Rate**")
         fig = go.Figure(go.Bar(
             x=tenure_ret["tenure"],
             y=tenure_ret["retention_rate"],
@@ -178,12 +193,14 @@ def _render_market_view(df_mkt, filters, period, n_mkt):
             margin=dict(l=10, r=20, t=10, b=40),
         )
         st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.info("Insufficient data for tenure-retention crossover.")
 
     # Footer
-    st.markdown("---")
-    st.caption(f"Pre-Renewal Context | Market | {filters['product']} | {period} | n={n_mkt:,}")
+    render_context_footer(
+        screen_name="pre_renewal_market",
+        product=filters["product"],
+        period=period,
+        sample_n=n_mkt,
+    )
 
 
 def _render_insurer_view(df_motor, df_mkt, insurer, filters, period, n_mkt):
@@ -203,17 +220,16 @@ def _render_insurer_view(df_motor, df_mkt, insurer, filters, period, n_mkt):
 
     n_ins = len(df_ins)
 
-    st.subheader(f"Pre-Renewal Context: {insurer}")
-
-    st.markdown(
-        f'<div style="background:{CI_LIGHT_GREY}; padding:10px 16px; border-radius:4px; '
-        f'font-family:{FONT}; font-size:13px; color:{CI_GREY}; margin-bottom:16px;">'
-        f"<b>{insurer}</b> &nbsp;|&nbsp; {product} &nbsp;|&nbsp; {period} "
-        f"&nbsp;|&nbsp; Insurer n={n_ins:,} &nbsp;|&nbsp; Market n={n_mkt:,}"
-        f"</div>",
-        unsafe_allow_html=True,
+    render_context_bar(
+        "Pre-Renewal Context",
+        insurer=insurer,
+        product=product,
+        period=period,
+        n_insurer=n_ins,
+        n_market=n_mkt,
     )
 
+    # Suppression check
     if n_ins < MIN_BASE_PUBLISHABLE:
         st.markdown(
             render_suppression_html(insurer, n_ins, MIN_BASE_PUBLISHABLE),
@@ -221,78 +237,7 @@ def _render_insurer_view(df_motor, df_mkt, insurer, filters, period, n_mkt):
         )
         return
 
-    # --- Price Direction: insurer vs market ---
-    section_divider("Price Direction at Renewal (Q6)")
-
-    ins_dist = calc_price_direction_dist(df_ins)
-    mkt_dist = calc_price_direction_dist(df_mkt)
-
-    if ins_dist is not None and mkt_dist is not None:
-        col1, col2 = st.columns(2)
-        with col1:
-            st.markdown(f"**{insurer}**")
-            _render_price_direction_chart(ins_dist, insurer)
-        with col2:
-            st.markdown("**Market**")
-            _render_price_direction_chart(mkt_dist, "Market")
-    elif ins_dist is not None:
-        _render_price_direction_chart(ins_dist, insurer)
-    else:
-        st.info("No Q6 data available.")
-
-    # --- Price-Shopping Crossover ---
-    section_divider("Price Direction vs Shopping Rate")
-
-    ins_crossover = calc_price_shopping_crossover(df_ins)
-    mkt_crossover = calc_price_shopping_crossover(df_mkt)
-
-    if ins_crossover is not None and mkt_crossover is not None:
-        # Merge for comparison
-        merged = ins_crossover.merge(
-            mkt_crossover, on="direction", suffixes=("_ins", "_mkt"), how="outer"
-        )
-        fig = go.Figure()
-        fig.add_trace(go.Bar(
-            x=merged["direction"],
-            y=merged["shopping_rate_ins"],
-            name=insurer,
-            marker_color=CI_VIOLET,
-            text=[f"{r:.0%}" if pd.notna(r) else "" for r in merged["shopping_rate_ins"]],
-            textposition="outside",
-        ))
-        fig.add_trace(go.Bar(
-            x=merged["direction"],
-            y=merged["shopping_rate_mkt"],
-            name="Market",
-            marker_color=CI_GREY,
-            opacity=0.5,
-            text=[f"{r:.0%}" if pd.notna(r) else "" for r in merged["shopping_rate_mkt"]],
-            textposition="outside",
-        ))
-        fig.update_layout(
-            barmode="group",
-            height=300,
-            yaxis=dict(title="Shopping Rate", tickformat=".0%", gridcolor=CI_LIGHT_GREY),
-            plot_bgcolor=CI_WHITE, paper_bgcolor=CI_WHITE,
-            font=dict(family=FONT, size=11, color=CI_GREY),
-            margin=dict(l=10, r=20, t=10, b=40),
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, x=1, xanchor="right"),
-        )
-        st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.info("Insufficient data for price-shopping crossover.")
-
-    # --- Tenure ---
-    section_divider("Tenure with Current Insurer (Q21)")
-
-    ins_tenure = calc_tenure_distribution(df_ins)
-    if ins_tenure is not None:
-        _render_tenure_chart(ins_tenure)
-    else:
-        st.info("No Q21 tenure data available for this insurer.")
-
-    # --- AI Narrative ---
-    section_divider("AI Narrative")
+    # --- AI Narrative (at top) ---
     ins_price = calc_price_direction_dist(df_ins)
     pct_h = float(ins_price.get("Higher", 0)) if ins_price is not None else 0
     pct_l = float(ins_price.get("Lower", 0)) if ins_price is not None else 0
@@ -311,24 +256,98 @@ def _render_insurer_view(df_motor, df_mkt, insurer, filters, period, n_mkt):
         "pct_unchanged": pct_u,
         "higher_shopping_rate": higher_shop,
     })
-    render_narrative_panel(narrative, "pre_renewal")
+    render_narrative_compact(narrative, "pre_renewal")
 
-    # --- Cross-screen links ---
-    col1, col2 = st.columns(2)
-    with col1:
+    # --- KPIs: % Higher, % Lower, % Unchanged ---
+    decision_kpi_row([
+        {"title": "% Higher", "value": fmt_pct(pct_h), "colour": CI_RED, "sample_n": n_ins},
+        {"title": "% Lower", "value": fmt_pct(pct_l), "colour": CI_GREEN, "sample_n": n_ins},
+        {"title": "% Unchanged", "value": fmt_pct(pct_u), "colour": CI_GREY, "sample_n": n_ins},
+    ])
+
+    # --- Primary (70%) / Secondary (30%) layout ---
+    col_primary, col_secondary = st.columns([7, 3])
+
+    with col_primary:
+        # Price Direction: insurer vs market
+        mkt_dist = calc_price_direction_dist(df_mkt)
+
+        if ins_price is not None and mkt_dist is not None:
+            col1, col2 = st.columns(2)
+            with col1:
+                st.markdown(f"**{insurer}**")
+                _render_price_direction_chart(ins_price, insurer)
+            with col2:
+                st.markdown("**Market**")
+                _render_price_direction_chart(mkt_dist, "Market")
+        elif ins_price is not None:
+            _render_price_direction_chart(ins_price, insurer)
+        else:
+            st.info("No Q6 data available.")
+
+        # Price-Shopping Crossover
+        mkt_crossover = calc_price_shopping_crossover(df_mkt)
+
+        if ins_cross is not None and mkt_crossover is not None:
+            st.markdown("**Price Direction vs Shopping Rate**")
+            merged = ins_cross.merge(
+                mkt_crossover, on="direction", suffixes=("_ins", "_mkt"), how="outer"
+            )
+            fig = go.Figure()
+            fig.add_trace(go.Bar(
+                x=merged["direction"],
+                y=merged["shopping_rate_ins"],
+                name=insurer,
+                marker_color=CI_VIOLET,
+                text=[f"{r:.0%}" if pd.notna(r) else "" for r in merged["shopping_rate_ins"]],
+                textposition="outside",
+            ))
+            fig.add_trace(go.Bar(
+                x=merged["direction"],
+                y=merged["shopping_rate_mkt"],
+                name="Market",
+                marker_color=CI_GREY,
+                opacity=0.5,
+                text=[f"{r:.0%}" if pd.notna(r) else "" for r in merged["shopping_rate_mkt"]],
+                textposition="outside",
+            ))
+            fig.update_layout(
+                barmode="group",
+                height=300,
+                yaxis=dict(title="Shopping Rate", tickformat=".0%", gridcolor=CI_LIGHT_GREY),
+                plot_bgcolor=CI_WHITE, paper_bgcolor=CI_WHITE,
+                font=dict(family=FONT, size=11, color=CI_GREY),
+                margin=dict(l=10, r=20, t=10, b=40),
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, x=1, xanchor="right"),
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("Insufficient data for price-shopping crossover.")
+
+    with col_secondary:
+        # Tenure
+        ins_tenure = calc_tenure_distribution(df_ins)
+        if ins_tenure is not None:
+            st.markdown("**Tenure with Current Insurer (Q21)**")
+            _render_tenure_chart(ins_tenure)
+        else:
+            st.info("No Q21 tenure data available for this insurer.")
+
+        # Cross-screen links
+        st.markdown("**Related screens**")
         if st.button("View Shopping Behaviour", key="prerenewal_to_shopping"):
             from lib.state import navigate_to
             navigate_to("shopping")
-    with col2:
         if st.button("View Switching & Flows", key="prerenewal_to_switching"):
             from lib.state import navigate_to
             navigate_to("switching")
 
     # Footer
-    st.markdown("---")
-    st.caption(
-        f"Pre-Renewal Context | {insurer} | {filters['product']} | {period} | "
-        f"Insurer n={n_ins:,} | Market n={n_mkt:,}"
+    render_context_footer(
+        screen_name="pre_renewal_insurer",
+        product=product,
+        period=period,
+        sample_n=n_ins,
     )
 
 
@@ -366,7 +385,7 @@ def _render_band_chart(bands: pd.Series, colour: str, direction: str):
     ))
     fig.update_layout(
         yaxis_tickformat=".0%",
-        height=250,
+        height=280,
         margin=dict(l=10, r=20, t=10, b=40),
         font=dict(family=FONT, size=11, color=CI_GREY),
         plot_bgcolor=CI_WHITE, paper_bgcolor=CI_WHITE,
@@ -424,10 +443,15 @@ def _render_tenure_chart(tenure: pd.Series):
 
 def _render_price_analysis_market(df_mkt, filters, period, n_mkt):
     """Market-level price change analysis using midpoint mapping."""
-    st.subheader("Price Analysis: Market View")
+    render_context_bar(
+        "Price Analysis",
+        product=filters["product"],
+        period=period,
+        n_market=n_mkt,
+    )
 
     # --- Direction donut ---
-    section_divider("Price Direction at Renewal")
+    st.markdown("**Price Direction at Renewal**")
 
     price_dist = calc_price_direction_dist(df_mkt)
     if price_dist is not None:
@@ -451,11 +475,11 @@ def _render_price_analysis_market(df_mkt, filters, period, n_mkt):
         st.info("No price direction data available.")
 
     # --- Band distribution (signed) ---
-    section_divider("Price Change Distribution (Signed Bands)")
+    st.markdown("**Price Change Distribution (Signed Bands)**")
     _render_signed_band_chart(df_mkt)
 
     # --- Average change KPI ---
-    section_divider("Average Price Change")
+    st.markdown("**Average Price Change**")
     avg = calc_avg_price_change(df_mkt)
     if avg is not None:
         change = avg["avg_change"]
@@ -463,33 +487,36 @@ def _render_price_analysis_market(df_mkt, filters, period, n_mkt):
         sign = "+" if change > 0 else ""
         col1, col2 = st.columns(2)
         with col1:
-            kpi_card("Avg Price Change", f"{sign}£{abs(change):.0f}", f"n={avg['n']:,}", colour)
+            kpi_card("Avg Price Change", f"{sign}{abs(change):.0f}", f"n={avg['n']:,}", colour)
         with col2:
             kpi_card("Respondents with Band Data", f"{avg['n']:,}", f"Market total: {n_mkt:,}", CI_GREY)
     else:
         st.info("Insufficient data to compute average price change.")
 
-    st.markdown("---")
-    st.caption(f"Price Analysis | Market | {filters['product']} | {period} | n={n_mkt:,}")
+    render_context_footer(
+        screen_name="price_analysis_market",
+        product=filters["product"],
+        period=period,
+        sample_n=n_mkt,
+    )
 
 
 def _render_price_analysis_brand(df_mkt, insurer, filters, period, n_mkt):
     """Brand-level price change analysis vs market."""
-    st.subheader(f"Price Analysis: {insurer}")
-
     has_pre_renewal = "PreRenewalCompany" in df_mkt.columns
     if not has_pre_renewal:
         st.warning("PreRenewalCompany column not available. Cannot filter by brand.")
         return
 
     n_brand = int((df_mkt["PreRenewalCompany"] == insurer).sum())
-    st.markdown(
-        f'<div style="background:{CI_LIGHT_GREY}; padding:10px 16px; border-radius:4px; '
-        f'font-family:{FONT}; font-size:13px; color:{CI_GREY}; margin-bottom:16px;">'
-        f"<b>{insurer}</b> (PreRenewalCompany) &nbsp;|&nbsp; {filters['product']} &nbsp;|&nbsp; {period} "
-        f"&nbsp;|&nbsp; Brand n={n_brand:,} &nbsp;|&nbsp; Market n={n_mkt:,}"
-        f"</div>",
-        unsafe_allow_html=True,
+
+    render_context_bar(
+        "Price Analysis",
+        insurer=insurer,
+        product=filters["product"],
+        period=period,
+        n_insurer=n_brand,
+        n_market=n_mkt,
     )
 
     if n_brand < MIN_BASE_PUBLISHABLE:
@@ -500,7 +527,7 @@ def _render_price_analysis_brand(df_mkt, insurer, filters, period, n_mkt):
         return
 
     # --- Direction stacked bar: brand vs others ---
-    section_divider("Price Direction: Brand vs Others")
+    st.markdown("**Price Direction: Brand vs Others**")
 
     comparison = calc_price_change_comparison(df_mkt, insurer)
     if comparison is not None:
@@ -534,7 +561,7 @@ def _render_price_analysis_brand(df_mkt, insurer, filters, period, n_mkt):
         st.plotly_chart(fig, use_container_width=True)
 
     # --- Average change KPI: brand vs market ---
-    section_divider("Average Price Change")
+    st.markdown("**Average Price Change**")
     brand_avg = calc_avg_price_change(df_mkt, brand=insurer)
     market_avg = calc_avg_price_change(df_mkt)
 
@@ -544,17 +571,17 @@ def _render_price_analysis_brand(df_mkt, insurer, filters, period, n_mkt):
             bc = brand_avg["avg_change"]
             sign = "+" if bc > 0 else ""
             colour = CI_RED if bc > 0 else CI_GREEN if bc < 0 else CI_GREY
-            kpi_card(f"{insurer} Avg Change", f"{sign}£{abs(bc):.0f}", f"n={brand_avg['n']:,}", colour)
+            kpi_card(f"{insurer} Avg Change", f"{sign}{abs(bc):.0f}", f"n={brand_avg['n']:,}", colour)
         with col2:
             mc = market_avg["avg_change"]
             sign = "+" if mc > 0 else ""
             colour = CI_RED if mc > 0 else CI_GREEN if mc < 0 else CI_GREY
-            kpi_card("Market Avg Change", f"{sign}£{abs(mc):.0f}", f"n={market_avg['n']:,}", colour)
+            kpi_card("Market Avg Change", f"{sign}{abs(mc):.0f}", f"n={market_avg['n']:,}", colour)
     else:
         st.info("Insufficient data for average price change comparison.")
 
     # --- Demographic breakdown ---
-    section_divider("Price Change by Demographic")
+    st.markdown("**Price Change by Demographic**")
 
     demo_cols = {"AgeBand": "Age Band", "Region": "Region"}
     for col, label in demo_cols.items():
@@ -587,17 +614,18 @@ def _render_price_analysis_brand(df_mkt, insurer, filters, period, n_mkt):
                 f'<tr style="border-bottom:1px solid {CI_LIGHT_GREY};">'
                 f'<td style="padding:5px 6px;">{row["group"]}</td>'
                 f'<td style="text-align:right; padding:5px 6px; color:{colour}; font-weight:bold;">'
-                f'{sign}£{abs(avg_c):.0f}</td>'
+                f'{sign}{abs(avg_c):.0f}</td>'
                 f'<td style="text-align:right; padding:5px 6px;">{n_str}</td></tr>'
             )
         st.markdown(header + "".join(rows_html) + "</table>", unsafe_allow_html=True)
         if demo["flag_low_n"].any():
             st.caption("* n < 30: treat with caution.")
 
-    st.markdown("---")
-    st.caption(
-        f"Price Analysis | {insurer} | {filters['product']} | {period} | "
-        f"Brand n={n_brand:,} | Market n={n_mkt:,}"
+    render_context_footer(
+        screen_name="price_analysis_brand",
+        product=filters["product"],
+        period=period,
+        sample_n=n_brand,
     )
 
 
@@ -646,7 +674,7 @@ def _render_signed_band_chart(df: pd.DataFrame):
     ))
     fig.update_layout(
         height=300,
-        xaxis=dict(title="Price Change (£, midpoint)", gridcolor=CI_LIGHT_GREY),
+        xaxis=dict(title="Price Change (midpoint)", gridcolor=CI_LIGHT_GREY),
         yaxis=dict(title="% of Respondents", tickformat=".0%", gridcolor=CI_LIGHT_GREY),
         plot_bgcolor=CI_WHITE, paper_bgcolor=CI_WHITE,
         font=dict(family=FONT, size=11, color=CI_GREY),

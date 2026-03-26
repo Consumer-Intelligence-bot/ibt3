@@ -4,6 +4,8 @@ Screen 6: Reasons & Drivers.
 Market View: Top reasons for shopping (Q8), not shopping (Q19), staying (Q18),
              leaving (Q31), and choosing (Q33).
 Insurer View: Insurer vs market comparison for each reason set.
+
+Layout: Decision Screen pattern (context bar, narrative, sequential panels, footer).
 """
 
 import pandas as pd
@@ -14,8 +16,10 @@ from lib.analytics.demographics import apply_filters
 from lib.analytics.narrative_engine import generate_screen_narrative
 from lib.analytics.reasons import calc_reason_ranking, calc_reason_comparison, calc_reason_index
 from lib.chart_export import apply_export_metadata, render_suppression_html
-from lib.components.kpi_cards import kpi_card
-from lib.components.narrative_panel import render_narrative_panel
+from lib.components.context_bar import render_context_bar
+from lib.components.context_footer import render_context_footer
+from lib.components.decision_kpi import decision_kpi_row
+from lib.components.narrative_panel import render_narrative_compact
 from lib.config import (
     CI_GREEN,
     CI_GREY,
@@ -27,7 +31,7 @@ from lib.config import (
     MIN_BASE_REASON,
     MIN_BASE_PUBLISHABLE,
 )
-from lib.formatting import fmt_pct, section_divider, period_label, FONT
+from lib.formatting import fmt_pct, period_label, FONT
 from lib.question_ref import get_question_text
 from lib.state import get_ss_data
 
@@ -77,12 +81,30 @@ def render(filters: dict):
         _render_market_view(df_mkt, filters, period, n_mkt)
 
 
+# ---------------------------------------------------------------------------
+# Market view
+# ---------------------------------------------------------------------------
+
 def _render_market_view(df_mkt, filters, period, n_mkt):
     """Market-level reason panels: 5 question sets."""
-    st.subheader("Reasons & Drivers: Market View")
+    product = filters["product"]
 
+    # ── Context bar ──────────────────────────────────────────────
+    render_context_bar(
+        "Reasons & Drivers",
+        product=product,
+        period=period,
+        n_market=n_mkt,
+    )
+
+    # ── Sequential panels ────────────────────────────────────────
     for q_code, title, base_desc, filter_fn in _MARKET_PANELS:
-        section_divider(f"{title} ({q_code})")
+        st.markdown(
+            f'<div style="font-family:{FONT}; font-size:13px; font-weight:700; '
+            f'color:{CI_GREY}; margin:16px 0 4px 0;">'
+            f'{title} ({q_code})</div>',
+            unsafe_allow_html=True,
+        )
         st.caption(get_question_text(q_code))
 
         base_df = filter_fn(df_mkt)
@@ -102,10 +124,18 @@ def _render_market_view(df_mkt, filters, period, n_mkt):
 
         _render_reason_bar(reasons, q_code, title, period, n_base)
 
-    # Footer
-    st.markdown("---")
-    st.caption(f"Reasons & Drivers | Market | {filters['product']} | {period} | n={n_mkt:,}")
+    # ── Context footer ───────────────────────────────────────────
+    render_context_footer(
+        screen_name="reasons_market",
+        product=product,
+        period=period,
+        sample_n=n_mkt,
+    )
 
+
+# ---------------------------------------------------------------------------
+# Insurer view
+# ---------------------------------------------------------------------------
 
 def _render_insurer_view(df_motor, df_mkt, insurer, filters, period, n_mkt):
     """Insurer vs market comparison for each reason set."""
@@ -124,18 +154,17 @@ def _render_insurer_view(df_motor, df_mkt, insurer, filters, period, n_mkt):
 
     n_ins = len(df_ins)
 
-    st.subheader(f"Reasons & Drivers: {insurer}")
-
-    # Period banner
-    st.markdown(
-        f'<div style="background:{CI_LIGHT_GREY}; padding:10px 16px; border-radius:4px; '
-        f'font-family:{FONT}; font-size:13px; color:{CI_GREY}; margin-bottom:16px;">'
-        f"<b>{insurer}</b> &nbsp;|&nbsp; {product} &nbsp;|&nbsp; {period} "
-        f"&nbsp;|&nbsp; Insurer n={n_ins:,} &nbsp;|&nbsp; Market n={n_mkt:,}"
-        f"</div>",
-        unsafe_allow_html=True,
+    # ── Context bar ──────────────────────────────────────────────
+    render_context_bar(
+        "Reasons & Drivers",
+        insurer=insurer,
+        product=product,
+        period=period,
+        n_insurer=n_ins,
+        n_market=n_mkt,
     )
 
+    # ── Suppression check ────────────────────────────────────────
     if n_ins < MIN_BASE_PUBLISHABLE:
         st.markdown(
             render_suppression_html(insurer, n_ins, MIN_BASE_PUBLISHABLE),
@@ -143,7 +172,20 @@ def _render_insurer_view(df_motor, df_mkt, insurer, filters, period, n_mkt):
         )
         return
 
-    # For Q18 (stay reasons), filter to shoppers who stayed
+    # ── AI Narrative (top of screen) ─────────────────────────────
+    top_stay = calc_reason_ranking(df_mkt, "Q18", insurer, top_n=1)
+    top_leave = calc_reason_ranking(df_mkt, "Q31", insurer, top_n=1)
+    top_shop = calc_reason_ranking(df_mkt, "Q8", insurer, top_n=1)
+    narrative = generate_screen_narrative("reasons", {
+        "insurer": insurer,
+        "product": filters["product"],
+        "top_stay_reason": top_stay[0]["reason"] if top_stay else "N/A",
+        "top_leave_reason": top_leave[0]["reason"] if top_leave else "N/A",
+        "top_shop_reason": top_shop[0]["reason"] if top_shop else "N/A",
+    })
+    render_narrative_compact(narrative, "reasons")
+
+    # ── Sequential reason panels ─────────────────────────────────
     _INSURER_PANELS = [
         ("Q8", "Why Customers Shop", "shoppers"),
         ("Q19", "Why Customers Don't Shop", "non-shoppers"),
@@ -154,7 +196,12 @@ def _render_insurer_view(df_motor, df_mkt, insurer, filters, period, n_mkt):
     ]
 
     for q_code, title, base_desc in _INSURER_PANELS:
-        section_divider(f"{title} ({q_code})")
+        st.markdown(
+            f'<div style="font-family:{FONT}; font-size:13px; font-weight:700; '
+            f'color:{CI_GREY}; margin:16px 0 4px 0;">'
+            f'{title} ({q_code})</div>',
+            unsafe_allow_html=True,
+        )
         st.caption(get_question_text(q_code))
 
         comparison = calc_reason_comparison(df_mkt, q_code, insurer, top_n=5)
@@ -171,38 +218,34 @@ def _render_insurer_view(df_motor, df_mkt, insurer, filters, period, n_mkt):
 
         _render_reason_index_table(ins_reasons, mkt_reasons, insurer, q_code)
 
-    # --- AI Narrative ---
-    section_divider("AI Narrative")
-    top_stay = calc_reason_ranking(df_mkt, "Q18", insurer, top_n=1)
-    top_leave = calc_reason_ranking(df_mkt, "Q31", insurer, top_n=1)
-    top_shop = calc_reason_ranking(df_mkt, "Q8", insurer, top_n=1)
-    narrative = generate_screen_narrative("reasons", {
-        "insurer": insurer,
-        "product": filters["product"],
-        "top_stay_reason": top_stay[0]["reason"] if top_stay else "N/A",
-        "top_leave_reason": top_leave[0]["reason"] if top_leave else "N/A",
-        "top_shop_reason": top_shop[0]["reason"] if top_shop else "N/A",
-    })
-    render_narrative_panel(narrative, "reasons")
-
-    # --- Cross-screen links ---
+    # ── Cross-screen links ───────────────────────────────────────
+    st.markdown(
+        f'<div style="font-size:11px; font-weight:700; text-transform:uppercase; '
+        f'letter-spacing:0.8px; color:{CI_GREY}; margin:16px 0 6px 0;">Explore</div>',
+        unsafe_allow_html=True,
+    )
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("View Switching & Flows", key="reasons_to_switching"):
+        if st.button("Switching & Flows", key="reasons_to_switching"):
             from lib.state import navigate_to
             navigate_to("switching")
     with col2:
-        if st.button("View Satisfaction & Loyalty", key="reasons_to_satisfaction"):
+        if st.button("Satisfaction & Loyalty", key="reasons_to_satisfaction"):
             from lib.state import navigate_to
             navigate_to("satisfaction")
 
-    # Footer
-    st.markdown("---")
-    st.caption(
-        f"Reasons & Drivers | {insurer} | {filters['product']} | {period} | "
-        f"Insurer n={n_ins:,} | Market n={n_mkt:,}"
+    # ── Context footer ───────────────────────────────────────────
+    render_context_footer(
+        screen_name="reasons",
+        product=product,
+        period=period,
+        sample_n=n_ins,
     )
 
+
+# ---------------------------------------------------------------------------
+# Shared helpers
+# ---------------------------------------------------------------------------
 
 def _render_reason_bar(reasons: list[dict], q_code: str, title: str, period: str, n_base: int):
     """Render a horizontal bar chart for market-level reasons."""

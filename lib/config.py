@@ -44,35 +44,51 @@ OTHER_TABLE = "AllOtherData"
 PRODUCTS = ["Motor", "Home", "Pet"]
 
 # ---------------------------------------------------------------------------
-# CI Brand colours (Spec Section 11.1)
+# CI Brand colours — 6 core colours (brand guidelines)
 # ---------------------------------------------------------------------------
-CI_MAGENTA = "#981D97"
-CI_YELLOW = "#FFCD00"
-CI_GREEN = "#48A23F"
-CI_RED = "#F4364C"
-CI_BLUE = "#5BC2E7"
-CI_GREY = "#54585A"
-CI_LIGHT_GREY = "#E9EAEB"
+CI_PURPLE = "#981D97"     # Primary brand, print lead
+CI_YELLOW = "#FFCD00"     # Accent, highlights
+CI_GREEN = "#48A23F"      # Positive, success
+CI_RED = "#F4364C"        # Alert, negative, emphasis
+CI_CYAN = "#5BC2E7"       # Digital primary, CTAs
+CI_CHARCOAL = "#54585A"   # Text, dark backgrounds
+
+# 60% tints
+CI_PURPLE_60 = "#C177C1"
+CI_YELLOW_60 = "#FFE166"
+CI_GREEN_60 = "#91C78C"
+CI_RED_60 = "#F88694"
+CI_CYAN_60 = "#9DDAF1"
+CI_CHARCOAL_60 = "#989B9C"
+
+# 20% tints
+CI_PURPLE_20 = "#EAD2EA"
+CI_YELLOW_20 = "#FFF5CC"
+CI_GREEN_20 = "#DAECD9"
+CI_RED_20 = "#FDD7DB"
+CI_CYAN_20 = "#DEF3FA"
+CI_CHARCOAL_20 = "#DDDEDE"
+
 CI_WHITE = "#FFFFFF"
 
-# CI Violet (brand spec) — distinct from CI_MAGENTA
-CI_VIOLET = "#AD278C"
-CI_DARK = CI_GREY
-CI_LGREY = CI_LIGHT_GREY
+# Legacy aliases (referenced throughout codebase)
+CI_MAGENTA = CI_PURPLE
+CI_BLUE = CI_CYAN
+CI_GREY = CI_CHARCOAL
+CI_LIGHT_GREY = CI_CHARCOAL_20
+CI_DARK = CI_CHARCOAL
+CI_LGREY = CI_CHARCOAL_20
 
-# Distinct purple for market reference lines/bars (visually distinct from CI_MAGENTA)
-CI_MARKET_PURPLE = "#6B1D6B"
-
-# Bump chart colour sequence (Spec Section 11.3)
+# Chart colour sequence (brand spec: Cyan, Purple, Yellow, Green, Red,
+# Charcoal, then 60% tints, then 20% tints)
 BUMP_COLOURS = [
-    CI_MAGENTA, CI_BLUE, CI_GREEN, CI_RED, CI_YELLOW,
-    "#C44BE0", "#2FA8CC", "#3A8A32", "#D02840", "#B8A000",
-    "#7B3FA0", "#1A8099",
+    CI_CYAN, CI_PURPLE, CI_YELLOW, CI_GREEN, CI_RED, CI_CHARCOAL,
+    CI_CYAN_60, CI_PURPLE_60, CI_YELLOW_60, CI_GREEN_60, CI_RED_60, CI_CHARCOAL_60,
 ]
 
 # Visual rules
-INSURER_COLOUR = CI_MAGENTA
-MARKET_COLOUR = CI_MARKET_PURPLE
+INSURER_COLOUR = CI_PURPLE
+MARKET_COLOUR = CI_CHARCOAL
 POSITIVE_GAP_COLOUR = CI_GREEN
 NEGATIVE_GAP_COLOUR = CI_RED
 NEUTRAL_GAP_THRESHOLD = 1.0  # percentage points
@@ -148,50 +164,52 @@ COMPARABLE_INSURERS = {
 NARRATIVE_MODEL = os.getenv("NARRATIVE_MODEL", "claude-opus-4-6")
 NARRATIVE_ENABLED = os.getenv("NARRATIVE_ENABLED", "true").lower() in ("true", "1", "yes")
 
+# Legacy aliases for imports that reference old names
+CI_NAVY = CI_CHARCOAL
+CI_NAVY_LIGHT = CI_CHARCOAL_60
+CI_VIOLET = CI_PURPLE
+CI_MARKET_PURPLE = CI_CHARCOAL
+
 # ---------------------------------------------------------------------------
 # CSS for Streamlit
 # ---------------------------------------------------------------------------
-# Brand palette: navy foundation
-CI_NAVY = "#1A2B4A"
-CI_NAVY_LIGHT = "#2A3D5E"
-CI_WARM_WHITE = "#FAFAF8"
-CI_CREAM = "#F5F4F0"
+FONT = "Montserrat, -apple-system, BlinkMacSystemFont, sans-serif"
 
 CSS = f"""
 <style>
-/* ── Import distinctive typography ────────────────────────────── */
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&display=swap');
+/* ── Import Montserrat (brand web font, 400/700) ─────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap');
 
 /* ── Base ─────────────────────────────────────────────────────── */
 html, body, [class*="css"] {{
-    font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-    color: {CI_NAVY};
+    font-family: {FONT};
+    color: {CI_CHARCOAL};
     -webkit-font-smoothing: antialiased;
 }}
 
 /* ── Main container background ────────────────────────────────── */
 .stApp {{
-    background: linear-gradient(168deg, {CI_WARM_WHITE} 0%, #F0EFE9 100%);
+    background: {CI_WHITE};
 }}
 
-/* ── Sidebar refinement ───────────────────────────────────────── */
+/* ── Sidebar (Charcoal per brand spec) ────────────────────────── */
 section[data-testid="stSidebar"] {{
-    background: {CI_NAVY};
+    background: {CI_CHARCOAL};
     border-right: none;
 }}
 section[data-testid="stSidebar"] * {{
-    color: #C8CDDA !important;
+    color: rgba(255,255,255,0.85) !important;
 }}
 section[data-testid="stSidebar"] label {{
     font-size: 11px !important;
     font-weight: 600 !important;
     text-transform: uppercase !important;
     letter-spacing: 0.8px !important;
-    color: #8B94A8 !important;
+    color: {CI_CHARCOAL_60} !important;
 }}
 section[data-testid="stSidebar"] .stSelectbox > div > div {{
-    background: {CI_NAVY_LIGHT} !important;
-    border: 1px solid rgba(255,255,255,0.08) !important;
+    background: rgba(255,255,255,0.08) !important;
+    border: 1px solid rgba(255,255,255,0.1) !important;
     color: white !important;
 }}
 section[data-testid="stSidebar"] hr {{
@@ -200,19 +218,19 @@ section[data-testid="stSidebar"] hr {{
 section[data-testid="stSidebar"] .stButton > button {{
     background: transparent !important;
     border: 1px solid rgba(255,255,255,0.12) !important;
-    color: #C8CDDA !important;
+    color: rgba(255,255,255,0.85) !important;
     font-size: 12px !important;
     transition: all 0.2s ease !important;
 }}
 section[data-testid="stSidebar"] .stButton > button:hover {{
     background: rgba(255,255,255,0.06) !important;
-    border-color: {CI_MAGENTA} !important;
+    border-color: {CI_PURPLE} !important;
     color: white !important;
 }}
 
 /* ── Tab bar (main navigation) ────────────────────────────────── */
 .stMainBlockContainer .stHorizontalBlock .stButton > button {{
-    font-family: 'DM Sans', sans-serif !important;
+    font-family: {FONT} !important;
     font-size: 12px !important;
     font-weight: 600 !important;
     letter-spacing: 0.3px !important;
@@ -221,25 +239,25 @@ section[data-testid="stSidebar"] .stButton > button:hover {{
     border: none !important;
     border-bottom: 3px solid transparent !important;
     background: transparent !important;
-    color: {CI_GREY} !important;
+    color: {CI_CHARCOAL} !important;
     transition: all 0.25s ease !important;
 }}
 .stMainBlockContainer .stHorizontalBlock .stButton > button:hover {{
-    color: {CI_NAVY} !important;
-    border-bottom-color: {CI_LIGHT_GREY} !important;
+    color: {CI_PURPLE} !important;
+    border-bottom-color: {CI_CHARCOAL_20} !important;
     background: transparent !important;
 }}
 .stMainBlockContainer .stHorizontalBlock .stButton > button[kind="primary"] {{
-    color: {CI_MAGENTA} !important;
-    border-bottom-color: {CI_MAGENTA} !important;
+    color: {CI_PURPLE} !important;
+    border-bottom-color: {CI_PURPLE} !important;
     background: transparent !important;
 }}
 
-/* ── Headers ──────────────────────────────────────────────────── */
+/* ── Headers (Montserrat 700) ────────────────────────────────── */
 h1, h2, .stSubheader {{
-    font-family: 'Fraunces', Georgia, serif !important;
-    color: {CI_NAVY} !important;
-    font-weight: 600 !important;
+    font-family: {FONT} !important;
+    color: {CI_CHARCOAL} !important;
+    font-weight: 700 !important;
 }}
 h2 {{
     font-size: 1.6rem !important;
@@ -248,44 +266,56 @@ h2 {{
 
 /* ── Metric cards ─────────────────────────────────────────────── */
 div[data-testid="stMetricValue"] {{
-    font-family: 'Fraunces', Georgia, serif !important;
+    font-family: {FONT} !important;
     font-size: 28px !important;
     font-weight: 700 !important;
-    color: {CI_MAGENTA} !important;
+    color: {CI_PURPLE} !important;
 }}
 div[data-testid="stMetricLabel"] {{
     font-size: 11px !important;
     text-transform: uppercase !important;
     letter-spacing: 0.5px !important;
-    color: {CI_GREY} !important;
+    color: {CI_CHARCOAL} !important;
 }}
 
 /* ── Section dividers ─────────────────────────────────────────── */
 .section-title {{
-    font-family: 'DM Sans', sans-serif;
+    font-family: {FONT};
     font-size: 13px;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 1px;
-    color: {CI_NAVY};
-    border-bottom: 2px solid {CI_MAGENTA};
+    color: {CI_CHARCOAL};
+    border-bottom: 2px solid {CI_PURPLE};
     padding-bottom: 8px;
     margin-bottom: 16px;
 }}
 
 /* ── Expanders (narrative panels) ─────────────────────────────── */
 .streamlit-expanderHeader {{
-    font-family: 'DM Sans', sans-serif !important;
+    font-family: {FONT} !important;
     font-weight: 600 !important;
-    color: {CI_NAVY} !important;
-    background: {CI_CREAM} !important;
-    border-radius: 4px !important;
+    color: {CI_CHARCOAL} !important;
+    background: {CI_CHARCOAL_20} !important;
+    border-radius: 12px !important;
 }}
 
 /* ── DataFrames & tables ──────────────────────────────────────── */
 .stDataFrame {{
-    border: 1px solid {CI_LIGHT_GREY} !important;
-    border-radius: 4px !important;
+    border: 1px solid {CI_CHARCOAL_20} !important;
+    border-radius: 12px !important;
+}}
+
+/* ── White cards with shadow-on-hover (brand design language) ── */
+div[data-testid="stMetric"],
+div[data-testid="stExpander"] {{
+    background: white;
+    border-radius: 12px;
+    transition: box-shadow 0.2s ease;
+}}
+div[data-testid="stMetric"]:hover,
+div[data-testid="stExpander"]:hover {{
+    box-shadow: 0 2px 8px rgba(84,88,90,0.12);
 }}
 
 /* ── Alert badges ─────────────────────────────────────────────── */
@@ -304,7 +334,7 @@ div[data-testid="stMetricLabel"] {{
 }}
 .alert-yellow {{
     background-color: {CI_YELLOW};
-    color: {CI_NAVY};
+    color: {CI_CHARCOAL};
 }}
 .alert-green {{
     background-color: {CI_GREEN};
@@ -314,13 +344,40 @@ div[data-testid="stMetricLabel"] {{
 /* ── Tooltips & captions ──────────────────────────────────────── */
 .stCaption {{
     font-size: 11px !important;
-    color: #8B94A8 !important;
+    color: {CI_CHARCOAL_60} !important;
 }}
 
 /* ── Plotly chart container spacing ───────────────────────────── */
 .stPlotlyChart {{
-    border-radius: 6px;
+    border-radius: 12px;
     overflow: hidden;
+}}
+
+/* ── Decision Screen components ───────────────────────────────── */
+.decision-kpi {{
+    background: white;
+    border: 1px solid {CI_CHARCOAL_20};
+    border-radius: 12px;
+    padding: 14px 18px;
+    transition: box-shadow 0.2s ease;
+}}
+.decision-kpi:hover {{
+    box-shadow: 0 2px 8px rgba(84,88,90,0.12);
+}}
+.confidence-badge {{
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+}}
+.context-footer {{
+    border-top: 1px solid {CI_CHARCOAL_20};
+    margin-top: 24px;
+    padding-top: 10px;
+    font-size: 11px;
+    color: {CI_CHARCOAL_60};
 }}
 
 /* ── Scrollbar (subtle, not default blue) ─────────────────────── */
@@ -332,11 +389,11 @@ div[data-testid="stMetricLabel"] {{
     background: transparent;
 }}
 ::-webkit-scrollbar-thumb {{
-    background: {CI_LIGHT_GREY};
+    background: {CI_CHARCOAL_20};
     border-radius: 3px;
 }}
 ::-webkit-scrollbar-thumb:hover {{
-    background: {CI_GREY};
+    background: {CI_CHARCOAL};
 }}
 </style>
 """

@@ -1,15 +1,19 @@
 """
 Reusable insurer-vs-market paired horizontal bar chart.
 
-Insurer bar in CI_VIOLET, market bar in CI_GREY, sorted descending.
+Insurer bar in CI_PURPLE, market bar in CI_CHARCOAL, sorted descending.
 """
 
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from lib.config import CI_GREY, CI_LIGHT_GREY, CI_VIOLET, CI_WHITE
-from lib.formatting import FONT
+from lib.config import CI_CHARCOAL, CI_CHARCOAL_20, CI_PURPLE, CI_WHITE, FONT
+
+# Legacy aliases
+CI_GREY = CI_CHARCOAL
+CI_LIGHT_GREY = CI_CHARCOAL_20
+CI_VIOLET = CI_PURPLE
 
 
 def paired_bar_chart(
