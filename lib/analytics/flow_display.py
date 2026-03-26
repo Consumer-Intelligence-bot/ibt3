@@ -144,6 +144,66 @@ def format_price_change(value: float) -> str:
     return f"\u00a30"
 
 
+# ---------------------------------------------------------------------------
+# Reason index helpers
+# ---------------------------------------------------------------------------
+
+def calc_reason_index(insurer_pct: float | None, market_pct: float | None) -> int | None:
+    """
+    Calculate how much an insurer over- or under-indexes on a reason relative
+    to the market.
+
+    Parameters
+    ----------
+    insurer_pct : float | None
+        Proportion of insurer respondents citing this reason (0–1).
+    market_pct : float | None
+        Proportion of market respondents citing this reason (0–1).
+
+    Returns
+    -------
+    int
+        (insurer_pct / market_pct) * 100, rounded to nearest integer.
+        100 = exactly at market average. 150 = 50% over-index.
+    None
+        When either input is None, or market_pct <= 0 (division-by-zero guard).
+    """
+    if insurer_pct is None or market_pct is None:
+        return None
+    if market_pct <= 0:
+        return None
+    return round((insurer_pct / market_pct) * 100)
+
+
+def format_reason_pct(value: float | None) -> str:
+    """
+    Format a reason percentage proportion for display in tables.
+
+    Distinguishes between true zero and very small values so that rounding
+    artefacts are not reported as "0%" when the true value is non-zero.
+
+    Parameters
+    ----------
+    value : float | None
+        Proportion as a decimal (0–1). None means data is unavailable.
+
+    Returns
+    -------
+    str
+        "0%"   — exactly 0.0
+        "<1%"  — 0 < value < 0.005 (rounds to 0% but is genuinely non-zero)
+        "N%"   — otherwise, formatted to 0dp (e.g. "16%")
+        "—"    — None input (em dash, U+2014)
+    """
+    if value is None:
+        return "\u2014"
+    if value <= 0:
+        return "0%"
+    if value <= 0.005:
+        return "<1%"
+    return f"{value * 100:.0f}%"
+
+
 def get_index_bar_colour(index_value: float, direction: str) -> str:
     """
     Return a CI brand colour for a flow index bar based on value and direction.
