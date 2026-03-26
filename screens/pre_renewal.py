@@ -129,25 +129,23 @@ def _render_market_view(df_mkt, filters, period, n_mkt):
             {"title": "% Unchanged", "value": fmt_pct(pct_u), "colour": CI_GREY},
         ])
 
-    # --- Primary (70%) / Secondary (30%) layout ---
-    col_primary, col_secondary = st.columns([7, 3])
+    # --- Price Direction ---
+    if price_dist is not None:
+        st.markdown("**Price Direction at Renewal (Q6)**")
+        _render_price_direction_chart(price_dist, "Market")
+    else:
+        st.info("No Q6 data available.")
 
-    with col_primary:
-        # Price Direction Distribution (Q6)
-        if price_dist is not None:
-            st.markdown("**Price Direction at Renewal (Q6)**")
-            _render_price_direction_chart(price_dist, "Market")
-        else:
-            st.info("No Q6 data available.")
+    # --- Two-column: Crossover + Tenure ---
+    col_crossover, col_tenure = st.columns(2)
 
-        # Price-Shopping Crossover
+    with col_crossover:
         crossover = calc_price_shopping_crossover(df_mkt)
         if crossover is not None and not crossover.empty:
             st.markdown("**Price Direction vs Shopping Rate**")
             _render_crossover_chart(crossover)
 
-    with col_secondary:
-        # Tenure Distribution (Q21)
+    with col_tenure:
         tenure = calc_tenure_distribution(df_mkt)
         if tenure is not None:
             tenure = merge_tenure_mid_buckets(tenure)
@@ -283,26 +281,25 @@ def _render_insurer_view(df_motor, df_mkt, insurer, filters, period, n_mkt):
          "change": _pp_change(pct_u, mkt_u), "sample_n": n_ins},
     ])
 
-    # --- Primary (70%) / Secondary (30%) layout ---
-    col_primary, col_secondary = st.columns([7, 3])
+    # --- Price Direction Index ---
+    mkt_dist = calc_price_direction_dist(df_mkt)
 
-    with col_primary:
-        # Price Direction: insurer vs market
-        mkt_dist = calc_price_direction_dist(df_mkt)
-
-        if ins_price is not None and mkt_dist is not None:
-            index_df = calc_price_direction_index(ins_price, mkt_dist)
-            if index_df is not None:
-                st.markdown(f"**Price Direction Index: {insurer} vs Market (pp)**")
-                _render_price_direction_index_chart(index_df)
-            else:
-                _render_price_direction_chart(ins_price, insurer)
-        elif ins_price is not None:
-            _render_price_direction_chart(ins_price, insurer)
+    if ins_price is not None and mkt_dist is not None:
+        index_df = calc_price_direction_index(ins_price, mkt_dist)
+        if index_df is not None:
+            st.markdown(f"**Price Direction Index: {insurer} vs Market (pp)**")
+            _render_price_direction_index_chart(index_df)
         else:
-            st.info("No Q6 data available.")
+            _render_price_direction_chart(ins_price, insurer)
+    elif ins_price is not None:
+        _render_price_direction_chart(ins_price, insurer)
+    else:
+        st.info("No Q6 data available.")
 
-        # Price-Shopping Crossover
+    # --- Two-column: Crossover + Tenure ---
+    col_crossover, col_tenure = st.columns(2)
+
+    with col_crossover:
         mkt_crossover = calc_price_shopping_crossover(df_mkt)
 
         if ins_cross is not None and mkt_crossover is not None:
@@ -341,8 +338,7 @@ def _render_insurer_view(df_motor, df_mkt, insurer, filters, period, n_mkt):
         else:
             st.info("Insufficient data for price-shopping crossover.")
 
-    with col_secondary:
-        # Tenure
+    with col_tenure:
         ins_tenure = calc_tenure_distribution(df_ins)
         if ins_tenure is not None:
             ins_tenure = merge_tenure_mid_buckets(ins_tenure)
@@ -437,6 +433,7 @@ def _render_band_chart(bands: pd.Series, colour: str, direction: str):
     fig.update_layout(
         yaxis_tickformat=".0%",
         height=280,
+        bargap=0.15,
         margin=dict(l=10, r=20, t=10, b=40),
         font=dict(family=FONT, size=11, color=CI_GREY),
         plot_bgcolor=CI_WHITE, paper_bgcolor=CI_WHITE,
@@ -628,46 +625,50 @@ def _render_price_analysis_brand(df_mkt, insurer, filters, period, n_mkt):
     else:
         st.info("Insufficient data for average price change comparison.")
 
-    # --- Demographic breakdown ---
+    # --- Demographic breakdown (side by side) ---
     st.markdown("**Price Change by Demographic**")
 
     demo_cols = {"AgeBand": "Age Band", "Region": "Region"}
+    demo_items = []
     for col, label in demo_cols.items():
         if col not in df_mkt.columns:
             continue
         demo = calc_price_change_by_demo(df_mkt, col, brand=insurer)
-        if demo is None or demo.empty:
-            continue
+        if demo is not None and not demo.empty:
+            demo_items.append((label, demo))
 
-        st.markdown(f"**{label}**")
-        # Build HTML table
-        header = (
-            f'<table style="width:100%; font-family:{FONT}; font-size:12px; '
-            f'border-collapse:collapse; margin-bottom:12px;">'
-            f'<tr style="border-bottom:2px solid {CI_GREY};">'
-            f'<th style="text-align:left; padding:6px;">{label}</th>'
-            f'<th style="text-align:right; padding:6px;">Avg Change</th>'
-            f'<th style="text-align:right; padding:6px;">n</th></tr>'
-        )
-        rows_html = []
-        for _, row in demo.iterrows():
-            avg_c = row["avg_change"]
-            sign = "+" if avg_c > 0 else ""
-            colour = CI_RED if avg_c > 0 else CI_GREEN if avg_c < 0 else CI_GREY
-            n_str = f"{int(row['n']):,}"
-            if row["flag_low_n"]:
-                n_str += " *"
-                colour = CI_GREY
-            rows_html.append(
-                f'<tr style="border-bottom:1px solid {CI_LIGHT_GREY};">'
-                f'<td style="padding:5px 6px;">{row["group"]}</td>'
-                f'<td style="text-align:right; padding:5px 6px; color:{colour}; font-weight:bold;">'
-                f'{sign}{abs(avg_c):.0f}</td>'
-                f'<td style="text-align:right; padding:5px 6px;">{n_str}</td></tr>'
-            )
-        st.markdown(header + "".join(rows_html) + "</table>", unsafe_allow_html=True)
-        if demo["flag_low_n"].any():
-            st.caption("* n < 30: treat with caution.")
+    if demo_items:
+        cols = st.columns(len(demo_items))
+        for col_st, (label, demo) in zip(cols, demo_items):
+            with col_st:
+                st.markdown(f"**{label}**")
+                header = (
+                    f'<table style="width:100%; font-family:{FONT}; font-size:12px; '
+                    f'border-collapse:collapse; margin-bottom:12px;">'
+                    f'<tr style="border-bottom:2px solid {CI_GREY};">'
+                    f'<th style="text-align:left; padding:6px;">{label}</th>'
+                    f'<th style="text-align:right; padding:6px;">Avg Change</th>'
+                    f'<th style="text-align:right; padding:6px;">n</th></tr>'
+                )
+                rows_html = []
+                for _, row in demo.iterrows():
+                    avg_c = row["avg_change"]
+                    sign = "+" if avg_c > 0 else ""
+                    colour = CI_RED if avg_c > 0 else CI_GREEN if avg_c < 0 else CI_GREY
+                    n_str = f"{int(row['n']):,}"
+                    if row["flag_low_n"]:
+                        n_str += " *"
+                        colour = CI_GREY
+                    rows_html.append(
+                        f'<tr style="border-bottom:1px solid {CI_LIGHT_GREY};">'
+                        f'<td style="padding:5px 6px;">{row["group"]}</td>'
+                        f'<td style="text-align:right; padding:5px 6px; color:{colour}; font-weight:bold;">'
+                        f'{sign}{abs(avg_c):.0f}</td>'
+                        f'<td style="text-align:right; padding:5px 6px;">{n_str}</td></tr>'
+                    )
+                st.markdown(header + "".join(rows_html) + "</table>", unsafe_allow_html=True)
+                if demo["flag_low_n"].any():
+                    st.caption("* n < 30: treat with caution.")
 
     render_context_footer(
         screen_name="price_analysis_brand",
@@ -722,7 +723,8 @@ def _render_signed_band_chart(df: pd.DataFrame):
     ))
     fig.update_layout(
         height=300,
-        xaxis=dict(title="Price Change (midpoint)", gridcolor=CI_LIGHT_GREY),
+        bargap=0.05,
+        xaxis=dict(title="Price Change (£, midpoint)", gridcolor=CI_LIGHT_GREY),
         yaxis=dict(title="% of Respondents", tickformat=".0%", gridcolor=CI_LIGHT_GREY),
         plot_bgcolor=CI_WHITE, paper_bgcolor=CI_WHITE,
         font=dict(family=FONT, size=11, color=CI_GREY),

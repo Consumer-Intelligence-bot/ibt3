@@ -199,13 +199,13 @@
 - [x] **Font size:** Increased globally in narrative_panel.py (commit 1)
 - [ ] **Headline rewrite:** Replace jargony AI headlines with plain English (see A2)
 - [x] **Facts need market comparison:** KPIs now show "+2.1pp vs market" on each metric
-- [ ] **Tenure chart layout:** Move from right-hand side to more prominent position
+- [x] **Tenure chart layout:** Moved to 50/50 split alongside crossover chart
 - [x] **Tenure 6-8 year buckets:** Merged into "6-8 years" band via merge_tenure_mid_buckets()
 - [x] **Q6A/Q6B combine charts:** Already combined on Price Analysis tab (_render_signed_band_chart)
-- [ ] **Price banding white space:** Tighten axis, remove gaps between bandings
+- [x] **Price banding white space:** Set bargap=0.15/0.05 on band charts, added £ to axis label
 - [x] **Price direction as index:** Replaced two side-by-side bars with single diverging index chart
 - [x] **Add pound sign:** format_price_change() now shows "£21" / "+£21" / "−£16"
-- [ ] **Age/region side by side:** Reduce white space, place demographic breakdowns in columns
+- [x] **Age/region side by side:** Demographic tables now render in 2-column layout
 - [ ] **Add more demographics:** Payment type, tenure, licence held, telematics (see A9)
 - [x] **Page title clarity:** Context bar shows "[Insurer]'s Pre-Renewal Price Analysis"
 
