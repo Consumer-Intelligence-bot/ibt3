@@ -75,6 +75,46 @@ def format_net_flow_pct(net_pct: float | None) -> str:
 # Index bar colour helper
 # ---------------------------------------------------------------------------
 
+def kpi_vs_market_colour(
+    insurer_val: float | None,
+    market_val: float | None,
+    lower_is_better: bool = False,
+) -> str:
+    """Return a CI brand colour based on insurer value vs market value.
+
+    Parameters
+    ----------
+    insurer_val : float | None
+        The insurer's metric value.
+    market_val : float | None
+        The market-average metric value.
+    lower_is_better : bool
+        When True, a lower insurer value is considered better (e.g. switching
+        rate, churn). When False (default), higher is better (e.g. retention,
+        NPS).
+
+    Returns
+    -------
+    str
+        CI_GREEN if insurer is better than market,
+        CI_RED if insurer is worse than market,
+        CI_GREY if equal or either value is None.
+    """
+    if insurer_val is None or market_val is None:
+        return CI_GREY
+    if lower_is_better:
+        if insurer_val < market_val:
+            return CI_GREEN
+        if insurer_val > market_val:
+            return CI_RED
+    else:
+        if insurer_val > market_val:
+            return CI_GREEN
+        if insurer_val < market_val:
+            return CI_RED
+    return CI_GREY
+
+
 _HIGH_THRESHOLD = 120
 _LOW_THRESHOLD = 80
 

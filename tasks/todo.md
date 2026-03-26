@@ -240,6 +240,6 @@
 - [x] **Index line: align label to line:** Removed floating annotation, axis title is the only label
 - [x] **Index line: make thicker:** Changed to dash style, width=2
 - [x] **Fix "market average" label:** Renamed to "Expected rate"
-- [ ] **Departed sentiment box:** Make larger, add market comparison for NPS
-- [ ] **KPI colour logic:** Remove purple for "same." Use green = better, red = worse, grey = on par
-- [ ] **Arrow direction clarity:** Disambiguate: does arrow mean trend direction or vs-market direction? Be consistent across all KPIs
+- [x] **Departed sentiment box:** Now uses decision_kpi cards with market comparison (Satisfaction + NPS)
+- [x] **KPI colour logic:** Switching rate uses kpi_vs_market_colour (green/red/grey), removed CI_MAGENTA
+- [x] **Arrow direction clarity:** All KPIs now show "+/-Xpp vs market" text, arrows match direction

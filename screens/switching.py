@@ -21,11 +21,13 @@ from lib.analytics.flows import (
     calc_top_destinations,
     calc_top_sources,
     calc_departed_sentiment,
+    calc_market_departed_sentiment,
 )
 from lib.analytics.flow_display import (
     format_flow_pct,
     format_net_flow_pct,
     get_index_bar_colour,
+    kpi_vs_market_colour,
 )
 from lib.analytics.rates import (
     calc_retention_rate,
@@ -305,10 +307,10 @@ def _render_insurer_view(df_motor, df_mkt, insurer, filters, period, n_mkt):
         {
             "title": "Switching Rate",
             "value": fmt_pct(ins_switching),
-            "change": f"Market: {fmt_pct(mkt_switching)}",
+            "change": f"{'+' if switching_gap < 0 else ''}{switching_gap:.1f}pp vs market",
             "trend": switching_trend,
             "sample_n": n_ins,
-            "colour": CI_MAGENTA,
+            "colour": kpi_vs_market_colour(ins_switching, mkt_switching, lower_is_better=True),
         },
         {
             "title": "Net Flow",
@@ -404,31 +406,60 @@ def _render_insurer_view(df_motor, df_mkt, insurer, filters, period, n_mkt):
         else:
             st.caption("No destination data available.")
 
-        # Departed Sentiment (compact)
+        # Departed Sentiment — insurer vs market, rendered as decision_kpi cards
         sentiment = calc_departed_sentiment(df_mkt, insurer)
+        mkt_sentiment = calc_market_departed_sentiment(df_mkt)
         if sentiment and sentiment.get("n", 0) >= MIN_BASE_REASON:
             ins_sat = sentiment.get("mean_q40a")
             ins_nps = sentiment.get("nps")
+            mkt_sat = mkt_sentiment.get("mean_q40a") if mkt_sentiment else None
+            mkt_nps = mkt_sentiment.get("nps") if mkt_sentiment else None
 
             st.markdown(
                 f'<div style="font-size:11px; font-weight:700; text-transform:uppercase; '
                 f'letter-spacing:0.8px; color:{CI_GREY}; margin:16px 0 6px 0;">Departed Sentiment</div>',
                 unsafe_allow_html=True,
             )
-            sat_str = f"{ins_sat:.2f}/5" if ins_sat is not None else "\u2014"
-            nps_str = f"{ins_nps:+.0f}" if ins_nps is not None else "\u2014"
-            nps_colour = CI_GREEN if ins_nps and ins_nps > 0 else CI_RED if ins_nps and ins_nps < 0 else CI_GREY
-            st.markdown(
-                f'<div style="font-family:{FONT}; font-size:12px; color:{CI_GREY}; '
-                f'padding:6px 0;">'
-                f'Satisfaction: <span style="font-weight:700;">{sat_str}</span> '
-                f'&nbsp;&middot;&nbsp; '
-                f'NPS: <span style="font-weight:700; color:{nps_colour};">{nps_str}</span> '
-                f'&nbsp;&middot;&nbsp; '
-                f'n={sentiment["n"]:,}'
-                f'</div>',
-                unsafe_allow_html=True,
+
+            sat_change = (
+                f"Market: {mkt_sat:.2f}/5" if mkt_sat is not None else "Market: \u2014"
             )
+            sat_trend = (
+                "up" if (ins_sat is not None and mkt_sat is not None and ins_sat > mkt_sat)
+                else "down" if (ins_sat is not None and mkt_sat is not None and ins_sat < mkt_sat)
+                else "flat"
+            )
+
+            nps_change = (
+                f"Market: {mkt_nps:+.0f}" if mkt_nps is not None else "Market: \u2014"
+            )
+            nps_trend = (
+                "up" if (ins_nps is not None and mkt_nps is not None and ins_nps > mkt_nps)
+                else "down" if (ins_nps is not None and mkt_nps is not None and ins_nps < mkt_nps)
+                else "flat"
+            )
+
+            sentiment_cards = []
+            if ins_sat is not None:
+                sentiment_cards.append({
+                    "title": "Satisfaction",
+                    "value": f"{ins_sat:.2f}/5",
+                    "change": sat_change,
+                    "trend": sat_trend,
+                    "sample_n": sentiment["n"],
+                    "colour": kpi_vs_market_colour(ins_sat, mkt_sat),
+                })
+            if ins_nps is not None:
+                sentiment_cards.append({
+                    "title": "NPS (Departed)",
+                    "value": f"{ins_nps:+.0f}",
+                    "change": nps_change,
+                    "trend": nps_trend,
+                    "sample_n": sentiment["n"],
+                    "colour": kpi_vs_market_colour(ins_nps, mkt_nps),
+                })
+            if sentiment_cards:
+                decision_kpi_row(sentiment_cards)
 
         # Cross-screen links
         st.markdown(

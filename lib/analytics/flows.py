@@ -113,6 +113,38 @@ def calc_departed_sentiment(
     return result
 
 
+def calc_market_departed_sentiment(df: pd.DataFrame) -> dict | None:
+    """Mean Q40a, NPS from Q40b for ALL departed customers (market-level).
+
+    This is the market-level counterpart to calc_departed_sentiment(), using
+    all switchers rather than those departing from a single insurer.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Full dataset. Must contain IsSwitcher, CurrentCompany, PreviousCompany.
+
+    Returns
+    -------
+    dict with n, and optionally mean_q40a, nps — same shape as
+    calc_departed_sentiment(). Returns None if no valid switchers.
+    """
+    if df is None or len(df) == 0:
+        return None
+    switchers = _exclude_q4_eq_q39(df[df["IsSwitcher"]])
+    if len(switchers) == 0:
+        return None
+    result: dict = {"n": len(switchers)}
+    if "Q40a" in switchers.columns:
+        result["mean_q40a"] = switchers["Q40a"].mean()
+    if "Q40b" in switchers.columns:
+        nps_vals = pd.to_numeric(switchers["Q40b"], errors="coerce")
+        promoters = (nps_vals >= 9).sum()
+        detractors = (nps_vals <= 6).sum()
+        result["nps"] = 100 * (promoters - detractors) / len(switchers)
+    return result
+
+
 def is_flow_cell_suppressed(count: int) -> bool:
     """True if flow cell count below threshold."""
     return count < MIN_BASE_FLOW_CELL

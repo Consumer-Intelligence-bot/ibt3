@@ -1340,3 +1340,227 @@ class TestCalcPriceDirectionIndex:
     def test_empty_market_returns_none(self):
         from lib.analytics.price import calc_price_direction_index
         assert calc_price_direction_index(self._make_dist(), pd.Series(dtype=float)) is None
+
+
+# ===========================================================================
+# Fix 1: calc_market_departed_sentiment
+# ===========================================================================
+
+class TestCalcMarketDepartedSentiment:
+    """lib/analytics/flows.py :: calc_market_departed_sentiment
+
+    Computes MARKET-LEVEL departed sentiment across all switchers (not one insurer).
+    Returns same shape as calc_departed_sentiment: mean_q40a, nps, n.
+    """
+
+    def _make_switcher_df(self, n_switchers: int = 20) -> pd.DataFrame:
+        """Build a DataFrame with switchers that have Q40a and Q40b data."""
+        rng = __import__("numpy").random.default_rng(7)
+        rows = []
+        for i in range(n_switchers):
+            rows.append({
+                "UniqueID": i + 1,
+                "CurrentCompany": "Aviva" if i % 2 == 0 else "Admiral",
+                "PreviousCompany": "Direct Line",
+                "IsSwitcher": True,
+                "Q40a": float(rng.integers(1, 6)),          # 1–5 satisfaction
+                "Q40b": float(rng.integers(0, 11)),         # 0–10 NPS
+            })
+        # Add a stayer to confirm they are excluded
+        rows.append({
+            "UniqueID": 999,
+            "CurrentCompany": "Aviva",
+            "PreviousCompany": "Aviva",
+            "IsSwitcher": False,
+            "Q40a": 5.0,
+            "Q40b": 10.0,
+        })
+        return pd.DataFrame(rows)
+
+    def test_returns_dict_with_expected_keys(self):
+        from lib.analytics.flows import calc_market_departed_sentiment
+        df = self._make_switcher_df()
+        result = calc_market_departed_sentiment(df)
+        assert result is not None
+        assert "n" in result
+        assert "mean_q40a" in result
+        assert "nps" in result
+
+    def test_n_counts_only_switchers(self):
+        """Stayers (IsSwitcher=False) must not be counted."""
+        from lib.analytics.flows import calc_market_departed_sentiment
+        df = self._make_switcher_df(n_switchers=20)
+        result = calc_market_departed_sentiment(df)
+        # 20 switchers + 1 stayer; result["n"] must be 20
+        assert result["n"] == 20
+
+    def test_nps_calculation_correct(self):
+        """NPS = 100 * (promoters - detractors) / n. Promoters >= 9, detractors <= 6."""
+        from lib.analytics.flows import calc_market_departed_sentiment
+        rows = [
+            # 2 promoters (Q40b >= 9)
+            {"UniqueID": 1, "CurrentCompany": "A", "PreviousCompany": "B",
+             "IsSwitcher": True, "Q40a": 4.0, "Q40b": 9.0},
+            {"UniqueID": 2, "CurrentCompany": "A", "PreviousCompany": "B",
+             "IsSwitcher": True, "Q40a": 4.0, "Q40b": 10.0},
+            # 1 passive (Q40b 7 or 8 — neither promoter nor detractor)
+            {"UniqueID": 3, "CurrentCompany": "A", "PreviousCompany": "B",
+             "IsSwitcher": True, "Q40a": 3.0, "Q40b": 8.0},
+            # 1 detractor (Q40b <= 6)
+            {"UniqueID": 4, "CurrentCompany": "A", "PreviousCompany": "B",
+             "IsSwitcher": True, "Q40a": 2.0, "Q40b": 4.0},
+        ]
+        df = pd.DataFrame(rows)
+        result = calc_market_departed_sentiment(df)
+        # promoters=2, detractors=1, n=4 → NPS = 100*(2-1)/4 = 25.0
+        assert result["nps"] == pytest.approx(25.0)
+
+    def test_mean_q40a_is_correct(self):
+        """mean_q40a is the arithmetic mean of Q40a for all switchers."""
+        from lib.analytics.flows import calc_market_departed_sentiment
+        rows = [
+            {"UniqueID": 1, "CurrentCompany": "A", "PreviousCompany": "B",
+             "IsSwitcher": True, "Q40a": 2.0, "Q40b": 5.0},
+            {"UniqueID": 2, "CurrentCompany": "A", "PreviousCompany": "B",
+             "IsSwitcher": True, "Q40a": 4.0, "Q40b": 7.0},
+        ]
+        df = pd.DataFrame(rows)
+        result = calc_market_departed_sentiment(df)
+        assert result["mean_q40a"] == pytest.approx(3.0)
+
+    def test_empty_dataframe_returns_none(self):
+        from lib.analytics.flows import calc_market_departed_sentiment
+        result = calc_market_departed_sentiment(pd.DataFrame())
+        assert result is None
+
+    def test_none_dataframe_returns_none(self):
+        from lib.analytics.flows import calc_market_departed_sentiment
+        result = calc_market_departed_sentiment(None)
+        assert result is None
+
+    def test_no_switchers_returns_none(self):
+        """DataFrame with only stayers should return None."""
+        from lib.analytics.flows import calc_market_departed_sentiment
+        df = pd.DataFrame([
+            {"UniqueID": 1, "CurrentCompany": "A", "PreviousCompany": "A",
+             "IsSwitcher": False, "Q40a": 5.0, "Q40b": 10.0},
+            {"UniqueID": 2, "CurrentCompany": "B", "PreviousCompany": "B",
+             "IsSwitcher": False, "Q40a": 4.0, "Q40b": 9.0},
+        ])
+        result = calc_market_departed_sentiment(df)
+        assert result is None
+
+    def test_missing_q40a_column_omits_key(self):
+        """If Q40a is absent, mean_q40a should not appear in result."""
+        from lib.analytics.flows import calc_market_departed_sentiment
+        df = pd.DataFrame([
+            {"UniqueID": 1, "CurrentCompany": "A", "PreviousCompany": "B",
+             "IsSwitcher": True, "Q40b": 8.0},
+        ])
+        result = calc_market_departed_sentiment(df)
+        assert result is not None
+        assert "mean_q40a" not in result
+
+    def test_missing_q40b_column_omits_nps(self):
+        """If Q40b is absent, nps should not appear in result."""
+        from lib.analytics.flows import calc_market_departed_sentiment
+        df = pd.DataFrame([
+            {"UniqueID": 1, "CurrentCompany": "A", "PreviousCompany": "B",
+             "IsSwitcher": True, "Q40a": 3.0},
+        ])
+        result = calc_market_departed_sentiment(df)
+        assert result is not None
+        assert "nps" not in result
+
+    def test_excludes_same_company_rows(self):
+        """Spec 12.4: CurrentCompany == PreviousCompany must be excluded."""
+        from lib.analytics.flows import calc_market_departed_sentiment
+        df = pd.DataFrame([
+            # Same-company row — should be excluded even though IsSwitcher=True
+            {"UniqueID": 1, "CurrentCompany": "Aviva", "PreviousCompany": "Aviva",
+             "IsSwitcher": True, "Q40a": 5.0, "Q40b": 10.0},
+            # Valid switcher
+            {"UniqueID": 2, "CurrentCompany": "Admiral", "PreviousCompany": "Aviva",
+             "IsSwitcher": True, "Q40a": 2.0, "Q40b": 3.0},
+        ])
+        result = calc_market_departed_sentiment(df)
+        assert result["n"] == 1
+
+
+# ===========================================================================
+# Fix 2: kpi_vs_market_colour
+# ===========================================================================
+
+class TestKpiVsMarketColour:
+    """lib/analytics/flow_display.py :: kpi_vs_market_colour
+
+    Returns a CI brand colour based on whether insurer value is better or worse
+    than market, with an option to invert the signal for metrics where lower is better.
+    """
+
+    def test_higher_is_better_insurer_above_market(self):
+        """Default (lower_is_better=False): insurer > market → CI_GREEN."""
+        from lib.analytics.flow_display import kpi_vs_market_colour
+        from lib.config import CI_GREEN
+        assert kpi_vs_market_colour(0.80, 0.75) == CI_GREEN
+
+    def test_higher_is_better_insurer_below_market(self):
+        """Default (lower_is_better=False): insurer < market → CI_RED."""
+        from lib.analytics.flow_display import kpi_vs_market_colour
+        from lib.config import CI_RED
+        assert kpi_vs_market_colour(0.70, 0.75) == CI_RED
+
+    def test_higher_is_better_equal(self):
+        """Default (lower_is_better=False): insurer == market → CI_GREY."""
+        from lib.analytics.flow_display import kpi_vs_market_colour
+        from lib.config import CI_GREY
+        assert kpi_vs_market_colour(0.75, 0.75) == CI_GREY
+
+    def test_lower_is_better_insurer_below_market(self):
+        """lower_is_better=True: insurer < market → CI_GREEN (good)."""
+        from lib.analytics.flow_display import kpi_vs_market_colour
+        from lib.config import CI_GREEN
+        assert kpi_vs_market_colour(0.10, 0.15, lower_is_better=True) == CI_GREEN
+
+    def test_lower_is_better_insurer_above_market(self):
+        """lower_is_better=True: insurer > market → CI_RED (bad)."""
+        from lib.analytics.flow_display import kpi_vs_market_colour
+        from lib.config import CI_RED
+        assert kpi_vs_market_colour(0.20, 0.15, lower_is_better=True) == CI_RED
+
+    def test_lower_is_better_equal(self):
+        """lower_is_better=True: insurer == market → CI_GREY."""
+        from lib.analytics.flow_display import kpi_vs_market_colour
+        from lib.config import CI_GREY
+        assert kpi_vs_market_colour(0.15, 0.15, lower_is_better=True) == CI_GREY
+
+    def test_none_insurer_returns_grey(self):
+        """None insurer value → CI_GREY (cannot compare)."""
+        from lib.analytics.flow_display import kpi_vs_market_colour
+        from lib.config import CI_GREY
+        assert kpi_vs_market_colour(None, 0.75) == CI_GREY
+
+    def test_none_market_returns_grey(self):
+        """None market value → CI_GREY (cannot compare)."""
+        from lib.analytics.flow_display import kpi_vs_market_colour
+        from lib.config import CI_GREY
+        assert kpi_vs_market_colour(0.75, None) == CI_GREY
+
+    def test_both_none_returns_grey(self):
+        """Both None → CI_GREY."""
+        from lib.analytics.flow_display import kpi_vs_market_colour
+        from lib.config import CI_GREY
+        assert kpi_vs_market_colour(None, None) == CI_GREY
+
+    def test_zero_values_equal(self):
+        """Both zero → CI_GREY (edge case: zero switching rate)."""
+        from lib.analytics.flow_display import kpi_vs_market_colour
+        from lib.config import CI_GREY
+        assert kpi_vs_market_colour(0.0, 0.0, lower_is_better=True) == CI_GREY
+
+    def test_negative_values_lower_is_better(self):
+        """Negative values (e.g. NPS) work correctly with lower_is_better=False."""
+        from lib.analytics.flow_display import kpi_vs_market_colour
+        from lib.config import CI_GREEN
+        # NPS: insurer=-10, market=-30 → insurer > market → CI_GREEN
+        assert kpi_vs_market_colour(-10, -30) == CI_GREEN
