@@ -17,6 +17,7 @@ from lib.components.context_bar import render_context_bar
 from lib.components.context_footer import render_context_footer
 from lib.components.decision_kpi import decision_kpi_row
 from lib.components.narrative_panel import render_narrative_compact
+from lib.components.question_info import render_question_info
 from lib.config import (
     CI_BLUE, CI_DARK, CI_GREEN, CI_GREY, CI_LGREY, CI_LIGHT_GREY,
     CI_MAGENTA, CI_RED, CI_VIOLET, CI_WHITE,
@@ -161,6 +162,7 @@ def render(filters: dict):
         period=period_text,
         n_insurer=ins_n,
     )
+    render_question_info("Q52")
 
     # Sister brand note
     sisters = SISTER_BRANDS.get(insurer)
@@ -291,6 +293,7 @@ def _render_market_overview(eligible, market_mean, total_n, period_text, product
         period=period_text,
         n_market=int(total_n),
     )
+    render_question_info("Q52")
 
     st.info("Select an insurer from the sidebar for detailed claims analysis. Showing market overview below.")
 

@@ -26,6 +26,7 @@ from lib.components.context_footer import render_context_footer
 from lib.components.decision_kpi import decision_kpi_row
 from lib.components.narrative_panel import render_narrative_compact
 from lib.components.paired_bars import paired_bar_chart
+from lib.components.question_info import render_question_info
 from lib.config import (
     CI_BLUE,
     CI_GREEN,
@@ -126,6 +127,7 @@ def _render_market_view(df_mkt, filters, period, n_mkt):
             f'color:{CI_GREEN}; margin-bottom:6px;">Shopping Channels (Q9b)</div>',
             unsafe_allow_html=True,
         )
+        render_question_info("Q9a")
 
         ch = calc_channel_usage(df_mkt)
         if ch is not None and len(ch) > 0:
@@ -277,6 +279,7 @@ def _render_insurer_view(df_motor, df_mkt, insurer, filters, period, n_mkt):
     col_primary, col_secondary = st.columns([7, 3])
 
     with col_primary:
+        render_question_info("Q9a")
         # Channel usage: insurer vs market (Q9b)
         if ch_ins is not None and ch_mkt is not None:
             all_channels = sorted(set(ch_ins.index) | set(ch_mkt.index))

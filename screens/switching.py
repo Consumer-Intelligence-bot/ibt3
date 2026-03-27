@@ -41,6 +41,7 @@ from lib.components.context_footer import render_context_footer
 from lib.components.decision_kpi import decision_kpi, decision_kpi_row, render_kpi_with_info
 from lib.components.kpi_cards import kpi_card
 from lib.components.narrative_panel import render_narrative_compact
+from lib.components.question_info import render_question_info
 from lib.config import (
     CI_GREEN,
     CI_GREY,
@@ -147,6 +148,8 @@ def _render_market_view(df_motor, df_mkt, filters, period, n_mkt):
             },
             "% of customers who compared quotes from other insurers, regardless of whether they switched.",
         )
+
+    render_question_info("Q7")
 
     # ── 70 / 30 split ───────────────────────────────────────────
     col_primary, col_secondary = st.columns([7, 3])
@@ -346,6 +349,7 @@ def _render_insurer_view(df_motor, df_mkt, insurer, filters, period, n_mkt):
         "Net flow measures the balance of customers gained vs lost across the market. "
         "These can diverge when an insurer retains well but attracts fewer new customers."
     )
+    render_question_info("Q7")
 
     # ── 70 / 30 split ───────────────────────────────────────────
     col_primary, col_secondary = st.columns([7, 3])

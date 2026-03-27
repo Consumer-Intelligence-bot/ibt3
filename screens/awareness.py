@@ -36,6 +36,7 @@ from lib.components.context_footer import render_context_footer
 from lib.components.decision_kpi import decision_kpi_row
 from lib.components.kpi_cards import kpi_card
 from lib.components.narrative_panel import render_narrative_compact
+from lib.components.question_info import render_question_info
 from lib.config import (
     BUMP_COLOURS,
     CI_GREEN,
@@ -135,6 +136,9 @@ def _render_market_prompted(df_main, level, product, period, n):
         period=period,
         n_market=n,
     )
+
+    _level_question = {"prompted": "Q2", "consideration": "Q27"}
+    render_question_info(_level_question.get(level, "Q2"))
 
     # Suppress incomplete trailing months before trend computation
     incomplete_months = get_incomplete_months(df_main)
@@ -308,6 +312,9 @@ def _render_awareness_funnel(funnel_df: "pd.DataFrame", primary_brand: str, comp
 
 def _render_insurer_prompted(df_main, insurer, level, product, period, n):
     """Insurer-level prompted awareness."""
+    _level_question = {"prompted": "Q2", "consideration": "Q27"}
+    render_question_info(_level_question.get(level, "Q2"))
+
     # Note: for this chart we do NOT suppress incomplete months — instead we
     # use CI bands to communicate uncertainty on low-base months (Spec 8d).
     # filter_complete_months is still called to derive the note text only.
@@ -572,6 +579,7 @@ def _render_unprompted(df_motor, filters):
         period=period,
         n_market=n,
     )
+    render_question_info("Q1")
 
     with st.spinner("Computing spontaneous awareness metrics..."):
         metrics = calc_spontaneous_metrics(df_main)

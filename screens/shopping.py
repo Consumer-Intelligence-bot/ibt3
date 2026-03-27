@@ -30,6 +30,7 @@ from lib.components.context_footer import render_context_footer
 from lib.components.decision_kpi import decision_kpi_row
 from lib.components.kpi_cards import kpi_card
 from lib.components.narrative_panel import render_narrative_compact
+from lib.components.question_info import render_question_info
 from lib.config import (
     CI_GREEN,
     CI_GREY,
@@ -132,6 +133,8 @@ def _render_market_view(df_mkt, filters, period, n_mkt):
             "colour": CI_GREY,
         },
     ])
+
+    render_question_info("Q3")
 
     # -- 70 / 30 split --
     col_primary, col_secondary = st.columns([7, 3])
@@ -322,6 +325,7 @@ def _render_insurer_view(df_motor, df_mkt, insurer, filters, period, n_mkt):
             "colour": CI_GREY,
         },
     ])
+    render_question_info("Q3")
 
     # -- 70 / 30 split --
     col_primary, col_secondary = st.columns([7, 3])

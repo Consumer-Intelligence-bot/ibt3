@@ -21,6 +21,7 @@ from lib.components.context_bar import render_context_bar
 from lib.components.context_footer import render_context_footer
 from lib.components.decision_kpi import decision_kpi_row
 from lib.components.narrative_panel import render_narrative_compact
+from lib.components.question_info import render_question_info
 from lib.config import (
     CI_GREEN,
     CI_GREY,
@@ -106,7 +107,7 @@ def _render_market_view(df_mkt, filters, period, n_mkt):
             f'{title} ({q_code})</div>',
             unsafe_allow_html=True,
         )
-        st.caption(get_question_text(q_code))
+        render_question_info(q_code)
 
         base_df = filter_fn(df_mkt)
         n_base = len(base_df)
@@ -203,7 +204,7 @@ def _render_insurer_view(df_motor, df_mkt, insurer, filters, period, n_mkt):
             f'{title} ({q_code})</div>',
             unsafe_allow_html=True,
         )
-        st.caption(get_question_text(q_code))
+        render_question_info(q_code)
 
         comparison = calc_reason_comparison(df_mkt, q_code, insurer, top_n=5)
         if not comparison:

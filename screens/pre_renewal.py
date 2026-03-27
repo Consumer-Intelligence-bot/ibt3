@@ -32,6 +32,7 @@ from lib.analytics.flow_display import format_price_change
 from lib.analytics.rates import calc_shopping_rate
 from lib.chart_export import render_suppression_html
 from lib.components.context_bar import render_context_bar
+from lib.components.question_info import render_question_info
 from lib.components.context_footer import render_context_footer
 from lib.components.decision_kpi import decision_kpi_row
 from lib.components.kpi_cards import kpi_card
@@ -132,6 +133,7 @@ def _render_market_view(df_mkt, filters, period, n_mkt):
     # --- Price Direction ---
     if price_dist is not None:
         st.markdown("**Price Direction at Renewal (Q6)**")
+        render_question_info("Q6")
         _render_price_direction_chart(price_dist, "Market")
     else:
         st.info("No Q6 data available.")
@@ -150,6 +152,7 @@ def _render_market_view(df_mkt, filters, period, n_mkt):
         if tenure is not None:
             tenure = merge_tenure_mid_buckets(tenure)
             st.markdown("**Tenure with Current Insurer (Q21)**")
+            render_question_info("Q21")
             _render_tenure_chart(tenure)
         else:
             st.info("No Q21 tenure data available.")
@@ -159,6 +162,7 @@ def _render_market_view(df_mkt, filters, period, n_mkt):
 
     with col_higher:
         st.markdown("**Higher by how much? (Q6a)**")
+        render_question_info("Q6a")
         higher_bands = calc_price_magnitude_dist(df_mkt, "Higher")
         if higher_bands is not None:
             _render_band_chart(higher_bands, CI_RED, "Higher")
@@ -167,6 +171,7 @@ def _render_market_view(df_mkt, filters, period, n_mkt):
 
     with col_lower:
         st.markdown("**Lower by how much? (Q6b)**")
+        render_question_info("Q6b")
         lower_bands = calc_price_magnitude_dist(df_mkt, "Lower")
         if lower_bands is not None:
             _render_band_chart(lower_bands, CI_GREEN, "Lower")
@@ -267,6 +272,7 @@ def _render_insurer_view(df_motor, df_mkt, insurer, filters, period, n_mkt):
         index_df = calc_price_direction_index(ins_price, mkt_dist)
         if index_df is not None:
             st.markdown(f"**Price Direction Index: {insurer} vs Market (pp)**")
+            render_question_info("Q6")
             _render_price_direction_index_chart(index_df)
         else:
             _render_price_direction_chart(ins_price, insurer)
@@ -322,6 +328,7 @@ def _render_insurer_view(df_motor, df_mkt, insurer, filters, period, n_mkt):
         if ins_tenure is not None:
             ins_tenure = merge_tenure_mid_buckets(ins_tenure)
             st.markdown("**Tenure with Current Insurer (Q21)**")
+            render_question_info("Q21")
             _render_tenure_chart(ins_tenure)
         else:
             st.info("No Q21 tenure data available for this insurer.")
