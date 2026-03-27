@@ -226,7 +226,10 @@ def init_ss_data(token: str, start_month: int, end_month: int,
         save_dataframe(df_all, "df_motor")
         save_metadata("start_month", str(start_month))
         save_metadata("end_month", str(end_month))
-        _log("DuckDB save complete")
+        refresh_ts = datetime.datetime.now().strftime("%d %b %Y %H:%M")
+        save_metadata("last_refresh_time", refresh_ts)
+        st.session_state["last_refresh_time"] = refresh_ts
+        _log(f"DuckDB save complete (refresh timestamp: {refresh_ts})")
     else:
         st.session_state["dimensions"] = {}
         _log("WARNING: Combined DataFrame is EMPTY — nothing saved to DuckDB")
@@ -297,6 +300,12 @@ def load_from_db(start_month: int | None = None, end_month: int | None = None) -
     if cached_end:
         st.session_state["cached_end_month"] = int(cached_end)
     audit_log.info("load_from_db: period %s to %s", cached_start, cached_end)
+
+    # Restore last refresh timestamp
+    last_refresh = load_metadata("last_refresh_time")
+    if last_refresh:
+        st.session_state["last_refresh_time"] = last_refresh
+        audit_log.info("load_from_db: last_refresh_time = %s", last_refresh)
 
     # Restore cached claims data
     for product_key in ("motor", "home"):

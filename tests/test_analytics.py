@@ -432,6 +432,14 @@ class TestDuckDBRoundtrip:
         assert not Path(tmp_db_path).exists()
         db.clear_data()  # should be silent
 
+    def test_last_refresh_time_metadata_roundtrip(self, tmp_db_path):
+        """last_refresh_time metadata must survive a save/load roundtrip."""
+        import lib.db as db
+        timestamp = "27 Mar 2026 14:30"
+        db.save_metadata("last_refresh_time", timestamp)
+        loaded = db.load_metadata("last_refresh_time")
+        assert loaded == timestamp
+
 
 # ===========================================================================
 # 5. calc_toma_share
