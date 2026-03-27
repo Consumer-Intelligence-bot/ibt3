@@ -221,7 +221,14 @@ def _pivot_grid(df: pd.DataFrame, result: pd.DataFrame) -> None:
         subset = subset.copy()
         subset = subset[subset["Subject"].notna()]
         subset["_col"] = subset["QuestionNumber"] + "_" + subset["Subject"].astype(str).str.strip()
-        subset["_value"] = pd.to_numeric(subset["Answer"], errors="coerce")
+        # Prefer Scale column (numeric) over Answer (may be text like "Agree")
+        if "Scale" in subset.columns:
+            subset["_value"] = pd.to_numeric(subset["Scale"], errors="coerce")
+            # Fall back to Answer if Scale is all NaN
+            if subset["_value"].isna().all():
+                subset["_value"] = pd.to_numeric(subset["Answer"], errors="coerce")
+        else:
+            subset["_value"] = pd.to_numeric(subset["Answer"], errors="coerce")
         subset = subset.dropna(subset=["_value"])
         if subset.empty:
             return
