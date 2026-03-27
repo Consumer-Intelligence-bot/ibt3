@@ -3,10 +3,13 @@ Power BI data layer — MSAL authentication and DAX query execution.
 Shared by all pages in the unified Streamlit dashboard.
 """
 
+import logging
 import msal
 import pandas as pd
 import requests
 import streamlit as st
+
+log = logging.getLogger(__name__)
 
 from lib.config import (
     TENANT_ID, CLIENT_ID, WORKSPACE_ID, DATASET_ID, SCOPE,
@@ -41,20 +44,26 @@ def _save_token(access_token: str, expires_at: float):
             os.chmod(_TOKEN_FILE, 0o600)
         except OSError:
             pass  # Windows or other platforms may not support chmod
-    except OSError:
-        pass  # Non-critical — token still works for this session
+        log.info("Token saved to %s", _TOKEN_FILE)
+    except OSError as e:
+        log.warning("Token save failed: %s", e)
 
 
 def _load_saved_token() -> str | None:
     """Load token from local file if it exists and hasn't expired."""
     if not _TOKEN_FILE.exists():
+        log.warning("No valid token found: file does not exist (%s)", _TOKEN_FILE)
         return None
     try:
         data = json.loads(_TOKEN_FILE.read_text())
-        if data.get("expires_at", 0) > time.time() + 300:  # 5 min buffer
+        expires_at = data.get("expires_at", 0)
+        remaining = int(expires_at - time.time())
+        if remaining > 300:  # 5 min buffer
+            log.info("Token loaded from %s (expires in %d seconds)", _TOKEN_FILE, remaining)
             return data["access_token"]
-    except (json.JSONDecodeError, KeyError, OSError):
-        pass
+        log.warning("No valid token found: token expired or expiring soon (remaining=%ds)", remaining)
+    except (json.JSONDecodeError, KeyError, OSError) as e:
+        log.warning("No valid token found: %s", e)
     return None
 
 
@@ -66,6 +75,7 @@ def get_token():
     if saved:
         return saved
 
+    log.info("Starting device code auth flow")
     app = msal.PublicClientApplication(
         CLIENT_ID,
         authority=f"https://login.microsoftonline.com/{TENANT_ID}",
