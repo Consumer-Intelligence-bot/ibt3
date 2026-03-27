@@ -37,6 +37,16 @@ st.set_page_config(
     page_icon="\U0001F4CA",
     layout="wide",
 )
+
+# Belt-and-braces font load: <link> fires before the @import in the CSS string,
+# and works even if Streamlit's iframe sandbox blocks @import inside <style>.
+st.markdown(
+    '<link rel="preconnect" href="https://fonts.googleapis.com">'
+    '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
+    '<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">',
+    unsafe_allow_html=True,
+)
+
 render_header()
 
 # ---- Load data: always try DuckDB cache first ----
