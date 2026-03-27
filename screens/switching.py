@@ -193,6 +193,8 @@ def _render_market_view(df_motor, df_mkt, filters, period, n_mkt):
                     st.caption(
                         f"Note: {fmt_year_month_list(incomplete_months)} excluded due to incomplete fieldwork."
                     )
+                if window > 1:
+                    st.caption("Smoothed data. Short-term spikes are reduced.")
             else:
                 st.info("Insufficient monthly data for trend.")
 

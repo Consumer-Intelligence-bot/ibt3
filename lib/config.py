@@ -357,6 +357,9 @@ div[data-testid="stHorizontalBlock"] > div > div > button[kind="secondary"] {{
     font-weight: 500 !important;
     font-size: 13px !important;
     padding: 8px 4px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
 }}
 div[data-testid="stHorizontalBlock"] > div > div > button[kind="primary"] {{
     background: transparent !important;
@@ -367,6 +370,9 @@ div[data-testid="stHorizontalBlock"] > div > div > button[kind="primary"] {{
     font-weight: 700 !important;
     font-size: 13px !important;
     padding: 8px 4px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
 }}
 
 /* ── Plotly chart container spacing ───────────────────────────── */

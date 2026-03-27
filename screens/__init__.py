@@ -5,13 +5,13 @@ Each screen module exposes a `render()` function that takes a filters dict.
 """
 
 SCREENS = [
-    {"key": "pre_renewal", "label": "Pre-Renewal Context", "icon": "📋"},
+    {"key": "pre_renewal", "label": "Pre-Renewal", "icon": "📋"},
     {"key": "awareness", "label": "Awareness", "icon": "📢"},
-    {"key": "switching", "label": "Switching & Flows", "icon": "🔄"},
-    {"key": "reasons", "label": "Reasons & Drivers", "icon": "💡"},
-    {"key": "shopping", "label": "Shopping Behaviour", "icon": "🛒"},
-    {"key": "channels", "label": "Channels & PCWs", "icon": "📡"},
-    {"key": "satisfaction", "label": "Satisfaction & Loyalty", "icon": "⭐"},
+    {"key": "switching", "label": "Switching", "icon": "🔄"},
+    {"key": "reasons", "label": "Reasons", "icon": "💡"},
+    {"key": "shopping", "label": "Shopping", "icon": "🛒"},
+    {"key": "channels", "label": "Channels", "icon": "📡"},
+    {"key": "satisfaction", "label": "Satisfaction", "icon": "⭐"},
     {"key": "claims", "label": "Claims", "icon": "📝"},
 ]
 
