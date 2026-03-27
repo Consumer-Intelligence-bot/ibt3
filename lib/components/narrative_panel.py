@@ -87,12 +87,53 @@ def render_narrative_panel(narrative: dict | None, screen_name: str = ""):
             )
 
 
+def _should_show_detail(findings: list, data_gaps: list) -> bool:
+    """Return True when the 'Show detail' expander has content worth showing.
+
+    Shows the expander when ANY of the following are true:
+    - Any of the inline findings (findings[:2]) has a non-empty 'prompt' field
+      (the Investigate question hidden from the compact view).
+    - There are overflow findings (findings[2:]).
+    - There are data_gaps.
+
+    This ensures "Show detail" always reveals *more* than the compact view,
+    never less.
+    """
+    inline = findings[:2]
+    has_inline_prompts = any(f.get("prompt") for f in inline)
+    has_overflow = bool(findings[2:])
+    return has_inline_prompts or has_overflow or bool(data_gaps)
+
+
+def _detail_content(findings: list, data_gaps: list) -> dict:
+    """Return the structured content for the 'Show detail' expander.
+
+    Returns a dict with:
+    - 'inline_prompts': list of {fact, prompt} dicts for findings[:2] that
+      have a non-empty prompt. These are not shown in the compact view and
+      are the primary reason to click 'Show detail'.
+    - 'overflow_findings': findings[2:] in full (all three fields).
+    - 'data_gaps': the data_gaps list unchanged.
+    """
+    inline_prompts = [
+        {"fact": f.get("fact", ""), "prompt": f.get("prompt", "")}
+        for f in findings[:2]
+        if f.get("prompt")
+    ]
+    return {
+        "inline_prompts": inline_prompts,
+        "overflow_findings": findings[2:],
+        "data_gaps": data_gaps,
+    }
+
+
 def render_narrative_compact(narrative: dict | None, screen_name: str = ""):
     """Render a compact AI narrative at the top of a Decision Screen.
 
     Always visible (no expander wrapper). Shows headline, paragraph, and up
-    to 2 findings inline. Additional findings and data gaps are tucked into
-    a "Show detail" expander.
+    to 2 findings inline (Fact + Observation only). A "Show detail" expander
+    appears when there is additional content: Investigate prompts for the
+    inline findings, overflow findings (3+), or data gaps.
 
     Parameters
     ----------
@@ -151,7 +192,9 @@ def render_narrative_compact(narrative: dict | None, screen_name: str = ""):
             f'line-height:1.6; margin-bottom:8px;">{paragraph}</div>'
         )
 
-    # Top 2 findings inline
+    # Top 2 findings inline — Fact + Observation only.
+    # The Investigate prompt is intentionally withheld here and shown in
+    # the "Show detail" expander instead.
     for finding in findings[:2]:
         fact = finding.get("fact", "")
         observation = finding.get("observation", "")
@@ -169,11 +212,36 @@ def render_narrative_compact(narrative: dict | None, screen_name: str = ""):
     parts.append('</div>')
     st.markdown("".join(parts), unsafe_allow_html=True)
 
-    # Overflow: remaining findings + data gaps
-    remaining_findings = findings[2:]
-    if remaining_findings or data_gaps:
+    # Show detail expander: Investigate prompts, overflow findings, data gaps.
+    if _should_show_detail(findings, data_gaps):
+        content = _detail_content(findings, data_gaps)
         with st.expander("Show detail", expanded=False):
-            for finding in remaining_findings:
+
+            # Investigate prompts for the inline findings shown above.
+            if content["inline_prompts"]:
+                st.markdown(
+                    f'<div style="font-family:{FONT}; font-size:11px; '
+                    f'font-weight:700; text-transform:uppercase; letter-spacing:0.8px; '
+                    f'color:{CI_CHARCOAL_60}; margin-bottom:6px;">Investigate</div>',
+                    unsafe_allow_html=True,
+                )
+                for item in content["inline_prompts"]:
+                    st.markdown(
+                        f'<div style="font-family:{FONT}; font-size:12px; '
+                        f'color:{CI_CHARCOAL}; margin:6px 0; padding:8px 12px; '
+                        f'background:white; border-left:3px solid {CI_PURPLE}; '
+                        f'border-radius:0 12px 12px 0;">'
+                        f'<span style="font-weight:700; color:{CI_CHARCOAL}; '
+                        f'font-size:9px; text-transform:uppercase; letter-spacing:0.8px;">'
+                        f'Re: {item["fact"][:60]}{"..." if len(item["fact"]) > 60 else ""}'
+                        f'</span><br>'
+                        f'<span style="color:{CI_PURPLE};">{item["prompt"]}</span>'
+                        f'</div>',
+                        unsafe_allow_html=True,
+                    )
+
+            # Overflow findings in full (Fact / Observation / Investigate).
+            for finding in content["overflow_findings"]:
                 st.markdown(
                     f'<div style="font-family:{FONT}; font-size:12px; color:{CI_CHARCOAL}; '
                     f'margin:8px 0; padding:10px 14px; background:white; '
@@ -191,12 +259,12 @@ def render_narrative_compact(narrative: dict | None, screen_name: str = ""):
                     unsafe_allow_html=True,
                 )
 
-            if data_gaps:
+            if content["data_gaps"]:
                 st.markdown(
                     f'<div style="font-family:{FONT}; font-size:11px; color:{CI_CHARCOAL_60}; '
                     f'margin-top:8px; padding:8px 14px; border-left:3px solid {CI_YELLOW}; '
                     f'background:rgba(255,205,0,0.06); border-radius:0 12px 12px 0;">'
                     f'<span style="font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">'
-                    f'Data gaps</span><br>{" | ".join(data_gaps)}</div>',
+                    f'Data gaps</span><br>{" | ".join(content["data_gaps"])}</div>',
                     unsafe_allow_html=True,
                 )

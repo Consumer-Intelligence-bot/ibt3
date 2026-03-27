@@ -182,19 +182,27 @@ class TestNarrativeCompactDetailLogic:
     Tests the condition under which the 'Show detail' expander should render.
     We extract the pure boolean logic from render_narrative_compact so it can
     be tested without Streamlit.
+
+    The updated rule (Spec 6e fix):
+    - Show expander if any inline finding has an 'Investigate' prompt, OR
+      there are remaining (overflow) findings, OR there are data_gaps.
+    - Hide expander if there are no findings, no data_gaps, and no investigate
+      prompts in the inline findings.
     """
 
     def _should_show_detail(self, findings: list, data_gaps: list) -> bool:
-        """Mirror the guard condition in render_narrative_compact (line 174)."""
-        remaining_findings = findings[2:]
-        return bool(remaining_findings or data_gaps)
+        """Updated guard: show when inline findings have prompts, overflow
+        exists, or data_gaps exist. Mirrors _should_show_detail() in
+        narrative_panel.py."""
+        from lib.components.narrative_panel import _should_show_detail
+        return _should_show_detail(findings, data_gaps)
 
     def test_no_findings_no_gaps_hides_expander(self):
         """Empty findings, no data_gaps → expander hidden."""
         assert self._should_show_detail([], []) is False
 
     def test_two_findings_no_gaps_hides_expander(self):
-        """Exactly 2 findings (all shown inline), no gaps → expander hidden."""
+        """2 findings with NO prompts, no gaps → expander hidden (nothing more to show)."""
         findings = [{"fact": "a"}, {"fact": "b"}]
         assert self._should_show_detail(findings, []) is False
 
@@ -209,7 +217,7 @@ class TestNarrativeCompactDetailLogic:
         assert self._should_show_detail(findings, ["gap1"]) is True
 
     def test_one_finding_no_gaps_hides_expander(self):
-        """1 finding (shown inline), no gaps → expander hidden."""
+        """1 finding with no prompt, no gaps → expander hidden."""
         findings = [{"fact": "a"}]
         assert self._should_show_detail(findings, []) is False
 
@@ -221,3 +229,115 @@ class TestNarrativeCompactDetailLogic:
         """5 findings → 3 overflow → expander shown."""
         findings = [{"fact": str(i)} for i in range(5)]
         assert self._should_show_detail(findings, []) is True
+
+    def test_one_finding_with_prompt_shows_expander(self):
+        """1 inline finding WITH an investigate prompt → expander shown so
+        the prompt is accessible (key fix for Spec 6e)."""
+        findings = [{"fact": "a", "observation": "b", "prompt": "Why?"}]
+        assert self._should_show_detail(findings, []) is True
+
+    def test_two_findings_with_prompts_shows_expander(self):
+        """2 inline findings both with investigate prompts → expander shown."""
+        findings = [
+            {"fact": "a", "observation": "b", "prompt": "Why a?"},
+            {"fact": "c", "observation": "d", "prompt": "Why c?"},
+        ]
+        assert self._should_show_detail(findings, []) is True
+
+    def test_finding_with_empty_prompt_hides_expander(self):
+        """Inline finding with empty string prompt → treated as no prompt → expander hidden."""
+        findings = [{"fact": "a", "observation": "b", "prompt": ""}]
+        assert self._should_show_detail(findings, []) is False
+
+    def test_finding_with_none_prompt_hides_expander(self):
+        """Inline finding with None prompt → treated as no prompt → expander hidden."""
+        findings = [{"fact": "a", "observation": "b", "prompt": None}]
+        assert self._should_show_detail(findings, []) is False
+
+
+# ===========================================================================
+# 4. narrative_compact: detail expander content (Spec 6e)
+#    Pure logic tests on _detail_content helper
+# ===========================================================================
+
+class TestNarrativeCompactDetailContent:
+    """
+    Tests the content that appears inside the 'Show detail' expander.
+
+    The updated rule (Spec 6e fix):
+    - Always show investigate prompts for the inline findings (findings[:2])
+      if they have prompts, so clicking 'Show detail' reveals MORE than the
+      compact view, not less.
+    - Then show remaining findings in full (Fact / Observation / Investigate).
+    - Then show data_gaps if any.
+    """
+
+    def _detail_content(self, findings: list, data_gaps: list) -> dict:
+        """Call the helper from narrative_panel that computes what goes in the
+        detail expander. Returns a dict with:
+          'inline_prompts': list of (fact, prompt) for the inline findings
+          'overflow_findings': list of finding dicts for findings[2:]
+          'data_gaps': the data_gaps list
+        """
+        from lib.components.narrative_panel import _detail_content
+        return _detail_content(findings, data_gaps)
+
+    def test_one_finding_with_prompt_returns_inline_prompt(self):
+        """1 finding with prompt → inline_prompts has 1 entry."""
+        findings = [{"fact": "Retention is 72%", "observation": "Above avg", "prompt": "What drives this?"}]
+        result = self._detail_content(findings, [])
+        assert len(result["inline_prompts"]) == 1
+        assert result["inline_prompts"][0]["fact"] == "Retention is 72%"
+        assert result["inline_prompts"][0]["prompt"] == "What drives this?"
+
+    def test_two_findings_with_prompts_returns_both_inline_prompts(self):
+        """2 findings with prompts → inline_prompts has 2 entries."""
+        findings = [
+            {"fact": "a", "prompt": "Why a?"},
+            {"fact": "b", "prompt": "Why b?"},
+        ]
+        result = self._detail_content(findings, [])
+        assert len(result["inline_prompts"]) == 2
+
+    def test_three_findings_inline_prompts_only_for_first_two(self):
+        """3 findings → inline_prompts covers only first 2, overflow covers finding 3."""
+        findings = [
+            {"fact": "a", "prompt": "Why a?"},
+            {"fact": "b", "prompt": "Why b?"},
+            {"fact": "c", "prompt": "Why c?"},
+        ]
+        result = self._detail_content(findings, [])
+        assert len(result["inline_prompts"]) == 2
+        assert len(result["overflow_findings"]) == 1
+        assert result["overflow_findings"][0]["fact"] == "c"
+
+    def test_finding_without_prompt_excluded_from_inline_prompts(self):
+        """Finding with no prompt is excluded from inline_prompts list."""
+        findings = [{"fact": "a"}]
+        result = self._detail_content(findings, [])
+        assert result["inline_prompts"] == []
+
+    def test_data_gaps_passed_through(self):
+        """data_gaps are returned unchanged in the content dict."""
+        result = self._detail_content([], ["gap1", "gap2"])
+        assert result["data_gaps"] == ["gap1", "gap2"]
+
+    def test_empty_everything_returns_empty_content(self):
+        """No findings, no gaps → all lists empty."""
+        result = self._detail_content([], [])
+        assert result["inline_prompts"] == []
+        assert result["overflow_findings"] == []
+        assert result["data_gaps"] == []
+
+    def test_overflow_findings_included_in_full(self):
+        """Overflow findings include all three fields: fact, observation, prompt."""
+        findings = [
+            {"fact": "a"}, {"fact": "b"},
+            {"fact": "c", "observation": "obs_c", "prompt": "prompt_c"},
+        ]
+        result = self._detail_content(findings, [])
+        overflow = result["overflow_findings"]
+        assert len(overflow) == 1
+        assert overflow[0]["fact"] == "c"
+        assert overflow[0]["observation"] == "obs_c"
+        assert overflow[0]["prompt"] == "prompt_c"
