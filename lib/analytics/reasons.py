@@ -35,15 +35,33 @@ def calc_reason_ranking(
     return result if result else None
 
 
+_MARKET_LOOKUP_TOP_N = 20
+"""Number of market reasons to fetch for the lookup table.
+
+This must be larger than the insurer top_n (default 5) so that reasons
+which are rare market-wide (e.g. rank 6th–15th) but dominant for a
+specific insurer are still found in the market lookup. Without a larger
+top_n, the insurer-specific rare reason gets market_pct=0, which is
+misleading (it looks like the market never cites it, when in fact it
+does at a low but non-zero rate).
+"""
+
+
 def calc_reason_comparison(
     df_main: pd.DataFrame,
     question: str,
     insurer: str,
     top_n: int = 5,
 ) -> dict | None:
-    """Insurer vs market reason rankings for dual table."""
+    """Insurer vs market reason rankings for dual table.
+
+    Market reasons are fetched with a larger top_n (_MARKET_LOOKUP_TOP_N)
+    than the insurer top_n so that reasons which are rare market-wide but
+    common for this specific insurer are still found in the market lookup
+    (avoiding false 0% market percentages).
+    """
     insurer_rank = calc_reason_ranking(df_main, question, insurer, top_n)
-    market_rank = calc_reason_ranking(df_main, question, None, top_n)
+    market_rank = calc_reason_ranking(df_main, question, None, _MARKET_LOOKUP_TOP_N)
     if insurer_rank is None and market_rank is None:
         return None
     return {"insurer": insurer_rank or [], "market": market_rank or []}
