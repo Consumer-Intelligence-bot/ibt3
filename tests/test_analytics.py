@@ -3090,3 +3090,289 @@ class TestConfidenceColour:
     def test_29_returns_red(self):
         from lib.config import CI_RED
         assert self._call(29) == CI_RED
+
+
+# ===========================================================================
+# TestNarrativePromptContent
+# ===========================================================================
+
+class TestNarrativePromptContent:
+    """lib/analytics/narrative_engine.py :: system prompt and _SCREEN_PROMPTS content."""
+
+    EXPECTED_SCREENS = [
+        "switching",
+        "shopping",
+        "awareness",
+        "reasons",
+        "channels",
+        "pre_renewal",
+        "satisfaction",
+        "claims",
+    ]
+
+    def _get_system_prompt(self):
+        """Extract the system= string from generate_screen_narrative source."""
+        import inspect
+        from lib.analytics import narrative_engine
+        source = inspect.getsource(narrative_engine)
+        # The system prompt is stored as _SYSTEM_PROMPT module-level constant
+        return narrative_engine._SYSTEM_PROMPT
+
+    def _get_screen_prompts(self):
+        from lib.analytics import narrative_engine
+        return narrative_engine._SCREEN_PROMPTS
+
+    # --- System prompt tests ---
+
+    def test_system_prompt_contains_plain_english(self):
+        prompt = self._get_system_prompt()
+        assert "plain English" in prompt
+
+    def test_system_prompt_contains_never_speculate(self):
+        prompt = self._get_system_prompt()
+        assert "Never speculate" in prompt
+
+    def test_system_prompt_contains_british_english(self):
+        prompt = self._get_system_prompt()
+        assert "British English" in prompt
+
+    def test_system_prompt_contains_compare_to_market(self):
+        prompt = self._get_system_prompt()
+        assert "compare to market" in prompt.lower() or "Compare to market" in prompt
+
+    # --- Screen prompt existence tests ---
+
+    def test_all_expected_screen_keys_exist(self):
+        prompts = self._get_screen_prompts()
+        for screen in self.EXPECTED_SCREENS:
+            assert screen in prompts, f"Missing screen key: {screen}"
+
+    def test_no_unexpected_screen_keys(self):
+        prompts = self._get_screen_prompts()
+        for key in prompts:
+            assert key in self.EXPECTED_SCREENS, f"Unexpected screen key: {key}"
+
+    # --- Per-screen prompt quality tests ---
+
+    def test_each_prompt_contains_insurer_placeholder(self):
+        prompts = self._get_screen_prompts()
+        for screen in self.EXPECTED_SCREENS:
+            assert "{insurer}" in prompts[screen], (
+                f"Screen '{screen}' prompt missing {{insurer}} placeholder"
+            )
+
+    def test_each_prompt_is_non_empty(self):
+        prompts = self._get_screen_prompts()
+        for screen in self.EXPECTED_SCREENS:
+            assert prompts[screen].strip(), f"Screen '{screen}' prompt is empty"
+
+    def test_each_prompt_contains_good_example_or_so_what(self):
+        """Each prompt must contain either a 'Good:' example or 'so what' guidance."""
+        prompts = self._get_screen_prompts()
+        for screen in self.EXPECTED_SCREENS:
+            text = prompts[screen]
+            has_good_example = "Good:" in text or "good:" in text
+            has_so_what = "so what" in text.lower() or "So what" in text
+            assert has_good_example or has_so_what, (
+                f"Screen '{screen}' prompt has no example headline or 'so what' guidance"
+            )
+
+    def test_switching_prompt_mentions_retention(self):
+        prompts = self._get_screen_prompts()
+        assert "retention" in prompts["switching"].lower()
+
+    def test_shopping_prompt_mentions_conversion(self):
+        prompts = self._get_screen_prompts()
+        assert "conversion" in prompts["shopping"].lower()
+
+    def test_awareness_prompt_mentions_rank(self):
+        prompts = self._get_screen_prompts()
+        assert "rank" in prompts["awareness"].lower()
+
+    def test_satisfaction_prompt_mentions_nps(self):
+        prompts = self._get_screen_prompts()
+        assert "nps" in prompts["satisfaction"].lower() or "NPS" in prompts["satisfaction"]
+
+    def test_claims_prompt_mentions_star_rating(self):
+        prompts = self._get_screen_prompts()
+        assert "star" in prompts["claims"].lower()
+
+    def test_system_prompt_specifies_json_output(self):
+        prompt = self._get_system_prompt()
+        assert "JSON" in prompt
+
+
+# ===========================================================================
+# TestApplyFiltersMultiSelect
+# ===========================================================================
+
+def _make_filter_df() -> "pd.DataFrame":
+    """
+    Minimal DataFrame for apply_filters tests.
+    Contains columns: Product, AgeBand, Region, PaymentType, CurrentCompany, RenewalYearMonth.
+    """
+    import pandas as pd
+    rows = [
+        {"Product": "Motor", "AgeBand": "18-24", "Region": "London",
+         "PaymentType": "Direct Debit", "CurrentCompany": "Aviva",
+         "RenewalYearMonth": 202401},
+        {"Product": "Motor", "AgeBand": "25-34", "Region": "London",
+         "PaymentType": "Direct Debit", "CurrentCompany": "Admiral",
+         "RenewalYearMonth": 202401},
+        {"Product": "Motor", "AgeBand": "35-44", "Region": "South East",
+         "PaymentType": "Credit Card", "CurrentCompany": "Aviva",
+         "RenewalYearMonth": 202401},
+        {"Product": "Motor", "AgeBand": "45-54", "Region": "North West",
+         "PaymentType": "Direct Debit", "CurrentCompany": "Direct Line",
+         "RenewalYearMonth": 202401},
+        {"Product": "Home", "AgeBand": "18-24", "Region": "London",
+         "PaymentType": "Direct Debit", "CurrentCompany": "Aviva",
+         "RenewalYearMonth": 202401},
+    ]
+    return pd.DataFrame(rows)
+
+
+class TestApplyFiltersMultiSelect:
+    """
+    lib/analytics/demographics.py :: apply_filters
+    Tests multi-select support for age_band and region.
+    """
+
+    def test_single_string_age_band_backwards_compat(self):
+        """A plain string age_band still filters correctly (backwards compatibility)."""
+        from lib.analytics.demographics import apply_filters
+        df = _make_filter_df()
+        result = apply_filters(df, age_band="18-24", product="Motor")
+        assert len(result) == 1
+        assert result["AgeBand"].iloc[0] == "18-24"
+
+    def test_list_age_band_filters_to_matching_rows(self):
+        """A list of age bands returns all rows whose AgeBand is in the list."""
+        from lib.analytics.demographics import apply_filters
+        df = _make_filter_df()
+        result = apply_filters(df, age_band=["18-24", "25-34"], product="Motor")
+        assert len(result) == 2
+        assert set(result["AgeBand"].tolist()) == {"18-24", "25-34"}
+
+    def test_empty_list_age_band_returns_all_rows(self):
+        """Empty list is treated the same as None — no filter applied."""
+        from lib.analytics.demographics import apply_filters
+        df = _make_filter_df()
+        result = apply_filters(df, age_band=[], product="Motor")
+        # All Motor rows (4 rows)
+        assert len(result) == 4
+
+    def test_none_age_band_returns_all_rows(self):
+        """None age_band applies no filter."""
+        from lib.analytics.demographics import apply_filters
+        df = _make_filter_df()
+        result = apply_filters(df, age_band=None, product="Motor")
+        assert len(result) == 4
+
+    def test_single_string_region_backwards_compat(self):
+        """A plain string region still filters correctly."""
+        from lib.analytics.demographics import apply_filters
+        df = _make_filter_df()
+        result = apply_filters(df, region="South East", product="Motor")
+        assert len(result) == 1
+        assert result["Region"].iloc[0] == "South East"
+
+    def test_list_region_filters_to_matching_rows(self):
+        """A list of regions returns all rows whose Region is in the list."""
+        from lib.analytics.demographics import apply_filters
+        df = _make_filter_df()
+        result = apply_filters(df, region=["London", "South East"], product="Motor")
+        assert len(result) == 3
+        assert set(result["Region"].tolist()) == {"London", "South East"}
+
+    def test_empty_list_region_returns_all_rows(self):
+        """Empty list region is treated as no filter."""
+        from lib.analytics.demographics import apply_filters
+        df = _make_filter_df()
+        result = apply_filters(df, region=[], product="Motor")
+        assert len(result) == 4
+
+    def test_none_region_returns_all_rows(self):
+        """None region applies no filter."""
+        from lib.analytics.demographics import apply_filters
+        df = _make_filter_df()
+        result = apply_filters(df, region=None, product="Motor")
+        assert len(result) == 4
+
+    def test_combined_age_band_list_and_region_list(self):
+        """Combined list filters for both age_band and region are AND-ed together."""
+        from lib.analytics.demographics import apply_filters
+        df = _make_filter_df()
+        result = apply_filters(
+            df,
+            age_band=["18-24", "25-34"],
+            region=["London"],
+            product="Motor",
+        )
+        # Both 18-24 and 25-34 are in London
+        assert len(result) == 2
+        assert all(r in ("18-24", "25-34") for r in result["AgeBand"].tolist())
+        assert all(r == "London" for r in result["Region"].tolist())
+
+    def test_list_age_band_single_element_matches_string_behaviour(self):
+        """A one-element list produces the same result as a plain string."""
+        from lib.analytics.demographics import apply_filters
+        df = _make_filter_df()
+        result_str = apply_filters(df, age_band="35-44", product="Motor")
+        result_list = apply_filters(df, age_band=["35-44"], product="Motor")
+        assert len(result_str) == len(result_list)
+        assert result_str["AgeBand"].tolist() == result_list["AgeBand"].tolist()
+
+    def test_list_age_band_no_matches_returns_empty(self):
+        """A list with values not present in data returns an empty DataFrame."""
+        from lib.analytics.demographics import apply_filters
+        df = _make_filter_df()
+        result = apply_filters(df, age_band=["65+", "75+"], product="Motor")
+        assert len(result) == 0
+
+
+# ===========================================================================
+# TestGetActiveFiltersMultiSelect
+# ===========================================================================
+
+class TestGetActiveFiltersMultiSelect:
+    """
+    lib/analytics/demographics.py :: get_active_filters
+    Tests that list values produce a readable label string.
+    """
+
+    def test_string_age_band_returns_string_value(self):
+        """Single string age_band is returned as-is."""
+        from lib.analytics.demographics import get_active_filters
+        result = get_active_filters(age_band="18-24", region=None, payment_type=None)
+        assert result.get("Age Band") == "18-24"
+
+    def test_list_age_band_returns_joined_label(self):
+        """List age_band should appear in active filters (not silently dropped)."""
+        from lib.analytics.demographics import get_active_filters
+        result = get_active_filters(age_band=["18-24", "25-34"], region=None, payment_type=None)
+        assert "Age Band" in result
+        label = result["Age Band"]
+        assert "18-24" in label
+        assert "25-34" in label
+
+    def test_empty_list_age_band_not_in_active_filters(self):
+        """Empty list means no filter active — should not appear in result."""
+        from lib.analytics.demographics import get_active_filters
+        result = get_active_filters(age_band=[], region=None, payment_type=None)
+        assert "Age Band" not in result
+
+    def test_list_region_returns_joined_label(self):
+        """List region should appear in active filters."""
+        from lib.analytics.demographics import get_active_filters
+        result = get_active_filters(age_band=None, region=["London", "South East"], payment_type=None)
+        assert "Region" in result
+        label = result["Region"]
+        assert "London" in label
+        assert "South East" in label
+
+    def test_empty_list_region_not_in_active_filters(self):
+        """Empty list region means no filter active."""
+        from lib.analytics.demographics import get_active_filters
+        result = get_active_filters(age_band=None, region=[], payment_type=None)
+        assert "Region" not in result
