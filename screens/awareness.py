@@ -20,6 +20,7 @@ from lib.analytics.awareness import (
     calc_awareness_movers,
     calc_awareness_rates,
     calc_awareness_slopegraph,
+    calc_awareness_trend_with_ci,
     calc_dual_period_comparison,
     set_awareness_product,
 )
@@ -46,6 +47,7 @@ from lib.config import (
     CI_WHITE,
     MARKET_COLOUR,
     MIN_BASE_PUBLISHABLE,
+    SYSTEM_FLOOR_N,
 )
 from lib.formatting import FONT, fmt_pct, period_label
 from lib.state import format_year_month, get_ss_data, render_dual_period_selector
@@ -306,16 +308,18 @@ def _render_awareness_funnel(funnel_df: "pd.DataFrame", primary_brand: str, comp
 
 def _render_insurer_prompted(df_main, insurer, level, product, period, n):
     """Insurer-level prompted awareness."""
-    # Suppress incomplete trailing months before trend computation
+    # Note: for this chart we do NOT suppress incomplete months — instead we
+    # use CI bands to communicate uncertainty on low-base months (Spec 8d).
+    # filter_complete_months is still called to derive the note text only.
     incomplete_months = get_incomplete_months(df_main)
-    df_main = filter_complete_months(df_main)
 
+    # Use ALL months for the trend chart (Spec 8d)
     rates = calc_awareness_rates(df_main, level)
     if rates.empty:
         st.warning("No awareness data available.")
         return
 
-    # Insurer's awareness trend
+    # Insurer's awareness trend (all months, with CI flags)
     insurer_data = rates[rates["brand"] == insurer].sort_values("month")
 
     if insurer_data.empty:
@@ -392,17 +396,59 @@ def _render_insurer_prompted(df_main, insurer, level, product, period, n):
     col_primary, col_secondary = st.columns([7, 3])
 
     with col_primary:
-        # Trend chart
+        # Trend chart — Spec 8d: show all months; use CI bands for low-base months
         st.markdown("**Awareness Trend**")
+
+        trend_df = calc_awareness_trend_with_ci(df_main, level, insurer=insurer, min_n=MIN_BASE_PUBLISHABLE)
+        confident = trend_df[trend_df["is_confident"]] if not trend_df.empty else trend_df
+        uncertain = trend_df[~trend_df["is_confident"]] if not trend_df.empty else trend_df
+
         fig = go.Figure()
-        fig.add_trace(go.Scatter(
-            x=[format_year_month(m) for m in insurer_data["month"]],
-            y=insurer_data["rate"],
-            mode="lines+markers",
-            name=insurer,
-            line=dict(color=CI_MAGENTA, width=2),
-        ))
-        # Add market average line
+
+        # Solid line: months with sufficient base
+        if not confident.empty:
+            fig.add_trace(go.Scatter(
+                x=[format_year_month(m) for m in confident["month"]],
+                y=confident["rate"],
+                mode="lines+markers",
+                name=insurer,
+                line=dict(color=CI_MAGENTA, width=2),
+                showlegend=True,
+            ))
+
+        # Dashed line + CI band: low-base months
+        if not uncertain.empty:
+            x_uncertain = [format_year_month(m) for m in uncertain["month"]]
+            fig.add_trace(go.Scatter(
+                x=x_uncertain,
+                y=uncertain["rate"],
+                mode="lines+markers",
+                name=f"{insurer} (low base)",
+                line=dict(color=CI_MAGENTA, width=1, dash="dash"),
+                showlegend=True,
+            ))
+            # Upper bound (invisible, anchor for fill)
+            fig.add_trace(go.Scatter(
+                x=x_uncertain,
+                y=uncertain["ci_upper"],
+                mode="lines",
+                line=dict(width=0),
+                showlegend=False,
+                hoverinfo="skip",
+            ))
+            # Lower bound with fill back to upper — shaded CI band
+            fig.add_trace(go.Scatter(
+                x=x_uncertain,
+                y=uncertain["ci_lower"],
+                mode="lines",
+                fill="tonexty",
+                fillcolor="rgba(152,29,151,0.15)",
+                line=dict(width=0),
+                showlegend=False,
+                hoverinfo="skip",
+            ))
+
+        # Market average line
         mkt_avg = rates.groupby("month")["rate"].mean().reset_index()
         fig.add_trace(go.Scatter(
             x=[format_year_month(m) for m in mkt_avg["month"]],
@@ -411,6 +457,7 @@ def _render_insurer_prompted(df_main, insurer, level, product, period, n):
             name="Market Avg",
             line=dict(color=CI_GREY, width=1, dash="dot"),
         ))
+
         fig.update_layout(
             height=300,
             yaxis=dict(title="Awareness Rate", tickformat=".0%", gridcolor=CI_LIGHT_GREY),
@@ -420,10 +467,15 @@ def _render_insurer_prompted(df_main, insurer, level, product, period, n):
             legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
         )
         st.plotly_chart(fig, use_container_width=True)
-        if incomplete_months:
+
+        if not uncertain.empty:
+            st.caption(
+                "Dashed line = low sample size. Shaded area = 95% confidence interval."
+            )
+        elif incomplete_months:
             from lib.formatting import fmt_year_month_list
             st.caption(
-                f"Note: {fmt_year_month_list(incomplete_months)} excluded due to incomplete fieldwork."
+                f"Note: months with very low base (n < {SYSTEM_FLOOR_N}) are excluded."
             )
 
     with col_secondary:

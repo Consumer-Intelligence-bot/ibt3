@@ -2835,3 +2835,172 @@ class TestCalcAwarenessFunnel:
         row = result.iloc[0]
         assert row["prompted"] > 0.1, "Aviva prompted awareness should be substantial"
         assert row["consideration"] > 0.0, "Aviva consideration should be positive"
+
+
+# ===========================================================================
+# Spec 8d: calc_awareness_trend_with_ci  (lib/analytics/awareness.py)
+# ===========================================================================
+
+class TestCalcAwarenessTrendWithCI:
+    """
+    lib/analytics/awareness.py :: calc_awareness_trend_with_ci
+
+    Returns per-month awareness rates with Wilson CI bounds and a confidence
+    flag for the prompted awareness trend chart.
+
+    Spec 8d requirements:
+      - Show ALL months (no filter_complete_months suppression)
+      - Low-base months: is_confident=False → dashed line + shaded CI band
+      - Below min_n threshold: excluded entirely
+      - Supports insurer-specific and market-level (no insurer filter)
+    """
+
+    def _call(self, df, level="prompted", insurer=None, min_n=50):
+        from lib.analytics.awareness import calc_awareness_trend_with_ci
+        import lib.analytics.awareness as aw
+        aw.set_awareness_product("Motor")
+        return calc_awareness_trend_with_ci(df, level, insurer=insurer, min_n=min_n)
+
+    # -----------------------------------------------------------------------
+    # 1. Schema: returns DataFrame with expected columns
+    # -----------------------------------------------------------------------
+
+    def test_returns_dataframe_with_required_columns(self, awareness_df):
+        """Result must have month, brand, rate, n_total, ci_lower, ci_upper, is_confident."""
+        result = self._call(awareness_df)
+        required = {"month", "brand", "rate", "n_total", "ci_lower", "ci_upper", "is_confident"}
+        assert isinstance(result, pd.DataFrame)
+        assert required.issubset(set(result.columns)), (
+            f"Missing columns: {required - set(result.columns)}"
+        )
+
+    # -----------------------------------------------------------------------
+    # 2. Rate values between 0 and 1
+    # -----------------------------------------------------------------------
+
+    def test_rate_values_between_0_and_1(self, awareness_df):
+        """All rate values must be in the [0, 1] range."""
+        result = self._call(awareness_df)
+        assert not result.empty
+        assert (result["rate"] >= 0).all(), "Rates must be >= 0"
+        assert (result["rate"] <= 1).all(), "Rates must be <= 1"
+
+    # -----------------------------------------------------------------------
+    # 3. ci_lower <= rate <= ci_upper for every row
+    # -----------------------------------------------------------------------
+
+    def test_ci_bounds_surround_rate(self, awareness_df):
+        """For every row, ci_lower <= rate <= ci_upper must hold."""
+        result = self._call(awareness_df)
+        assert not result.empty
+        for _, row in result.iterrows():
+            assert row["ci_lower"] <= row["rate"] + 1e-9, (
+                f"ci_lower ({row['ci_lower']:.4f}) > rate ({row['rate']:.4f}) "
+                f"for {row['brand']} in {row['month']}"
+            )
+            assert row["ci_upper"] >= row["rate"] - 1e-9, (
+                f"ci_upper ({row['ci_upper']:.4f}) < rate ({row['rate']:.4f}) "
+                f"for {row['brand']} in {row['month']}"
+            )
+
+    # -----------------------------------------------------------------------
+    # 4. is_confident=True when n_total >= min_n
+    # -----------------------------------------------------------------------
+
+    def _make_awareness_df(self, n_per_month=50, months=None):
+        """Build a minimal prompted awareness DataFrame for testing."""
+        if months is None:
+            months = [202401, 202402]
+        rng = np.random.default_rng(42)
+        rows = []
+        uid = 1
+        for month in months:
+            for _ in range(n_per_month):
+                aviva = bool(rng.random() < 0.80)
+                admiral = bool(rng.random() < 0.70)
+                if not any([aviva, admiral]):
+                    aviva = True
+                rows.append({
+                    "UniqueID": uid,
+                    "RenewalYearMonth": month,
+                    "Product": "Motor",
+                    "Q2_Aviva": aviva,
+                    "Q2_Admiral": admiral,
+                })
+                uid += 1
+        df = pd.DataFrame(rows)
+        for col in ["Q2_Aviva", "Q2_Admiral"]:
+            df[col] = df[col].astype(bool)
+        return df
+
+    def test_is_confident_true_when_n_meets_threshold(self):
+        """Months with n_total >= min_n=50 must have is_confident=True."""
+        df = self._make_awareness_df(n_per_month=60)
+        result = self._call(df, min_n=50)
+        assert not result.empty
+        assert result["is_confident"].all(), (
+            "All rows should be confident when n=60 >= min_n=50"
+        )
+
+    # -----------------------------------------------------------------------
+    # 5. is_confident=False when n_total is low (but above SYSTEM_FLOOR_N)
+    # -----------------------------------------------------------------------
+
+    def test_is_confident_false_when_n_below_threshold(self):
+        """Months between SYSTEM_FLOOR_N and min_n should have is_confident=False."""
+        # 20 respondents per month: above SYSTEM_FLOOR_N=15, below min_n=50
+        df = self._make_awareness_df(n_per_month=20)
+        result = self._call(df, min_n=50)
+        assert not result.empty, "Should produce rows (n=20 >= SYSTEM_FLOOR_N=15)"
+        assert not result["is_confident"].any(), (
+            "All rows should be not-confident when n=20 < min_n=50"
+        )
+
+    # -----------------------------------------------------------------------
+    # 6. Months below min_n are excluded entirely
+    # -----------------------------------------------------------------------
+
+    def test_months_below_min_n_excluded(self):
+        """
+        Months with n_total below SYSTEM_FLOOR_N=15 are excluded entirely
+        (handled by the underlying calc_awareness_rates call).
+        """
+        df = self._make_awareness_df(n_per_month=5)
+        result = self._call(df, min_n=50)
+        # n=5 is below SYSTEM_FLOOR_N=15, so calc_awareness_rates excludes it
+        assert result.empty, "Months below SYSTEM_FLOOR_N must be excluded entirely"
+
+    # -----------------------------------------------------------------------
+    # 7. Empty DataFrame returns empty result
+    # -----------------------------------------------------------------------
+
+    def test_empty_dataframe_returns_empty(self):
+        """Passing an empty DataFrame must return an empty result, not raise."""
+        result = self._call(pd.DataFrame())
+        assert isinstance(result, pd.DataFrame)
+        assert result.empty
+
+    # -----------------------------------------------------------------------
+    # 8. Works for specific insurer (filters to that brand)
+    # -----------------------------------------------------------------------
+
+    def test_insurer_filter_returns_only_that_brand(self, awareness_df):
+        """With insurer='Aviva', result must contain only Aviva rows."""
+        result = self._call(awareness_df, insurer="Aviva")
+        assert not result.empty
+        assert set(result["brand"].unique()) == {"Aviva"}, (
+            f"Expected only Aviva, got {set(result['brand'].unique())}"
+        )
+
+    # -----------------------------------------------------------------------
+    # 9. Works for market level (no insurer filter — all brands returned)
+    # -----------------------------------------------------------------------
+
+    def test_market_level_returns_all_brands(self, awareness_df):
+        """Without insurer filter, result should include all brands from awareness_df."""
+        result = self._call(awareness_df, insurer=None)
+        assert not result.empty
+        brands = set(result["brand"].unique())
+        assert "Aviva" in brands
+        assert "Admiral" in brands
+        assert len(brands) >= 2, "Market-level result must include multiple brands"

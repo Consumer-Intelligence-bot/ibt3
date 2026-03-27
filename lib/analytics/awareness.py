@@ -20,6 +20,7 @@ from lib.config import (
     MIN_BASE_PUBLISHABLE,
     SYSTEM_FLOOR_N,
 )
+from lib.analytics.flow_display import calc_wilson_ci
 
 # Maps awareness level names to Q-codes, per product
 AWARENESS_LEVELS = {
@@ -282,6 +283,81 @@ def calc_awareness_summary(
         "period_start": int(earliest_month),
         "period_end": int(latest_month),
     }
+
+
+# ---------------------------------------------------------------------------
+# Spec 8d: Trend with Wilson CI bands for the prompted awareness chart
+# ---------------------------------------------------------------------------
+
+def calc_awareness_trend_with_ci(
+    df_main: pd.DataFrame,
+    level: str,
+    insurer: str | None = None,
+    min_n: int = 50,
+    time_col: str = "RenewalYearMonth",
+) -> pd.DataFrame:
+    """
+    Per-month awareness rates with Wilson 95% CI bounds and a confidence flag.
+
+    Used by the prompted awareness trend chart (Spec 8d) to drive the
+    solid/dashed line and shaded CI band visual treatment.
+
+    Parameters
+    ----------
+    df_main : pd.DataFrame
+        Wide-format respondent data.
+    level : str
+        Awareness level: 'prompted', 'consideration', or 'spontaneous'.
+    insurer : str | None
+        If provided, filter result to a single brand. If None, return all brands.
+    min_n : int
+        Minimum n_total for a month to be considered confident (is_confident=True).
+        Months between SYSTEM_FLOOR_N and min_n are included but flagged as
+        not confident. Months below SYSTEM_FLOOR_N are excluded entirely
+        (handled by the underlying calc_awareness_rates call).
+
+    Returns
+    -------
+    pd.DataFrame with columns:
+        month, brand, rate, n_total, ci_lower, ci_upper, is_confident
+    Empty DataFrame when no data is available.
+    """
+    rates = calc_awareness_rates(df_main, level, time_col=time_col)
+    if rates.empty:
+        return pd.DataFrame()
+
+    if insurer is not None:
+        rates = rates[rates["brand"] == insurer]
+        if rates.empty:
+            return pd.DataFrame()
+
+    rows = []
+    for _, row in rates.iterrows():
+        n_total = int(row["n_total"])
+        n_mentions = int(row["n_mentions"])
+        rate = float(row["rate"])
+
+        ci = calc_wilson_ci(n_mentions, n_total)
+        if ci is None:
+            continue
+        ci_lower, ci_upper = ci
+
+        rows.append({
+            "month": row["month"],
+            "brand": row["brand"],
+            "rate": rate,
+            "n_total": n_total,
+            "ci_lower": ci_lower,
+            "ci_upper": ci_upper,
+            "is_confident": n_total >= min_n,
+        })
+
+    if not rows:
+        return pd.DataFrame()
+
+    result = pd.DataFrame(rows)
+    result = result.sort_values(["brand", "month"]).reset_index(drop=True)
+    return result
 
 
 # ---------------------------------------------------------------------------
