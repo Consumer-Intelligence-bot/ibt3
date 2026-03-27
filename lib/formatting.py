@@ -9,7 +9,7 @@ import streamlit as st
 from lib.config import CI_CHARCOAL_60, CI_GREY, CI_LIGHT_GREY, CSS, FONT as _FONT
 
 FONT = _FONT
-FONT_DISPLAY = FONT  # Montserrat 700 for display; no separate display font
+FONT_DISPLAY = FONT  # Verdana Bold for display; no separate display font
 
 # Pre-load logo bytes once at module load
 _LOGO_PATH = Path(__file__).parent.parent / "assets" / "ci_logo.png"

@@ -55,7 +55,7 @@ def apply_export_metadata(
     fig.update_layout(
         title=dict(
             text="".join(title_parts),
-            font=dict(family="Montserrat, sans-serif", size=13),
+            font=dict(family="Verdana, Geneva, sans-serif", size=13),
             x=0,
             xanchor="left",
         ),
@@ -76,7 +76,7 @@ def apply_export_metadata(
         x=0, y=-0.10,
         xanchor="left", yanchor="top",
         showarrow=False,
-        font=dict(family="Montserrat, sans-serif", size=9, color="#54585A"),
+        font=dict(family="Verdana, Geneva, sans-serif", size=9, color="#54585A"),
     )
 
     return fig
@@ -97,7 +97,7 @@ def render_suppression_html(entity: str, n: int, min_base: int = 50) -> str:
     return (
         f'<div style="background:#DDDEDE; border-left:4px solid #FFCD00; '
         f'padding:12px 16px; margin:8px 0; border-radius:12px; '
-        f'font-family:Montserrat, sans-serif; font-size:13px; '
+        f'font-family:Verdana, Geneva, sans-serif; font-size:13px; '
         f'color:#54585A;">{msg}</div>'
     )
 

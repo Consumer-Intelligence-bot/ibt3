@@ -53,37 +53,47 @@ CI_RED = "#F4364C"        # Alert, negative, emphasis
 CI_CYAN = "#5BC2E7"       # Digital primary, CTAs
 CI_CHARCOAL = "#54585A"   # Text, dark backgrounds
 
-# 60% tints
-CI_PURPLE_60 = "#C177C1"
-CI_YELLOW_60 = "#FFE166"
-CI_GREEN_60 = "#91C78C"
-CI_RED_60 = "#F88694"
-CI_CYAN_60 = "#9DDAF1"
-CI_CHARCOAL_60 = "#989B9C"
+# 60% tints (brand spec)
+CI_PURPLE_60 = "#BE6DBE"
+CI_YELLOW_60 = "#FFE066"
+CI_GREEN_60 = "#8DC585"
+CI_RED_60 = "#F88793"
+CI_CYAN_60 = "#9DD8F0"
+CI_CHARCOAL_60 = "#9A9C9E"
 
-# 20% tints
-CI_PURPLE_20 = "#EAD2EA"
-CI_YELLOW_20 = "#FFF5CC"
-CI_GREEN_20 = "#DAECD9"
-CI_RED_20 = "#FDD7DB"
-CI_CYAN_20 = "#DEF3FA"
-CI_CHARCOAL_20 = "#DDDEDE"
+# 20% tints (brand spec)
+CI_PURPLE_20 = "#E8C5E8"
+CI_YELLOW_20 = "#FFF2CC"
+CI_GREEN_20 = "#D6E9D4"
+CI_RED_20 = "#FDD4D8"
+CI_CYAN_20 = "#DEF0F9"
+CI_CHARCOAL_20 = "#DDDDDE"
 
+# Supporting colours (brand spec)
 CI_WHITE = "#FFFFFF"
+CI_OFF_WHITE = "#F5F5F5"
+CI_LIGHT_GREY_SPEC = "#E9EAEB"  # Borders, dividers, alternating rows
+CI_TEXT = "#4D5153"              # Primary text colour
+
+# Performance benchmarking
+CI_NEAR_MARKET = CI_CYAN        # Index 90-110
+CI_ABOVE_MARKET = CI_GREEN      # Index >110
+CI_BELOW_MARKET = CI_RED        # Index <90
+CI_NEUTRAL = CI_CHARCOAL_60     # No data
 
 # Legacy aliases (referenced throughout codebase)
 CI_MAGENTA = CI_PURPLE
 CI_BLUE = CI_CYAN
 CI_GREY = CI_CHARCOAL
-CI_LIGHT_GREY = CI_CHARCOAL_20
+CI_LIGHT_GREY = CI_LIGHT_GREY_SPEC
 CI_DARK = CI_CHARCOAL
-CI_LGREY = CI_CHARCOAL_20
+CI_LGREY = CI_LIGHT_GREY_SPEC
 
-# Chart colour sequence (brand spec: Cyan, Purple, Yellow, Green, Red,
-# Charcoal, then 60% tints, then 20% tints)
+# Chart colour sequence (brand spec: Violet, Blue, Green, Yellow, Red,
+# Dark Grey, then 60% tints)
 BUMP_COLOURS = [
-    CI_CYAN, CI_PURPLE, CI_YELLOW, CI_GREEN, CI_RED, CI_CHARCOAL,
-    CI_CYAN_60, CI_PURPLE_60, CI_YELLOW_60, CI_GREEN_60, CI_RED_60, CI_CHARCOAL_60,
+    CI_PURPLE, CI_CYAN, CI_GREEN, CI_YELLOW, CI_RED, CI_CHARCOAL,
+    CI_PURPLE_60, CI_CYAN_60, CI_GREEN_60, CI_YELLOW_60, CI_RED_60, CI_CHARCOAL_60,
 ]
 
 # Visual rules
@@ -173,23 +183,21 @@ CI_MARKET_PURPLE = CI_CHARCOAL
 # ---------------------------------------------------------------------------
 # CSS for Streamlit
 # ---------------------------------------------------------------------------
-FONT = "Montserrat, -apple-system, BlinkMacSystemFont, sans-serif"
+FONT = "Verdana, Geneva, sans-serif"
 
 CSS = f"""
 <style>
-/* ── Import Montserrat (brand web font, 400/700) ─────────────── */
-@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap');
 
 /* ── Base ─────────────────────────────────────────────────────── */
 html, body, [class*="css"] {{
     font-family: {FONT};
-    color: {CI_CHARCOAL};
+    color: {CI_TEXT};
     -webkit-font-smoothing: antialiased;
 }}
 
 /* ── Main container background ────────────────────────────────── */
 .stApp {{
-    background: {CI_WHITE};
+    background: {CI_OFF_WHITE};
 }}
 
 /* ── Sidebar (Charcoal per brand spec) ────────────────────────── */
@@ -253,7 +261,7 @@ section[data-testid="stSidebar"] .stButton > button:hover {{
     background: transparent !important;
 }}
 
-/* ── Headers (Montserrat 700) ────────────────────────────────── */
+/* ── Headers (Verdana Bold) ──────────────────────────────────── */
 h1, h2, .stSubheader {{
     font-family: {FONT} !important;
     color: {CI_CHARCOAL} !important;
