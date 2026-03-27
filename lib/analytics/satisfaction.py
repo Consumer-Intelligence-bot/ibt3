@@ -7,19 +7,41 @@ import pandas as pd
 import numpy as np
 
 
+def _is_binary_satisfaction(vals: pd.Series) -> bool:
+    """Detect binary-coded satisfaction (e.g. 2=dissatisfied, 4=satisfied)."""
+    unique = set(vals.unique())
+    return unique <= {2.0, 4.0}
+
+
 def calc_overall_satisfaction(df: pd.DataFrame, q_col: str = "Q47") -> dict | None:
-    """Mean satisfaction score and distribution from Q47 (current insurer)."""
+    """Mean satisfaction score and distribution from Q47 (current insurer).
+
+    Detects binary-coded data (2=dissatisfied, 4=satisfied) and returns
+    ``is_binary``, ``satisfied_pct``, ``dissatisfied_pct`` when appropriate.
+    """
     if df is None or df.empty or q_col not in df.columns:
         return None
     vals = pd.to_numeric(df[q_col], errors="coerce").dropna()
     if len(vals) == 0:
         return None
-    return {
+
+    binary = _is_binary_satisfaction(vals)
+    result = {
         "mean": float(vals.mean()),
         "median": float(vals.median()),
         "n": len(vals),
         "distribution": vals.value_counts(normalize=True).sort_index().to_dict(),
+        "is_binary": binary,
     }
+
+    if binary:
+        n_total = len(vals)
+        n_satisfied = (vals == 4.0).sum()
+        n_dissatisfied = (vals == 2.0).sum()
+        result["satisfied_pct"] = float(n_satisfied / n_total)
+        result["dissatisfied_pct"] = float(n_dissatisfied / n_total)
+
+    return result
 
 
 def calc_nps(df: pd.DataFrame, q_col: str = "Q48") -> dict | None:
@@ -72,7 +94,10 @@ def calc_brand_perception(df: pd.DataFrame, insurer: str | None = None) -> pd.Da
 
 
 def calc_satisfaction_retention_matrix(df: pd.DataFrame) -> pd.DataFrame | None:
-    """Cross-tabulate satisfaction quintile by retention status.
+    """Cross-tabulate satisfaction by retention status.
+
+    Detects binary Q47 (2/4 codes) and uses "Dissatisfied"/"Satisfied" bands.
+    For full 1-5 data, uses score-range bands.
 
     Returns DataFrame with columns: satisfaction_band, retained_pct, n.
     """
@@ -87,13 +112,19 @@ def calc_satisfaction_retention_matrix(df: pd.DataFrame) -> pd.DataFrame | None:
     if len(valid) < 30:
         return None
 
-    # Band into quintiles (1-2, 2-3, 3-4, 4-5)
-    bins = [0, 2, 3, 4, 5.01]
-    labels = ["1-2 (Low)", "2-3", "3-4", "4-5 (High)"]
-    valid["sat_band"] = pd.cut(valid["Q47_num"], bins=bins, labels=labels, include_lowest=True)
+    binary = _is_binary_satisfaction(valid["Q47_num"])
+
+    if binary:
+        band_map = {2.0: "Dissatisfied", 4.0: "Satisfied"}
+        valid["sat_band"] = valid["Q47_num"].map(band_map)
+        band_order = ["Dissatisfied", "Satisfied"]
+    else:
+        bins = [0, 2, 3, 4, 5.01]
+        band_order = ["1-2 (Low)", "2-3", "3-4", "4-5 (High)"]
+        valid["sat_band"] = pd.cut(valid["Q47_num"], bins=bins, labels=band_order, include_lowest=True)
 
     rows = []
-    for band in labels:
+    for band in band_order:
         subset = valid[valid["sat_band"] == band]
         n = len(subset)
         if n >= 10:

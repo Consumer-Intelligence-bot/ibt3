@@ -99,10 +99,11 @@ def _render_market_view(df_mkt, filters, period, n_mkt):
     )
 
     # ── KPI row ──────────────────────────────────────────────────
+    sat_is_binary = sat and sat.get("is_binary")
     kpis = [
         {
             "title": "Market Satisfaction (Q47)",
-            "value": f"{sat['mean']:.2f}" if sat else "\u2014",
+            "value": f"{sat['satisfied_pct']:.0%} satisfied" if sat_is_binary else (f"{sat['mean']:.2f}" if sat else "\u2014"),
             "sample_n": sat["n"] if sat else None,
             "colour": CI_MAGENTA,
         },
@@ -129,30 +130,61 @@ def _render_market_view(df_mkt, filters, period, n_mkt):
     with col_primary:
         # Satisfaction Distribution
         if sat and sat.get("distribution"):
-            st.markdown(
-                f'<div style="font-family:{FONT}; font-size:13px; font-weight:700; '
-                f'color:{CI_GREY}; margin:16px 0 4px 0;">'
-                f'Satisfaction Distribution (Q47)</div>',
-                unsafe_allow_html=True,
-            )
-            dist = sat["distribution"]
-            scores = sorted(dist.keys())
-            fig = go.Figure(go.Bar(
-                x=[str(s) for s in scores],
-                y=[dist[s] for s in scores],
-                marker_color=CI_MAGENTA,
-                text=[f"{dist[s]:.0%}" for s in scores],
-                textposition="outside",
-            ))
-            fig.update_layout(
-                height=280,
-                yaxis=dict(tickformat=".0%", gridcolor=CI_LIGHT_GREY),
-                xaxis=dict(title="Satisfaction Score (1-5)"),
-                plot_bgcolor=CI_WHITE, paper_bgcolor=CI_WHITE,
-                font=dict(family=FONT, size=11, color=CI_GREY),
-                margin=dict(l=10, r=20, t=10, b=40),
-            )
-            st.plotly_chart(fig, use_container_width=True)
+            if sat_is_binary:
+                # Binary satisfaction: show Satisfied / Dissatisfied bar chart
+                st.markdown(
+                    f'<div style="font-family:{FONT}; font-size:13px; font-weight:700; '
+                    f'color:{CI_GREY}; margin:16px 0 4px 0;">'
+                    f'Satisfaction (Q47)</div>',
+                    unsafe_allow_html=True,
+                )
+                sat_pct = sat["satisfied_pct"]
+                dis_pct = sat["dissatisfied_pct"]
+                fig = go.Figure(go.Bar(
+                    x=["Dissatisfied", "Satisfied"],
+                    y=[dis_pct, sat_pct],
+                    marker_color=[CI_RED, CI_GREEN],
+                    text=[f"{dis_pct:.0%}", f"{sat_pct:.0%}"],
+                    textposition="outside",
+                ))
+                fig.update_layout(
+                    height=280,
+                    yaxis=dict(tickformat=".0%", gridcolor=CI_LIGHT_GREY, range=[0, 1.1]),
+                    plot_bgcolor=CI_WHITE, paper_bgcolor=CI_WHITE,
+                    font=dict(family=FONT, size=11, color=CI_GREY),
+                    margin=dict(l=10, r=20, t=10, b=40),
+                )
+                st.plotly_chart(fig, use_container_width=True)
+                st.caption(
+                    "Q47 records binary satisfaction (satisfied / dissatisfied). "
+                    f"n={sat['n']:,}."
+                )
+            else:
+                # Full 1-5 scale distribution
+                st.markdown(
+                    f'<div style="font-family:{FONT}; font-size:13px; font-weight:700; '
+                    f'color:{CI_GREY}; margin:16px 0 4px 0;">'
+                    f'Satisfaction Distribution (Q47)</div>',
+                    unsafe_allow_html=True,
+                )
+                dist = sat["distribution"]
+                scores = sorted(dist.keys())
+                fig = go.Figure(go.Bar(
+                    x=[str(s) for s in scores],
+                    y=[dist[s] for s in scores],
+                    marker_color=CI_MAGENTA,
+                    text=[f"{dist[s]:.0%}" for s in scores],
+                    textposition="outside",
+                ))
+                fig.update_layout(
+                    height=280,
+                    yaxis=dict(tickformat=".0%", gridcolor=CI_LIGHT_GREY),
+                    xaxis=dict(title="Satisfaction Score (1-5)"),
+                    plot_bgcolor=CI_WHITE, paper_bgcolor=CI_WHITE,
+                    font=dict(family=FONT, size=11, color=CI_GREY),
+                    margin=dict(l=10, r=20, t=10, b=40),
+                )
+                st.plotly_chart(fig, use_container_width=True)
 
     with col_secondary:
         # Satisfaction-Retention Matrix
@@ -165,10 +197,17 @@ def _render_market_view(df_mkt, filters, period, n_mkt):
 
         sat_ret = calc_satisfaction_retention_matrix(df_mkt)
         if sat_ret is not None and not sat_ret.empty:
+            # Assign colours based on band labels
+            bands = sat_ret["satisfaction_band"].tolist()
+            if "Satisfied" in bands:
+                # Binary mode
+                colours = [CI_RED if b == "Dissatisfied" else CI_GREEN for b in bands]
+            else:
+                colours = [CI_RED, CI_GREY, CI_GREEN, CI_GREEN][:len(bands)]
             fig = go.Figure(go.Bar(
                 x=sat_ret["satisfaction_band"],
                 y=sat_ret["retained_pct"],
-                marker_color=[CI_RED, CI_GREY, CI_GREEN, CI_GREEN],
+                marker_color=colours,
                 text=[f"{r:.0%}" for r in sat_ret["retained_pct"]],
                 textposition="outside",
                 hovertemplate="Band: %{x}<br>Retention: %{y:.1%}<br>n=%{customdata:,}<extra></extra>",
@@ -177,13 +216,13 @@ def _render_market_view(df_mkt, filters, period, n_mkt):
             fig.update_layout(
                 height=300,
                 yaxis=dict(title="Retention Rate", tickformat=".0%", gridcolor=CI_LIGHT_GREY),
-                xaxis=dict(title="Satisfaction Band"),
+                xaxis=dict(title="Satisfaction"),
                 plot_bgcolor=CI_WHITE, paper_bgcolor=CI_WHITE,
                 font=dict(family=FONT, size=11, color=CI_GREY),
                 margin=dict(l=10, r=20, t=10, b=40),
             )
             st.plotly_chart(fig, use_container_width=True)
-            st.caption("Higher satisfaction correlates with higher retention. Bands based on Q47 scores.")
+            st.caption("Higher satisfaction correlates with higher retention.")
         else:
             st.info("Insufficient data for satisfaction-retention matrix.")
 
@@ -242,10 +281,16 @@ def _render_insurer_view(df_motor, df_mkt, insurer, filters, period, n_mkt):
         return
 
     # ── AI Narrative (top of screen) ─────────────────────────────
-    ins_sat_val = ins_sat["mean"] if ins_sat else 0
-    mkt_sat_val = mkt_sat["mean"] if mkt_sat else 0
     ins_nps_val = ins_nps["nps"] if ins_nps else 0
     mkt_nps_val = mkt_nps["nps"] if mkt_nps else 0
+
+    # For narrative, use % satisfied if binary, otherwise mean score
+    if ins_sat and ins_sat.get("is_binary"):
+        ins_sat_val = ins_sat["satisfied_pct"]
+        mkt_sat_val = mkt_sat["satisfied_pct"] if mkt_sat and mkt_sat.get("is_binary") else 0
+    else:
+        ins_sat_val = ins_sat["mean"] if ins_sat else 0
+        mkt_sat_val = mkt_sat["mean"] if mkt_sat else 0
 
     ins_prev = calc_previous_insurer_satisfaction(df_mkt, insurer)
     mkt_prev = calc_previous_insurer_satisfaction(df_mkt)
@@ -256,6 +301,7 @@ def _render_insurer_view(df_motor, df_mkt, insurer, filters, period, n_mkt):
         "product": filters["product"],
         "satisfaction": ins_sat_val,
         "mkt_satisfaction": mkt_sat_val,
+        "satisfaction_is_binary": bool(ins_sat and ins_sat.get("is_binary")),
         "nps": ins_nps_val,
         "mkt_nps": mkt_nps_val,
         "departed_sat": dep_sat_str,
@@ -263,9 +309,21 @@ def _render_insurer_view(df_motor, df_mkt, insurer, filters, period, n_mkt):
     render_narrative_compact(narrative, "satisfaction")
 
     # ── KPI row ──────────────────────────────────────────────────
-    sat_gap = (ins_sat_val - mkt_sat_val) if ins_sat and mkt_sat else 0
-    sat_trend = "up" if sat_gap > 0 else "down" if sat_gap < 0 else "flat"
-    sat_sign = "+" if sat_gap > 0 else ""
+    ins_binary = ins_sat and ins_sat.get("is_binary")
+    mkt_binary = mkt_sat and mkt_sat.get("is_binary")
+
+    if ins_binary:
+        ins_sat_display = f"{ins_sat['satisfied_pct']:.0%} satisfied"
+        mkt_sat_display = f"{mkt_sat['satisfied_pct']:.0%} satisfied" if mkt_binary else (f"{mkt_sat_val:.2f}" if mkt_sat else "\u2014")
+        sat_gap_val = (ins_sat["satisfied_pct"] - mkt_sat["satisfied_pct"]) if ins_sat and mkt_sat and mkt_binary else 0
+        sat_gap_str = f"{sat_gap_val:+.0%} vs market" if sat_gap_val != 0 else ""
+    else:
+        ins_sat_display = f"{ins_sat_val:.2f}" if ins_sat else "\u2014"
+        mkt_sat_display = f"{mkt_sat_val:.2f}" if mkt_sat else "\u2014"
+        sat_gap_val = (ins_sat_val - mkt_sat_val) if ins_sat and mkt_sat else 0
+        sat_gap_str = f"{'+' if sat_gap_val > 0 else ''}{sat_gap_val:.2f} vs market" if ins_sat and mkt_sat else ""
+
+    sat_trend = "up" if sat_gap_val > 0 else "down" if sat_gap_val < 0 else "flat"
 
     nps_gap = (ins_nps_val - mkt_nps_val) if ins_nps and mkt_nps else 0
     nps_trend = "up" if nps_gap > 0 else "down" if nps_gap < 0 else "flat"
@@ -274,15 +332,15 @@ def _render_insurer_view(df_motor, df_mkt, insurer, filters, period, n_mkt):
     decision_kpi_row([
         {
             "title": f"{insurer} Satisfaction",
-            "value": f"{ins_sat_val:.2f}" if ins_sat else "\u2014",
-            "change": f"{sat_sign}{sat_gap:.2f} vs market" if ins_sat and mkt_sat else "",
+            "value": ins_sat_display,
+            "change": sat_gap_str,
             "trend": sat_trend,
             "sample_n": n_ins,
             "colour": CI_MAGENTA,
         },
         {
             "title": "Market Satisfaction",
-            "value": f"{mkt_sat_val:.2f}" if mkt_sat else "\u2014",
+            "value": mkt_sat_display,
             "sample_n": n_mkt,
             "colour": MARKET_COLOUR,
         },
