@@ -173,28 +173,7 @@ def _render_market_view(df_mkt, filters, period, n_mkt):
         else:
             st.info("No Q6b data available.")
 
-    # --- Tenure vs Retention ---
-    tenure_ret = calc_tenure_retention_crossover(df_mkt)
-    if tenure_ret is not None and not tenure_ret.empty:
-        st.markdown("**Tenure vs Retention Rate**")
-        fig = go.Figure(go.Bar(
-            x=tenure_ret["tenure"],
-            y=tenure_ret["retention_rate"],
-            marker_color=CI_MAGENTA,
-            text=[f"{r:.0%}" for r in tenure_ret["retention_rate"]],
-            textposition="outside",
-            hovertemplate="Tenure: %{x}<br>Retention: %{y:.1%}<br>n=%{customdata:,}<extra></extra>",
-            customdata=tenure_ret["n"],
-        ))
-        fig.update_layout(
-            height=300,
-            yaxis=dict(title="Retention Rate", tickformat=".0%", gridcolor=CI_LIGHT_GREY),
-            xaxis=dict(title="Tenure"),
-            plot_bgcolor=CI_WHITE, paper_bgcolor=CI_WHITE,
-            font=dict(family=FONT, size=11, color=CI_GREY),
-            margin=dict(l=10, r=20, t=10, b=40),
-        )
-        st.plotly_chart(fig, use_container_width=True)
+    # Tenure vs Retention only shown in insurer view (market = 100% by definition)
 
     # Footer
     render_context_footer(
