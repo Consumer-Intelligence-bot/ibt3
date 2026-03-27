@@ -7,8 +7,8 @@ import pandas as pd
 def apply_filters(
     df: pd.DataFrame,
     insurer: str | None = None,
-    age_band: str | None = None,
-    region: str | None = None,
+    age_band: str | list[str] | None = None,
+    region: str | list[str] | None = None,
     payment_type: str | None = None,
     product: str = "Motor",
     time_window_months: int | None = None,
@@ -16,6 +16,10 @@ def apply_filters(
 ) -> pd.DataFrame:
     """
     Filter DataFrame by demographics. insurer=None means market (no insurer filter).
+
+    age_band and region accept either a plain string (backwards compatible) or a
+    list of strings (multi-select).  An empty list is treated as no filter (same
+    as None).
 
     Time filtering: if *selected_months* (list of YYYYMM ints) is provided it
     takes precedence.  Otherwise falls back to *time_window_months* (legacy).
@@ -29,9 +33,15 @@ def apply_filters(
     elif time_window_months is not None:
         filtered = _apply_time_window(filtered, time_window_months)
     if age_band:
-        filtered = filtered[filtered["AgeBand"] == age_band]
+        if isinstance(age_band, list):
+            filtered = filtered[filtered["AgeBand"].isin(age_band)]
+        else:
+            filtered = filtered[filtered["AgeBand"] == age_band]
     if region:
-        filtered = filtered[filtered["Region"] == region]
+        if isinstance(region, list):
+            filtered = filtered[filtered["Region"].isin(region)]
+        else:
+            filtered = filtered[filtered["Region"] == region]
     if payment_type:
         filtered = filtered[filtered["PaymentType"] == payment_type]
     if insurer:
@@ -66,16 +76,20 @@ def _apply_time_window(df: pd.DataFrame, months: int) -> pd.DataFrame:
 
 
 def get_active_filters(
-    age_band: str | None,
-    region: str | None,
+    age_band: str | list[str] | None,
+    region: str | list[str] | None,
     payment_type: str | None,
 ) -> dict:
-    """Returns dict of active filter names and values."""
+    """Returns dict of active filter names and values.
+
+    For list values, the dict value is a comma-joined label string so it
+    displays cleanly in the UI (e.g. "18-24, 25-34").
+    """
     active = {}
     if age_band:
-        active["Age Band"] = age_band
+        active["Age Band"] = ", ".join(age_band) if isinstance(age_band, list) else age_band
     if region:
-        active["Region"] = region
+        active["Region"] = ", ".join(region) if isinstance(region, list) else region
     if payment_type:
         active["Payment Type"] = payment_type
     return active

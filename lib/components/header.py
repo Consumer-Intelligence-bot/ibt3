@@ -78,21 +78,25 @@ def render_global_controls():
     else:
         st.session_state.pop("selected_insurer", None)
 
-    # Age Band
-    age_options = ["ALL"]
+    # Age Band (multi-select; empty = all)
+    age_options = []
     if "DimAgeBand" in dimensions:
-        age_options += sorted(
+        age_options = sorted(
             dimensions["DimAgeBand"]["AgeBand"].dropna().astype(str).tolist()
         )
-    age_band = st.sidebar.selectbox("Age Band", age_options, key="header_age_band")
+    age_band_selection = st.sidebar.multiselect(
+        "Age Band", age_options, default=[], key="header_age_band"
+    )
 
-    # Region
-    region_options = ["ALL"]
+    # Region (multi-select; empty = all)
+    region_options = []
     if "DimRegion" in dimensions:
-        region_options += sorted(
+        region_options = sorted(
             dimensions["DimRegion"]["Region"].dropna().astype(str).tolist()
         )
-    region = st.sidebar.selectbox("Region", region_options, key="header_region")
+    region_selection = st.sidebar.multiselect(
+        "Region", region_options, default=[], key="header_region"
+    )
 
     # Payment Type
     payment_options = ["ALL"]
@@ -145,8 +149,9 @@ def render_global_controls():
 
     # Normalise
     insurer = insurer or None
-    age_band = None if age_band in (None, "ALL", "") else age_band
-    region = None if region in (None, "ALL", "") else region
+    # Multi-select: empty list → None (no filter); non-empty list → pass through
+    age_band = age_band_selection if age_band_selection else None
+    region = region_selection if region_selection else None
     payment_type = None if payment_type in (None, "ALL", "") else payment_type
 
     return {
