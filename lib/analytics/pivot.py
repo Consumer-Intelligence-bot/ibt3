@@ -188,7 +188,14 @@ def _pivot_nps(df: pd.DataFrame, result: pd.DataFrame, question_set: set | None 
     if subset.empty:
         return
     subset = subset.copy()
-    subset["_value"] = pd.to_numeric(subset["Answer"], errors="coerce")
+    # Prefer Scale column (numeric) over Answer (may contain text labels
+    # like "5 – Completely satisfied" which pd.to_numeric coerces to NaN)
+    if "Scale" in subset.columns:
+        subset["_value"] = pd.to_numeric(subset["Scale"], errors="coerce")
+        if subset["_value"].isna().all():
+            subset["_value"] = pd.to_numeric(subset["Answer"], errors="coerce")
+    else:
+        subset["_value"] = pd.to_numeric(subset["Answer"], errors="coerce")
     subset = subset.dropna(subset=["_value"])
     if subset.empty:
         return
