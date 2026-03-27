@@ -7,14 +7,14 @@ Mandatory trust indicators on every data view.
 
 import streamlit as st
 
-from lib.config import CI_CHARCOAL, CI_CHARCOAL_20, CI_CHARCOAL_60, CI_GREEN, CI_YELLOW, CI_RED, FONT
+from lib.config import CI_CHARCOAL, CI_CHARCOAL_20, CI_CHARCOAL_60, CI_CYAN, CI_GREEN, CI_YELLOW, CI_RED, FONT
 from lib.components.methodology_dialog import render_methodology_button
 
 
 def _confidence_label(n: int) -> tuple[str, str]:
     """Return (label, colour) for a sample size."""
     if n >= 100:
-        return "High confidence", CI_GREEN
+        return "High confidence", CI_CYAN  # was CI_GREEN — avoid clash with positive KPI accent
     if n >= 30:
         return "Indicative", CI_YELLOW
     return "Low confidence", CI_RED

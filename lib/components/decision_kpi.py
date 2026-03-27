@@ -27,7 +27,7 @@ def _trend_arrow(trend: str) -> tuple[str, str]:
 def _confidence_colour(n: int) -> str:
     """Return badge colour based on sample size."""
     if n >= 100:
-        return CI_GREEN
+        return CI_CYAN  # was CI_GREEN — avoid clash with positive KPI accent
     if n >= 30:
         return CI_YELLOW
     return CI_RED
