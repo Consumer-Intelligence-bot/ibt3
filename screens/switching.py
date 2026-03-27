@@ -341,6 +341,11 @@ def _render_insurer_view(df_motor, df_mkt, insurer, filters, period, n_mkt):
             "colour": CI_GREEN if net > 0 else CI_RED if net < 0 else CI_GREY,
         },
     ])
+    st.caption(
+        "Note: Switching rate measures retention of existing customers. "
+        "Net flow measures the balance of customers gained vs lost across the market. "
+        "These can diverge when an insurer retains well but attracts fewer new customers."
+    )
 
     # ── 70 / 30 split ───────────────────────────────────────────
     col_primary, col_secondary = st.columns([7, 3])
