@@ -113,8 +113,8 @@ def _render_market_view(df_mkt, filters, period, n_mkt):
 
         if n_base < MIN_BASE_REASON:
             st.info(
-                f"Insufficient base ({n_base:,}) for {q_code} analysis "
-                f"(minimum {MIN_BASE_REASON}). {base_desc}."
+                f"Insufficient base for {q_code} analysis "
+                f"(below minimum threshold). {base_desc}."
             )
             continue
 

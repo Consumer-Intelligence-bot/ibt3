@@ -335,7 +335,7 @@ def _render_insurer_view(df_motor, df_mkt, insurer, filters, period, n_mkt):
         {
             "title": "Net Flow",
             "value": net_pct_display,
-            "change": f"of renewal base ({net_sign}{net:,} respondents)",
+            "change": f"{net_sign}{net_pct_display} of renewal base",
             "trend": net_trend,
             "sample_n": n_ins,
             "colour": CI_GREEN if net > 0 else CI_RED if net < 0 else CI_GREY,
@@ -362,10 +362,7 @@ def _render_insurer_view(df_motor, df_mkt, insurer, filters, period, n_mkt):
                 unsafe_allow_html=True,
             )
             _render_index_chart(df_loss, direction="loss")
-            st.caption(
-                f"Index > 100 = losing disproportionately. "
-                f"Based on {result['insurer_lost']:,} lost."
-            )
+            st.caption("Index > 100 = losing disproportionately to that competitor.")
 
         df_gain = result["gain_index"]
         if not df_gain.empty:
@@ -375,10 +372,7 @@ def _render_insurer_view(df_motor, df_mkt, insurer, filters, period, n_mkt):
                 unsafe_allow_html=True,
             )
             _render_index_chart(df_gain, direction="gain")
-            st.caption(
-                f"Index > 100 = winning disproportionately. "
-                f"Based on {result['insurer_gained']:,} gained."
-            )
+            st.caption("Index > 100 = winning disproportionately from that competitor.")
 
         if df_loss.empty and df_gain.empty:
             st.info("Insufficient switching data for flow index analysis.")

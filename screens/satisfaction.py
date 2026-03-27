@@ -386,7 +386,7 @@ def _render_insurer_view(df_motor, df_mkt, insurer, filters, period, n_mkt):
                 f'<div style="padding:3px 0;">Departed Sat: <span style="font-weight:700; color:{CI_MAGENTA};">{sat_str}</span></div>'
                 f'<div style="padding:3px 0;">Market Departed: <span style="font-weight:700;">{mkt_sat_str}</span></div>'
                 f'<div style="padding:3px 0;">Departed NPS: <span style="font-weight:700; color:{nps_colour};">{nps_str}</span></div>'
-                f'<div style="padding:3px 0; color:{CI_GREY};">n={ins_prev["n"]:,} switchers from {insurer}</div>'
+                f'<div style="padding:3px 0; color:{CI_GREY};" title="n={ins_prev["n"]:,}">Switchers from {insurer}</div>'
                 f'</div>',
                 unsafe_allow_html=True,
             )

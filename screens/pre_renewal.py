@@ -513,9 +513,10 @@ def _render_price_analysis_market(df_mkt, filters, period, n_mkt):
         colour = CI_RED if change > 0 else CI_GREEN if change < 0 else CI_GREY
         col1, col2 = st.columns(2)
         with col1:
-            kpi_card("Avg Price Change", format_price_change(change), f"n={avg['n']:,}", colour)
+            kpi_card("Avg Price Change", format_price_change(change), "Price band respondents", colour)
         with col2:
-            kpi_card("Respondents with Band Data", f"{avg['n']:,}", f"Market total: {n_mkt:,}", CI_GREY)
+            pct_with_data = avg['n'] / n_mkt if n_mkt else 0
+            kpi_card("Price Band Coverage", fmt_pct(pct_with_data), "of market respondents", CI_GREY)
     else:
         st.info("Insufficient data to compute average price change.")
 
@@ -596,11 +597,11 @@ def _render_price_analysis_brand(df_mkt, insurer, filters, period, n_mkt):
         with col1:
             bc = brand_avg["avg_change"]
             colour = CI_RED if bc > 0 else CI_GREEN if bc < 0 else CI_GREY
-            kpi_card(f"{insurer} Avg Change", format_price_change(bc), f"n={brand_avg['n']:,}", colour)
+            kpi_card(f"{insurer} Avg Change", format_price_change(bc), "Price band respondents", colour)
         with col2:
             mc = market_avg["avg_change"]
             colour = CI_RED if mc > 0 else CI_GREEN if mc < 0 else CI_GREY
-            kpi_card("Market Avg Change", format_price_change(mc), f"n={market_avg['n']:,}", colour)
+            kpi_card("Market Avg Change", format_price_change(mc), "Price band respondents", colour)
     else:
         st.info("Insufficient data for average price change comparison.")
 
@@ -627,27 +628,29 @@ def _render_price_analysis_brand(df_mkt, insurer, filters, period, n_mkt):
                     f'<tr style="border-bottom:2px solid {CI_GREY};">'
                     f'<th style="text-align:left; padding:6px;">{label}</th>'
                     f'<th style="text-align:right; padding:6px;">Avg Change</th>'
-                    f'<th style="text-align:right; padding:6px;">n</th></tr>'
+                    f'<th style="text-align:right; padding:6px;">Confidence</th></tr>'
                 )
+                from lib.components.confidence import confidence_label, confidence_colour
                 rows_html = []
                 for _, row in demo.iterrows():
                     avg_c = row["avg_change"]
                     sign = "+" if avg_c > 0 else ""
+                    n_val = int(row["n"])
                     colour = CI_RED if avg_c > 0 else CI_GREEN if avg_c < 0 else CI_GREY
-                    n_str = f"{int(row['n']):,}"
                     if row["flag_low_n"]:
-                        n_str += " *"
                         colour = CI_GREY
+                    conf_label = confidence_label(n_val)
+                    conf_col = confidence_colour(n_val)
                     rows_html.append(
                         f'<tr style="border-bottom:1px solid {CI_LIGHT_GREY};">'
                         f'<td style="padding:5px 6px;">{row["group"]}</td>'
                         f'<td style="text-align:right; padding:5px 6px; color:{colour}; font-weight:bold;">'
                         f'{sign}{abs(avg_c):.0f}</td>'
-                        f'<td style="text-align:right; padding:5px 6px;">{n_str}</td></tr>'
+                        f'<td style="text-align:right; padding:5px 6px;">'
+                        f'<span title="n={n_val:,}" style="color:{conf_col}; font-size:10px;">'
+                        f'{conf_label}</span></td></tr>'
                     )
                 st.markdown(header + "".join(rows_html) + "</table>", unsafe_allow_html=True)
-                if demo["flag_low_n"].any():
-                    st.caption("* n < 30: treat with caution.")
 
     render_context_footer(
         screen_name="price_analysis_brand",

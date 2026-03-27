@@ -188,7 +188,7 @@ def _render_market_view(df_mkt, filters, period, n_mkt):
         n_shoppers = int(df_mkt["IsShopper"].sum()) if "IsShopper" in df_mkt.columns else 0
 
         if n_shoppers < MIN_BASE_REASON:
-            st.info(f"Insufficient shoppers ({n_shoppers:,}) for Q8 analysis.")
+            st.info("Insufficient shoppers for Q8 analysis (below minimum base).")
         else:
             q8 = calc_reason_ranking(df_mkt, "Q8", top_n=5)
             if q8:
@@ -205,7 +205,7 @@ def _render_market_view(df_mkt, filters, period, n_mkt):
         n_non_shoppers = n_mkt - (int(df_mkt["IsShopper"].sum()) if "IsShopper" in df_mkt.columns else 0)
 
         if n_non_shoppers < MIN_BASE_REASON:
-            st.info(f"Insufficient non-shoppers ({n_non_shoppers:,}) for Q19 analysis.")
+            st.info("Insufficient non-shoppers for Q19 analysis (below minimum base).")
         else:
             q19 = calc_reason_ranking(df_mkt, "Q19", top_n=5)
             if q19:
@@ -301,7 +301,7 @@ def _render_insurer_view(df_motor, df_mkt, insurer, filters, period, n_mkt):
             "value": fmt_pct(ins_shopping),
             "change": f"{shopping_sign}{shopping_gap:.1f}pp vs market",
             "trend": shopping_trend,
-            "caption": format_ci_range(*shop_ci) if shop_ci else f"n={n_ins:,}",
+            "caption": format_ci_range(*shop_ci) if shop_ci else "",
             "sample_n": n_ins,
             "colour": CI_MAGENTA,
         },
@@ -310,14 +310,14 @@ def _render_insurer_view(df_motor, df_mkt, insurer, filters, period, n_mkt):
             "value": fmt_pct(ins_conversion),
             "change": f"{conversion_sign}{conversion_gap:.1f}pp vs market",
             "trend": conversion_trend,
-            "caption": (format_ci_range(*conv_ci) if conv_ci else f"n={n_ins:,}") + " — % shoppers who switched",
+            "caption": (format_ci_range(*conv_ci) if conv_ci else "") + (" — % shoppers who switched" if conv_ci else "% shoppers who switched"),
             "sample_n": n_ins,
             "colour": CI_RED,
         },
         {
-            "title": "Insurer Base",
-            "value": f"{n_ins:,}",
-            "change": f"Market: {n_mkt:,}",
+            "title": "Sample Share",
+            "value": fmt_pct(n_ins / n_mkt) if n_mkt else "--",
+            "change": "of market respondents",
             "sample_n": n_ins,
             "colour": CI_GREY,
         },

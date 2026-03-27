@@ -99,10 +99,12 @@ def _render_market_view(df_mkt, filters, period, n_mkt):
 
     # -- KPI row --
     mismatch = calc_quote_buy_mismatch(df_mkt)
+    shopping_rate = n_shoppers / n_mkt if n_mkt else None
     decision_kpi_row([
         {
-            "title": "Shoppers",
-            "value": f"{n_shoppers:,}",
+            "title": "Shopping Rate",
+            "value": fmt_pct(shopping_rate),
+            "change": "of market respondents shopped",
             "sample_n": n_shoppers,
             "colour": CI_MAGENTA,
         },
@@ -257,8 +259,8 @@ def _render_insurer_view(df_motor, df_mkt, insurer, filters, period, n_mkt):
     decision_kpi_row([
         {
             "title": "Quote Reach",
-            "value": f"{quote_reach:,}",
-            "change": f"{fmt_pct(reach_pct)} of {n_shoppers:,} shoppers",
+            "value": fmt_pct(reach_pct),
+            "change": "of active shoppers received a quote",
             "trend": "up" if reach_pct > 0.1 else "flat",
             "sample_n": n_ins,
             "colour": CI_MAGENTA,
@@ -317,15 +319,16 @@ def _render_insurer_view(df_motor, df_mkt, insurer, filters, period, n_mkt):
         st.markdown(
             f'<div style="font-family:{FONT}; font-size:12px; padding:4px 0; '
             f'border-bottom:1px solid {CI_LIGHT_GREY};">'
-            f'<span style="color:{CI_GREY};">Shoppers quoted</span>'
-            f'<span style="float:right; font-weight:700; color:{CI_MAGENTA};">{quote_reach:,}</span>'
+            f'<span style="color:{CI_GREY};">Quote reach</span>'
+            f'<span style="float:right; font-weight:700; color:{CI_MAGENTA};" '
+            f'title="n={quote_reach:,} shoppers quoted">{fmt_pct(reach_pct)}</span>'
             f'</div>',
             unsafe_allow_html=True,
         )
         st.markdown(
             f'<div style="font-family:{FONT}; font-size:12px; padding:4px 0; '
             f'border-bottom:1px solid {CI_LIGHT_GREY};">'
-            f'<span style="color:{CI_GREY};">Reach %</span>'
+            f'<span style="color:{CI_GREY};">vs market shoppers</span>'
             f'<span style="float:right; font-weight:700; color:{CI_MAGENTA};">{fmt_pct(reach_pct)}</span>'
             f'</div>',
             unsafe_allow_html=True,

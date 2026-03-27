@@ -179,7 +179,7 @@ def render(filters: dict):
         f'background:{CI_LGREY}; margin-bottom:16px; font-family:{FONT}; font-size:13px;">'
         f"<strong>{insurer}</strong> &mdash; "
         f"<strong style='color:{t_col}'>{tier}</strong> confidence &nbsp;|&nbsp; "
-        f"<strong>{ins_n:,}</strong> claimant responses</div>",
+        f"<span title='n={ins_n:,} claimant responses'>claimant sample</span></div>",
         unsafe_allow_html=True,
     )
 
@@ -408,7 +408,7 @@ def _render_q53_journey(q53_df, eligible, insurer, market_mean, period_text):
         f'<tbody>{"".join(rows_html)}</tbody></table>'
     )
     st.markdown(table, unsafe_allow_html=True)
-    st.caption(f"Sorted by gap (lowest first). Min n={MIN_BASE_INDICATIVE} per statement.")
+    st.caption("Sorted by gap (lowest first). Statements with insufficient responses are excluded.")
 
 
 def _get_diagnostics(q53_df, eligible, insurer):
