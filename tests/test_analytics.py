@@ -3012,3 +3012,81 @@ class TestCalcAwarenessTrendWithCI:
         assert "Aviva" in brands
         assert "Admiral" in brands
         assert len(brands) >= 2, "Market-level result must include multiple brands"
+
+
+# ===========================================================================
+# TestConfidenceLabel — lib/components/confidence.py :: confidence_label
+# ===========================================================================
+
+class TestConfidenceLabel:
+    """lib/components/confidence.py :: confidence_label"""
+
+    def _call(self, n: int) -> str:
+        from lib.components.confidence import confidence_label
+        return confidence_label(n)
+
+    def test_exactly_100_is_high_confidence(self):
+        assert self._call(100) == "High confidence"
+
+    def test_above_100_is_high_confidence(self):
+        assert self._call(500) == "High confidence"
+        assert self._call(10000) == "High confidence"
+
+    def test_exactly_30_is_indicative(self):
+        assert self._call(30) == "Indicative"
+
+    def test_between_30_and_100_is_indicative(self):
+        assert self._call(50) == "Indicative"
+        assert self._call(99) == "Indicative"
+
+    def test_below_30_is_low_confidence(self):
+        assert self._call(10) == "Low confidence"
+        assert self._call(1) == "Low confidence"
+
+    def test_zero_is_low_confidence(self):
+        assert self._call(0) == "Low confidence"
+
+    def test_29_is_low_confidence(self):
+        assert self._call(29) == "Low confidence"
+
+
+# ===========================================================================
+# TestConfidenceColour — lib/components/confidence.py :: confidence_colour
+# ===========================================================================
+
+class TestConfidenceColour:
+    """lib/components/confidence.py :: confidence_colour"""
+
+    def _call(self, n: int) -> str:
+        from lib.components.confidence import confidence_colour
+        return confidence_colour(n)
+
+    def test_exactly_100_returns_cyan(self):
+        from lib.config import CI_CYAN
+        assert self._call(100) == CI_CYAN
+
+    def test_above_100_returns_cyan(self):
+        from lib.config import CI_CYAN
+        assert self._call(500) == CI_CYAN
+        assert self._call(10000) == CI_CYAN
+
+    def test_exactly_30_returns_yellow(self):
+        from lib.config import CI_YELLOW
+        assert self._call(30) == CI_YELLOW
+
+    def test_between_30_and_100_returns_yellow(self):
+        from lib.config import CI_YELLOW
+        assert self._call(50) == CI_YELLOW
+        assert self._call(99) == CI_YELLOW
+
+    def test_below_30_returns_red(self):
+        from lib.config import CI_RED
+        assert self._call(10) == CI_RED
+
+    def test_zero_returns_red(self):
+        from lib.config import CI_RED
+        assert self._call(0) == CI_RED
+
+    def test_29_returns_red(self):
+        from lib.config import CI_RED
+        assert self._call(29) == CI_RED

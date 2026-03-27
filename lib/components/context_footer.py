@@ -9,15 +9,12 @@ import streamlit as st
 
 from lib.config import CI_CHARCOAL, CI_CHARCOAL_20, CI_CHARCOAL_60, CI_CYAN, CI_GREEN, CI_YELLOW, CI_RED, FONT
 from lib.components.methodology_dialog import render_methodology_button
+from lib.components.confidence import confidence_label, confidence_colour
 
 
 def _confidence_label(n: int) -> tuple[str, str]:
-    """Return (label, colour) for a sample size."""
-    if n >= 100:
-        return "High confidence", CI_CYAN  # was CI_GREEN — avoid clash with positive KPI accent
-    if n >= 30:
-        return "Indicative", CI_YELLOW
-    return "Low confidence", CI_RED
+    """Return (label, colour) for a sample size. Delegates to shared module."""
+    return confidence_label(n), confidence_colour(n)
 
 
 def render_context_footer(
@@ -61,10 +58,9 @@ def render_context_footer(
     if sample_n is not None:
         conf_label, conf_colour = _confidence_label(sample_n)
         parts.append(
-            f'n={sample_n:,} '
             f'<span style="display:inline-block; padding:1px 6px; border-radius:8px; '
             f'font-size:9px; font-weight:600; background:{conf_colour}20; '
-            f'color:{conf_colour};">{conf_label}</span>'
+            f'color:{conf_colour};" title="n={sample_n:,}">{conf_label}</span>'
         )
 
     parts.append(f"Last updated: {last_refreshed}")

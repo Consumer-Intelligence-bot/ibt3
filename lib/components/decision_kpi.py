@@ -13,6 +13,7 @@ from lib.config import (
     CI_CYAN, CI_GREEN, CI_PURPLE, CI_RED, CI_YELLOW,
     FONT,
 )
+from lib.components.confidence import confidence_label, confidence_colour
 
 
 def _trend_arrow(trend: str) -> tuple[str, str]:
@@ -25,12 +26,8 @@ def _trend_arrow(trend: str) -> tuple[str, str]:
 
 
 def _confidence_colour(n: int) -> str:
-    """Return badge colour based on sample size."""
-    if n >= 100:
-        return CI_CYAN  # was CI_GREEN — avoid clash with positive KPI accent
-    if n >= 30:
-        return CI_YELLOW
-    return CI_RED
+    """Return badge colour based on sample size. Delegates to shared module."""
+    return confidence_colour(n)
 
 
 def decision_kpi(
@@ -77,15 +74,17 @@ def decision_kpi(
             f'{arrow} {change}</div>'
         )
 
-    # Confidence badge
+    # Confidence badge — label visible, raw n in title tooltip (A7/A8)
     badge_html = ""
     if sample_n is not None:
         badge_colour = _confidence_colour(sample_n)
+        label = confidence_label(sample_n)
         badge_html = (
             f'<div style="display:inline-block; margin-top:8px; padding:2px 8px; '
             f'border-radius:12px; font-size:10px; font-weight:600; '
             f'background:{badge_colour}20; color:{badge_colour}; '
-            f'letter-spacing:0.3px;">n={sample_n:,}</div>'
+            f'letter-spacing:0.3px;" title="n={sample_n:,}">'
+            f'{label}</div>'
         )
 
     # Optional caption (CI range, definition, etc.)
